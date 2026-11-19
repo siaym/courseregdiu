@@ -2,6 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/types/database";
 
+import { getSupabaseUrl, getSupabasePublishableKey, isSupabaseConfigured } from "./config";
+
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({
     request: {
@@ -9,16 +11,13 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder-project.supabase.co";
-  const supabaseKey =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    "placeholder-anon-key";
-
   let user = null;
 
-  // Attempt to resolve real user session from Supabase if not using placeholders
-  if (!supabaseUrl.includes("placeholder-project") && !supabaseKey.includes("placeholder-anon")) {
+  // Attempt to resolve real user session from Supabase if properly configured
+  if (isSupabaseConfigured()) {
+    const supabaseUrl = getSupabaseUrl();
+    const supabaseKey = getSupabasePublishableKey();
+
     const supabase = createServerClient<Database>(supabaseUrl, supabaseKey, {
       cookies: {
         getAll() {

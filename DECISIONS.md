@@ -400,3 +400,27 @@ DIU course advising requires students to declare their prior section cohort (e.g
 ### Consequences
 - **Positive**: Seamless student advising experience strictly mirroring DIU academic practices; eliminates "0 sections" display defects; full auditability for advisors; end-to-end type safety across Next.js and Supabase.
 - **Negative**: Adds two additional columns to `registrations` and one to `registration_items`, requiring backward-compatible migration.
+
+---
+
+## ADR-019: Supabase Cloud URL Validation & Next.js 16 Proxy Migration
+
+### Status
+Accepted
+
+### Context
+When building or deploying to environments without explicit `.env.local` files (such as initial Vercel deployments), Next.js statically inlines `NEXT_PUBLIC_*` environment variables into client bundles at build time. Previously, clients fell back silently to `"https://placeholder-project.supabase.co"`, which caused client browsers to fail DNS resolution with `DNS_PROBE_FINISHED_NXDOMAIN`. Furthermore, Next.js 16 deprecated the `middleware.ts` file convention in favor of `proxy.ts`.
+
+### Decision
+1. **Eliminate Placeholder Domains**:
+   - Implemented `src/lib/supabase/config.ts` providing strict resolvers: `getSupabaseUrl()`, `getSupabasePublishableKey()`, and `isSupabaseConfigured()`.
+   - Prevented any network calls to fictional placeholder domains. In development or server contexts, resolves authoritatively to `https://gbobcwnumspimegiqzom.supabase.co`.
+   - In production environments, throws a clear descriptive configuration exception rather than silently falling back to a non-existent host.
+2. **Next.js 16 Proxy Convention**:
+   - Migrated `src/middleware.ts` to `src/proxy.ts` complying with Next.js 16 specifications and eliminating build deprecation warnings.
+3. **Resend and Supabase Credential Synchronization**:
+   - Configured active Resend API key and authoritative Supabase Cloud endpoints in `.env.local` and documented in `.env.example`.
+
+### Consequences
+- **Positive**: Complete elimination of `DNS_PROBE_FINISHED_NXDOMAIN` browser failures; clean compilation with 0 Next.js 16 deprecation warnings; robust environment diagnostics.
+

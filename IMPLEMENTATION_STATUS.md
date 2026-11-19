@@ -1,6 +1,6 @@
 # IMPLEMENTATION STATUS — DIU Course Registration Platform
 
-> **Milestones**: Phase 0 Complete (100%) | Phase 1 Complete (100%) | Phase 1.5 Simplification (100%) | P0 Security Remediation Complete (100%) | Final Auth Policy Complete (100%) | P0 Security Hardening Complete (100%) | Student Guided Registration Workflow Complete (100%) | **Advisor Portal UI/UX & Content Design Overhaul Complete (100%)**  
+> **Milestones**: Phase 0 Complete (100%) | Phase 1 Complete (100%) | Phase 1.5 Simplification (100%) | P0 Security Remediation Complete (100%) | Final Auth Policy Complete (100%) | P0 Security Hardening Complete (100%) | Student Guided Registration Workflow Complete (100%) | Advisor Portal UI/UX & Content Design Overhaul Complete (100%) | **Supabase Cloud URL Resolver & Next.js 16 Proxy Migration Complete (100%)**  
 > **Build Status**: Passing (`next build` & `eslint` exit code 0, 0 errors, 0 warnings)  
 > **Test Status**: Passing (`npm test` — **32/32** test cases pass across 4 test suites, 0 failures)  
 > **Total Routes**: 22 Routes Compiled (Static & Dynamic SSR)  

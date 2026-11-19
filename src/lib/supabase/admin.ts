@@ -1,9 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
+import { getSupabaseUrl, getSupabaseServiceRoleKey } from "./config";
 
 export function getSupabaseAdminClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder-project.supabase.co";
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "placeholder-service-role-key";
+  const supabaseUrl = getSupabaseUrl();
+  const serviceRoleKey = getSupabaseServiceRoleKey() || "placeholder-service-role-key";
 
   return createClient<Database>(supabaseUrl, serviceRoleKey, {
     auth: {
