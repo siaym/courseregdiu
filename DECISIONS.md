@@ -372,3 +372,31 @@ Code review identified remaining vulnerabilities before live Supabase database d
 ### Consequences
 - **Positive**: Complete defense-in-depth security model; zero profile data exposure; seamless secondary email authentication mapped to canonical profile; guaranteed concurrency safety under high load; 100% idempotent SQL setup script.
 - **Negative**: Complex RLS policies require `get_current_profile_id()` function overhead (mitigated via STABLE function caching).
+
+---
+
+## ADR-007: Guided 4-Step Student Registration Wizard & Section Cohort Persistence
+
+### Status
+Accepted
+
+### Context
+DIU course advising requires students to declare their prior section cohort (e.g. `69_K`) and requested target section (e.g. `69_D`), choose course offerings from their department curriculum, and explicitly categorize each selected course as a General enrollment (standard progress) or Retake enrollment (improving grade or clearing backlog). Academic advisors must inspect these cohort assignments and course classifications during application review.
+
+### Decision
+1. **Guided 4-Step Registration Architecture (`UnifiedCoursesWorkspace`)**:
+   - Step 1: Academic Section Details (`previous_section`, `desired_section`) with format validation and educational guidance.
+   - Step 2: Course Selection Workspace with instant debounced search, department/level filters, and section schedules across all 20 DIU courses.
+   - Step 3: Per-Course Classification (`general` vs `retake`) with segmented radio toggles and real-time metric counters.
+   - Step 4: Final Application Review displaying student info, cohort sections, courses breakdown, and submission verification.
+2. **Schema & Database Persistence**:
+   - Extended `public.registrations` with `previous_section VARCHAR(20)` and `desired_section VARCHAR(20)`.
+   - Extended `public.registration_items` with `course_type VARCHAR(20) CHECK (course_type IN ('general', 'retake'))`.
+   - Sequential migration `supabase/migrations/20261119220000_student_registration_workflow.sql` and full idempotency in `supabase/complete_setup.sql`.
+3. **Advisor Studio Integration**:
+   - Overhauled `/advisor/review/[id]` to render student profile, alternative authorized personal email badge, cohort section transition (`69_K` &rarr; `69_D`), and course table with explicit `Course Type` badges.
+   - Wired server actions `finalizeAdvisorReviewAction` and `reassignAdviseeSectionAction` with path revalidation.
+
+### Consequences
+- **Positive**: Seamless student advising experience strictly mirroring DIU academic practices; eliminates "0 sections" display defects; full auditability for advisors; end-to-end type safety across Next.js and Supabase.
+- **Negative**: Adds two additional columns to `registrations` and one to `registration_items`, requiring backward-compatible migration.

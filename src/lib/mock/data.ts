@@ -40,15 +40,18 @@ export interface ExtendedSection extends SectionRow {
 
 export interface StudentRegistrationApplication {
   registration: RegistrationRow;
-  student: ProfileRow;
+  student: ProfileRow & { authorized_alternative_email?: string | null };
   semester: SemesterRow;
   items: Array<{
     item: RegistrationItemRow;
     section: ExtendedSection;
     course: CourseRow;
+    course_type?: "general" | "retake";
   }>;
   totalCredits: number;
   totalCourses: number;
+  generalCourseCount?: number;
+  retakeCourseCount?: number;
   hasScheduleConflict?: boolean;
   hasPrerequisiteConflict?: boolean;
   isProbation?: boolean;
@@ -402,11 +405,279 @@ export const MOCK_COURSES: ExtendedCourse[] = [
 // 4. SECTIONS (Spring 2026 Offerings with DIU Slot System)
 // ---------------------------------------------------------------------------
 export const MOCK_SECTIONS: ExtendedSection[] = [
-  // CSE221: Algorithms
+  // 1. CSE110: Structured Programming Language
+  {
+    id: "sec-cse110-69d",
+    course_id: "course-cse110",
+    semester_id: "sem-spring-2027",
+    section_name: "69_D",
+    capacity: 40,
+    enrolled_count: 32,
+    room: "AB4-501",
+    schedule: [
+      { day: "Sunday", start_time: "10:00", end_time: "11:30", room: "AB4-501" },
+      { day: "Tuesday", start_time: "10:00", end_time: "11:30", room: "AB4-501" },
+    ],
+    instructor_name: "Mr. Md. Shahriar Hossain",
+    course_code: "CSE110",
+    course_title: "Structured Programming Language",
+    credits: 3.0,
+    created_at: "2027-02-01T00:00:00Z",
+  },
+  {
+    id: "sec-cse110-69k",
+    course_id: "course-cse110",
+    semester_id: "sem-spring-2027",
+    section_name: "69_K",
+    capacity: 40,
+    enrolled_count: 28,
+    room: "AB4-502",
+    schedule: [
+      { day: "Monday", start_time: "08:30", end_time: "10:00", room: "AB4-502" },
+      { day: "Wednesday", start_time: "08:30", end_time: "10:00", room: "AB4-502" },
+    ],
+    instructor_name: "Mr. Tanvir Rahman",
+    course_code: "CSE110",
+    course_title: "Structured Programming Language",
+    credits: 3.0,
+    created_at: "2027-02-01T00:00:00Z",
+  },
+
+  // 2. CSE111: Structured Programming Language Lab
+  {
+    id: "sec-cse111-69dl",
+    course_id: "course-cse111",
+    semester_id: "sem-spring-2027",
+    section_name: "69_D_L",
+    capacity: 30,
+    enrolled_count: 24,
+    room: "CS-Lab 1",
+    schedule: [
+      { day: "Sunday", start_time: "11:30", end_time: "14:30", room: "CS-Lab 1" },
+    ],
+    instructor_name: "Mr. Md. Shahriar Hossain",
+    course_code: "CSE111",
+    course_title: "Structured Programming Language Lab",
+    credits: 1.5,
+    created_at: "2027-02-01T00:00:00Z",
+  },
+  {
+    id: "sec-cse111-69kl",
+    course_id: "course-cse111",
+    semester_id: "sem-spring-2027",
+    section_name: "69_K_L",
+    capacity: 30,
+    enrolled_count: 22,
+    room: "CS-Lab 2",
+    schedule: [
+      { day: "Tuesday", start_time: "11:30", end_time: "14:30", room: "CS-Lab 2" },
+    ],
+    instructor_name: "Mr. Tanvir Rahman",
+    course_code: "CSE111",
+    course_title: "Structured Programming Language Lab",
+    credits: 1.5,
+    created_at: "2027-02-01T00:00:00Z",
+  },
+
+  // 3. MAT101: Differential and Integral Calculus
+  {
+    id: "sec-mat101-69d",
+    course_id: "course-mat101",
+    semester_id: "sem-spring-2027",
+    section_name: "69_D",
+    capacity: 40,
+    enrolled_count: 35,
+    room: "AB4-601",
+    schedule: [
+      { day: "Sunday", start_time: "11:30", end_time: "13:00", room: "AB4-601" },
+      { day: "Tuesday", start_time: "11:30", end_time: "13:00", room: "AB4-601" },
+    ],
+    instructor_name: "Dr. Touhid Bhuiyan",
+    course_code: "MAT101",
+    course_title: "Differential and Integral Calculus",
+    credits: 3.0,
+    created_at: "2027-02-01T00:00:00Z",
+  },
+  {
+    id: "sec-mat101-69k",
+    course_id: "course-mat101",
+    semester_id: "sem-spring-2027",
+    section_name: "69_K",
+    capacity: 40,
+    enrolled_count: 30,
+    room: "AB4-602",
+    schedule: [
+      { day: "Monday", start_time: "10:00", end_time: "11:30", room: "AB4-602" },
+      { day: "Wednesday", start_time: "10:00", end_time: "11:30", room: "AB4-602" },
+    ],
+    instructor_name: "Dr. Touhid Bhuiyan",
+    course_code: "MAT101",
+    course_title: "Differential and Integral Calculus",
+    credits: 3.0,
+    created_at: "2027-02-01T00:00:00Z",
+  },
+
+  // 4. ENG101: Basic English Language Skills
+  {
+    id: "sec-eng101-69d",
+    course_id: "course-eng101",
+    semester_id: "sem-spring-2027",
+    section_name: "69_D",
+    capacity: 40,
+    enrolled_count: 38,
+    room: "AB3-101",
+    schedule: [
+      { day: "Monday", start_time: "13:00", end_time: "14:30", room: "AB3-101" },
+      { day: "Wednesday", start_time: "13:00", end_time: "14:30", room: "AB3-101" },
+    ],
+    instructor_name: "Ms. Farhana Sarker",
+    course_code: "ENG101",
+    course_title: "Basic English Language Skills",
+    credits: 3.0,
+    created_at: "2027-02-01T00:00:00Z",
+  },
+  {
+    id: "sec-eng101-69k",
+    course_id: "course-eng101",
+    semester_id: "sem-spring-2027",
+    section_name: "69_K",
+    capacity: 40,
+    enrolled_count: 29,
+    room: "AB3-102",
+    schedule: [
+      { day: "Sunday", start_time: "14:30", end_time: "16:00", room: "AB3-102" },
+      { day: "Tuesday", start_time: "14:30", end_time: "16:00", room: "AB3-102" },
+    ],
+    instructor_name: "Ms. Farhana Sarker",
+    course_code: "ENG101",
+    course_title: "Basic English Language Skills",
+    credits: 3.0,
+    created_at: "2027-02-01T00:00:00Z",
+  },
+
+  // 5. PHY111: Physics
+  {
+    id: "sec-phy111-69d",
+    course_id: "course-phy111",
+    semester_id: "sem-spring-2027",
+    section_name: "69_D",
+    capacity: 40,
+    enrolled_count: 31,
+    room: "AB4-401",
+    schedule: [
+      { day: "Monday", start_time: "11:30", end_time: "13:00", room: "AB4-401" },
+      { day: "Wednesday", start_time: "11:30", end_time: "13:00", room: "AB4-401" },
+    ],
+    instructor_name: "Dr. Firoz Mridha",
+    course_code: "PHY111",
+    course_title: "Physics: Mechanics, Waves and Optics",
+    credits: 3.0,
+    created_at: "2027-02-01T00:00:00Z",
+  },
+
+  // 6. CSE122: Data Structures
+  {
+    id: "sec-cse122-69d",
+    course_id: "course-cse122",
+    semester_id: "sem-spring-2027",
+    section_name: "69_D",
+    capacity: 40,
+    enrolled_count: 34,
+    room: "AB4-601",
+    schedule: [
+      { day: "Sunday", start_time: "08:30", end_time: "10:00", room: "AB4-601" },
+      { day: "Tuesday", start_time: "08:30", end_time: "10:00", room: "AB4-601" },
+    ],
+    instructor_name: "Dr. Syed Akhter Hossain",
+    course_code: "CSE122",
+    course_title: "Data Structures",
+    credits: 3.0,
+    created_at: "2027-02-01T00:00:00Z",
+  },
+
+  // 7. CSE123: Data Structures Lab
+  {
+    id: "sec-cse123-69dl",
+    course_id: "course-cse123",
+    semester_id: "sem-spring-2027",
+    section_name: "69_D_L",
+    capacity: 30,
+    enrolled_count: 25,
+    room: "CS-Lab 3",
+    schedule: [
+      { day: "Thursday", start_time: "08:30", end_time: "11:30", room: "CS-Lab 3" },
+    ],
+    instructor_name: "Mr. Tanvir Rahman",
+    course_code: "CSE123",
+    course_title: "Data Structures Lab",
+    credits: 1.5,
+    created_at: "2027-02-01T00:00:00Z",
+  },
+
+  // 8. CSE213: Object-Oriented Programming (Java)
+  {
+    id: "sec-cse213-69d",
+    course_id: "course-cse213",
+    semester_id: "sem-spring-2027",
+    section_name: "69_D",
+    capacity: 40,
+    enrolled_count: 33,
+    room: "AB4-503",
+    schedule: [
+      { day: "Sunday", start_time: "10:00", end_time: "11:30", room: "AB4-503" },
+      { day: "Tuesday", start_time: "10:00", end_time: "11:30", room: "AB4-503" },
+    ],
+    instructor_name: "Mr. Md. Shahriar Hossain",
+    course_code: "CSE213",
+    course_title: "Object-Oriented Programming (Java)",
+    credits: 3.0,
+    created_at: "2027-02-01T00:00:00Z",
+  },
+
+  // 9. MAT205: Linear Algebra and Complex Variables
+  {
+    id: "sec-mat205-69d",
+    course_id: "course-mat205",
+    semester_id: "sem-spring-2027",
+    section_name: "69_D",
+    capacity: 40,
+    enrolled_count: 32,
+    room: "AB4-603",
+    schedule: [
+      { day: "Sunday", start_time: "13:00", end_time: "14:30", room: "AB4-603" },
+      { day: "Tuesday", start_time: "13:00", end_time: "14:30", room: "AB4-603" },
+    ],
+    instructor_name: "Dr. Touhid Bhuiyan",
+    course_code: "MAT205",
+    course_title: "Linear Algebra and Complex Variables",
+    credits: 3.0,
+    created_at: "2027-02-01T00:00:00Z",
+  },
+
+  // 10. CSE214: Digital Logic Design Lab
+  {
+    id: "sec-cse214-69dl",
+    course_id: "course-cse214",
+    semester_id: "sem-spring-2027",
+    section_name: "69_D_L",
+    capacity: 30,
+    enrolled_count: 26,
+    room: "CS-Lab 4",
+    schedule: [
+      { day: "Thursday", start_time: "14:30", end_time: "17:30", room: "CS-Lab 4" },
+    ],
+    instructor_name: "Mr. Tanvir Rahman",
+    course_code: "CSE214",
+    course_title: "Digital Logic Design Lab",
+    credits: 1.5,
+    created_at: "2027-02-01T00:00:00Z",
+  },
+
+  // 11. CSE221: Algorithms Design and Analysis
   {
     id: "sec-cse221-a",
     course_id: "course-cse221",
-    semester_id: "sem-spring-2026",
+    semester_id: "sem-spring-2027",
     section_name: "60_A",
     capacity: 40,
     enrolled_count: 36,
@@ -419,12 +690,12 @@ export const MOCK_SECTIONS: ExtendedSection[] = [
     course_code: "CSE221",
     course_title: "Algorithms Design and Analysis",
     credits: 3.0,
-    created_at: "2026-11-01T00:00:00Z",
+    created_at: "2027-02-01T00:00:00Z",
   },
   {
     id: "sec-cse221-b",
     course_id: "course-cse221",
-    semester_id: "sem-spring-2026",
+    semester_id: "sem-spring-2027",
     section_name: "60_B",
     capacity: 40,
     enrolled_count: 40, // FULL
@@ -437,12 +708,12 @@ export const MOCK_SECTIONS: ExtendedSection[] = [
     course_code: "CSE221",
     course_title: "Algorithms Design and Analysis",
     credits: 3.0,
-    created_at: "2026-11-01T00:00:00Z",
+    created_at: "2027-02-01T00:00:00Z",
   },
   {
     id: "sec-cse221-c",
     course_id: "course-cse221",
-    semester_id: "sem-spring-2026",
+    semester_id: "sem-spring-2027",
     section_name: "60_C",
     capacity: 40,
     enrolled_count: 22,
@@ -455,14 +726,50 @@ export const MOCK_SECTIONS: ExtendedSection[] = [
     course_code: "CSE221",
     course_title: "Algorithms Design and Analysis",
     credits: 3.0,
-    created_at: "2026-11-01T00:00:00Z",
+    created_at: "2027-02-01T00:00:00Z",
+  },
+  {
+    id: "sec-cse221-69d",
+    course_id: "course-cse221",
+    semester_id: "sem-spring-2027",
+    section_name: "69_D",
+    capacity: 40,
+    enrolled_count: 35,
+    room: "AB4-601",
+    schedule: [
+      { day: "Sunday", start_time: "08:30", end_time: "10:00", room: "AB4-601" },
+      { day: "Tuesday", start_time: "08:30", end_time: "10:00", room: "AB4-601" },
+    ],
+    instructor_name: "Dr. Syed Akhter Hossain",
+    course_code: "CSE221",
+    course_title: "Algorithms Design and Analysis",
+    credits: 3.0,
+    created_at: "2027-02-01T00:00:00Z",
+  },
+  {
+    id: "sec-cse221-69k",
+    course_id: "course-cse221",
+    semester_id: "sem-spring-2027",
+    section_name: "69_K",
+    capacity: 40,
+    enrolled_count: 33,
+    room: "AB4-602",
+    schedule: [
+      { day: "Monday", start_time: "08:30", end_time: "10:00", room: "AB4-602" },
+      { day: "Wednesday", start_time: "08:30", end_time: "10:00", room: "AB4-602" },
+    ],
+    instructor_name: "Dr. Syed Akhter Hossain",
+    course_code: "CSE221",
+    course_title: "Algorithms Design and Analysis",
+    credits: 3.0,
+    created_at: "2027-02-01T00:00:00Z",
   },
 
-  // CSE222: Algorithms Lab
+  // 12. CSE222: Algorithms Lab
   {
     id: "sec-cse222-a",
     course_id: "course-cse222",
-    semester_id: "sem-spring-2026",
+    semester_id: "sem-spring-2027",
     section_name: "60_A_L",
     capacity: 35,
     enrolled_count: 31,
@@ -474,17 +781,34 @@ export const MOCK_SECTIONS: ExtendedSection[] = [
     course_code: "CSE222",
     course_title: "Algorithms Design and Analysis Lab",
     credits: 1.5,
-    created_at: "2026-11-01T00:00:00Z",
+    created_at: "2027-02-01T00:00:00Z",
+  },
+  {
+    id: "sec-cse222-69dl",
+    course_id: "course-cse222",
+    semester_id: "sem-spring-2027",
+    section_name: "69_D_L",
+    capacity: 30,
+    enrolled_count: 28,
+    room: "CS-Lab 3",
+    schedule: [
+      { day: "Thursday", start_time: "11:30", end_time: "14:30", room: "CS-Lab 3" },
+    ],
+    instructor_name: "Mr. Md. Shahriar Hossain",
+    course_code: "CSE222",
+    course_title: "Algorithms Design and Analysis Lab",
+    credits: 1.5,
+    created_at: "2027-02-01T00:00:00Z",
   },
 
-  // CSE225: Database Systems
+  // 13. CSE225: Database Management Systems
   {
     id: "sec-cse225-a",
     course_id: "course-cse225",
-    semester_id: "sem-spring-2026",
+    semester_id: "sem-spring-2027",
     section_name: "60_A",
     capacity: 40,
-    enrolled_count: 38, // ALMOST FULL
+    enrolled_count: 38,
     room: "AB4-501",
     schedule: [
       { day: "Sunday", start_time: "11:30", end_time: "13:00", room: "AB4-501" },
@@ -494,12 +818,12 @@ export const MOCK_SECTIONS: ExtendedSection[] = [
     course_code: "CSE225",
     course_title: "Database Management Systems",
     credits: 3.0,
-    created_at: "2026-11-01T00:00:00Z",
+    created_at: "2027-02-01T00:00:00Z",
   },
   {
     id: "sec-cse225-b",
     course_id: "course-cse225",
-    semester_id: "sem-spring-2026",
+    semester_id: "sem-spring-2027",
     section_name: "60_B",
     capacity: 40,
     enrolled_count: 18,
@@ -512,14 +836,32 @@ export const MOCK_SECTIONS: ExtendedSection[] = [
     course_code: "CSE225",
     course_title: "Database Management Systems",
     credits: 3.0,
-    created_at: "2026-11-01T00:00:00Z",
+    created_at: "2027-02-01T00:00:00Z",
+  },
+  {
+    id: "sec-cse225-69d",
+    course_id: "course-cse225",
+    semester_id: "sem-spring-2027",
+    section_name: "69_D",
+    capacity: 40,
+    enrolled_count: 34,
+    room: "AB4-501",
+    schedule: [
+      { day: "Sunday", start_time: "11:30", end_time: "13:00", room: "AB4-501" },
+      { day: "Tuesday", start_time: "11:30", end_time: "13:00", room: "AB4-501" },
+    ],
+    instructor_name: "Dr. Firoz Mridha",
+    course_code: "CSE225",
+    course_title: "Database Management Systems",
+    credits: 3.0,
+    created_at: "2027-02-01T00:00:00Z",
   },
 
-  // CSE226: Database Lab
+  // 14. CSE226: Database Management Systems Lab
   {
     id: "sec-cse226-a",
     course_id: "course-cse226",
-    semester_id: "sem-spring-2026",
+    semester_id: "sem-spring-2027",
     section_name: "60_A_L",
     capacity: 35,
     enrolled_count: 29,
@@ -531,14 +873,31 @@ export const MOCK_SECTIONS: ExtendedSection[] = [
     course_code: "CSE226",
     course_title: "Database Management Systems Lab",
     credits: 1.5,
-    created_at: "2026-11-01T00:00:00Z",
+    created_at: "2027-02-01T00:00:00Z",
+  },
+  {
+    id: "sec-cse226-69dl",
+    course_id: "course-cse226",
+    semester_id: "sem-spring-2027",
+    section_name: "69_D_L",
+    capacity: 30,
+    enrolled_count: 27,
+    room: "CS-Lab 5",
+    schedule: [
+      { day: "Monday", start_time: "14:30", end_time: "17:30", room: "CS-Lab 5" },
+    ],
+    instructor_name: "Mr. Tanvir Rahman",
+    course_code: "CSE226",
+    course_title: "Database Management Systems Lab",
+    credits: 1.5,
+    created_at: "2027-02-01T00:00:00Z",
   },
 
-  // CSE311: Operating Systems
+  // 15. CSE311: Operating Systems
   {
     id: "sec-cse311-a",
     course_id: "course-cse311",
-    semester_id: "sem-spring-2026",
+    semester_id: "sem-spring-2027",
     section_name: "59_A",
     capacity: 40,
     enrolled_count: 35,
@@ -551,17 +910,55 @@ export const MOCK_SECTIONS: ExtendedSection[] = [
     course_code: "CSE311",
     course_title: "Operating Systems",
     credits: 3.0,
-    created_at: "2026-11-01T00:00:00Z",
+    created_at: "2027-02-01T00:00:00Z",
+  },
+  {
+    id: "sec-cse311-69d",
+    course_id: "course-cse311",
+    semester_id: "sem-spring-2027",
+    section_name: "69_D",
+    capacity: 40,
+    enrolled_count: 31,
+    room: "AB4-401",
+    schedule: [
+      { day: "Saturday", start_time: "10:00", end_time: "11:30", room: "AB4-401" },
+      { day: "Wednesday", start_time: "10:00", end_time: "11:30", room: "AB4-401" },
+    ],
+    instructor_name: "Dr. Touhid Bhuiyan",
+    course_code: "CSE311",
+    course_title: "Operating Systems",
+    credits: 3.0,
+    created_at: "2027-02-01T00:00:00Z",
   },
 
-  // CSE412: AI & Machine Learning
+  // 16. CSE323: Computer Architecture & Organization
+  {
+    id: "sec-cse323-69d",
+    course_id: "course-cse323",
+    semester_id: "sem-spring-2027",
+    section_name: "69_D",
+    capacity: 40,
+    enrolled_count: 30,
+    room: "AB4-403",
+    schedule: [
+      { day: "Sunday", start_time: "14:30", end_time: "16:00", room: "AB4-403" },
+      { day: "Tuesday", start_time: "14:30", end_time: "16:00", room: "AB4-403" },
+    ],
+    instructor_name: "Ms. Lamia Sultana",
+    course_code: "CSE323",
+    course_title: "Computer Architecture and Organization",
+    credits: 3.0,
+    created_at: "2027-02-01T00:00:00Z",
+  },
+
+  // 17. CSE412: Artificial Intelligence and Machine Learning
   {
     id: "sec-cse412-a",
     course_id: "course-cse412",
-    semester_id: "sem-spring-2026",
+    semester_id: "sem-spring-2027",
     section_name: "58_A",
     capacity: 35,
-    enrolled_count: 34, // ALMOST FULL
+    enrolled_count: 34,
     room: "AB3-301",
     schedule: [
       { day: "Saturday", start_time: "11:30", end_time: "13:00", room: "AB3-301" },
@@ -571,14 +968,32 @@ export const MOCK_SECTIONS: ExtendedSection[] = [
     course_code: "CSE412",
     course_title: "Artificial Intelligence and Machine Learning",
     credits: 3.0,
-    created_at: "2026-11-01T00:00:00Z",
+    created_at: "2027-02-01T00:00:00Z",
+  },
+  {
+    id: "sec-cse412-69d",
+    course_id: "course-cse412",
+    semester_id: "sem-spring-2027",
+    section_name: "69_D",
+    capacity: 40,
+    enrolled_count: 28,
+    room: "AB4-502",
+    schedule: [
+      { day: "Saturday", start_time: "11:30", end_time: "13:00", room: "AB4-502" },
+      { day: "Tuesday", start_time: "14:30", end_time: "16:00", room: "AB4-502" },
+    ],
+    instructor_name: "Dr. Firoz Mridha",
+    course_code: "CSE412",
+    course_title: "Artificial Intelligence and Machine Learning",
+    credits: 3.0,
+    created_at: "2027-02-01T00:00:00Z",
   },
 
-  // CSE425: Web & Mobile App Dev
+  // 18. CSE425: Web and Mobile Application Development
   {
     id: "sec-cse425-a",
     course_id: "course-cse425",
-    semester_id: "sem-spring-2026",
+    semester_id: "sem-spring-2027",
     section_name: "58_A",
     capacity: 40,
     enrolled_count: 24,
@@ -591,14 +1006,32 @@ export const MOCK_SECTIONS: ExtendedSection[] = [
     course_code: "CSE425",
     course_title: "Web and Mobile Application Development",
     credits: 3.0,
-    created_at: "2026-11-01T00:00:00Z",
+    created_at: "2027-02-01T00:00:00Z",
+  },
+  {
+    id: "sec-cse425-69d",
+    course_id: "course-cse425",
+    semester_id: "sem-spring-2027",
+    section_name: "69_D",
+    capacity: 40,
+    enrolled_count: 32,
+    room: "AB4-402",
+    schedule: [
+      { day: "Sunday", start_time: "10:00", end_time: "11:30", room: "AB4-402" },
+      { day: "Tuesday", start_time: "10:00", end_time: "11:30", room: "AB4-402" },
+    ],
+    instructor_name: "Dr. Touhid Bhuiyan",
+    course_code: "CSE425",
+    course_title: "Web and Mobile Application Development",
+    credits: 3.0,
+    created_at: "2027-02-01T00:00:00Z",
   },
 
-  // SWE312: Software QA
+  // 19. SWE312: Software Quality Assurance and Testing
   {
     id: "sec-swe312-a",
     course_id: "course-swe312",
-    semester_id: "sem-spring-2026",
+    semester_id: "sem-spring-2027",
     section_name: "59_A",
     capacity: 35,
     enrolled_count: 15,
@@ -611,7 +1044,61 @@ export const MOCK_SECTIONS: ExtendedSection[] = [
     course_code: "SWE312",
     course_title: "Software Quality Assurance and Testing",
     credits: 3.0,
-    created_at: "2026-11-01T00:00:00Z",
+    created_at: "2027-02-01T00:00:00Z",
+  },
+  {
+    id: "sec-swe312-69d",
+    course_id: "course-swe312",
+    semester_id: "sem-spring-2027",
+    section_name: "69_D",
+    capacity: 40,
+    enrolled_count: 29,
+    room: "AB3-202",
+    schedule: [
+      { day: "Monday", start_time: "10:00", end_time: "11:30", room: "AB3-202" },
+      { day: "Wednesday", start_time: "14:30", end_time: "16:00", room: "AB3-202" },
+    ],
+    instructor_name: "Mr. Imran Hossain",
+    course_code: "SWE312",
+    course_title: "Software Quality Assurance and Testing",
+    credits: 3.0,
+    created_at: "2027-02-01T00:00:00Z",
+  },
+
+  // 20. CSE499: Senior Capstone / Final Project
+  {
+    id: "sec-cse499-58a",
+    course_id: "course-cse499",
+    semester_id: "sem-spring-2027",
+    section_name: "58_A",
+    capacity: 40,
+    enrolled_count: 25,
+    room: "AB4-601",
+    schedule: [
+      { day: "Thursday", start_time: "10:00", end_time: "13:00", room: "AB4-601" },
+    ],
+    instructor_name: "Prof. Dr. Sheak Rashed Haider Noori",
+    course_code: "CSE499",
+    course_title: "Final Year Design Project / Thesis",
+    credits: 3.0,
+    created_at: "2027-02-01T00:00:00Z",
+  },
+  {
+    id: "sec-cse499-69d",
+    course_id: "course-cse499",
+    semester_id: "sem-spring-2027",
+    section_name: "69_D",
+    capacity: 40,
+    enrolled_count: 20,
+    room: "AB4-601",
+    schedule: [
+      { day: "Thursday", start_time: "14:00", end_time: "17:00", room: "AB4-601" },
+    ],
+    instructor_name: "Prof. Dr. Sheak Rashed Haider Noori",
+    course_code: "CSE499",
+    course_title: "Final Year Design Project / Thesis",
+    credits: 3.0,
+    created_at: "2027-02-01T00:00:00Z",
   },
 ];
 
@@ -878,6 +1365,8 @@ export const MOCK_STUDENT_ACTIVE_REGISTRATION: RegistrationRow = {
   student_id: MOCK_STUDENT_PROFILE.id,
   semester_id: MOCK_CURRENT_SEMESTER.id,
   status: "draft",
+  previous_section: "69_K",
+  desired_section: "69_D",
   submitted_at: null,
   advisor_id: MOCK_ADVISOR_PROFILE.id,
   reviewed_at: null,
@@ -913,6 +1402,8 @@ export const MOCK_ADVISEE_QUEUE: StudentRegistrationApplication[] = [
       advisor_notes: null,
       payment_cleared: true,
       payment_reference: "DIU-AC-2027-4561",
+      previous_section: "61_D",
+      desired_section: "61_A",
       created_at: "2027-04-14T10:00:00Z",
       updated_at: "2027-04-14T14:30:00Z",
     },
@@ -929,6 +1420,7 @@ export const MOCK_ADVISEE_QUEUE: StudentRegistrationApplication[] = [
       avatar_url: null,
       onboarding_completed: true,
       batch: "61",
+      authorized_alternative_email: null,
       created_at: "2024-01-15T00:00:00Z",
       updated_at: "2027-04-14T00:00:00Z",
     },
@@ -937,28 +1429,34 @@ export const MOCK_ADVISEE_QUEUE: StudentRegistrationApplication[] = [
     isUnderReview: false,
     items: [
       {
-        item: { id: "item-101", registration_id: "reg-app-001", section_id: "sec-cse221-a", status: "enrolled", created_at: "2027-04-14T14:30:00Z" },
+        item: { id: "item-101", registration_id: "reg-app-001", section_id: "sec-cse221-a", course_type: "general", status: "enrolled", created_at: "2027-04-14T14:30:00Z" },
         section: MOCK_SECTIONS.find((s) => s.id === "sec-cse221-a")!,
         course: MOCK_COURSES.find((c) => c.code === "CSE221")!,
+        course_type: "general",
       },
       {
-        item: { id: "item-102", registration_id: "reg-app-001", section_id: "sec-cse222-a", status: "enrolled", created_at: "2027-04-14T14:30:00Z" },
+        item: { id: "item-102", registration_id: "reg-app-001", section_id: "sec-cse222-a", course_type: "general", status: "enrolled", created_at: "2027-04-14T14:30:00Z" },
         section: MOCK_SECTIONS.find((s) => s.id === "sec-cse222-a")!,
         course: MOCK_COURSES.find((c) => c.code === "CSE222")!,
+        course_type: "general",
       },
       {
-        item: { id: "item-103", registration_id: "reg-app-001", section_id: "sec-cse225-a", status: "enrolled", created_at: "2027-04-14T14:30:00Z" },
+        item: { id: "item-103", registration_id: "reg-app-001", section_id: "sec-cse225-a", course_type: "general", status: "enrolled", created_at: "2027-04-14T14:30:00Z" },
         section: MOCK_SECTIONS.find((s) => s.id === "sec-cse225-a")!,
         course: MOCK_COURSES.find((c) => c.code === "CSE225")!,
+        course_type: "general",
       },
       {
-        item: { id: "item-104", registration_id: "reg-app-001", section_id: "sec-cse311-a", status: "enrolled", created_at: "2027-04-14T14:30:00Z" },
+        item: { id: "item-104", registration_id: "reg-app-001", section_id: "sec-cse311-a", course_type: "retake", status: "enrolled", created_at: "2027-04-14T14:30:00Z" },
         section: MOCK_SECTIONS.find((s) => s.id === "sec-cse311-a")!,
         course: MOCK_COURSES.find((c) => c.code === "CSE311")!,
+        course_type: "retake",
       },
     ],
     totalCredits: 10.5,
     totalCourses: 4,
+    generalCourseCount: 3,
+    retakeCourseCount: 1,
     hasScheduleConflict: false,
     hasPrerequisiteConflict: false,
     isProbation: false,
@@ -977,6 +1475,8 @@ export const MOCK_ADVISEE_QUEUE: StudentRegistrationApplication[] = [
       advisor_notes: null,
       payment_cleared: true,
       payment_reference: "DIU-AC-2027-4572",
+      previous_section: "61_K",
+      desired_section: "61_D",
       created_at: "2027-04-14T09:00:00Z",
       updated_at: "2027-04-14T13:20:00Z",
     },
@@ -993,6 +1493,7 @@ export const MOCK_ADVISEE_QUEUE: StudentRegistrationApplication[] = [
       avatar_url: null,
       onboarding_completed: true,
       batch: "61",
+      authorized_alternative_email: null,
       created_at: "2024-01-15T00:00:00Z",
       updated_at: "2027-04-14T00:00:00Z",
     },
@@ -1001,29 +1502,34 @@ export const MOCK_ADVISEE_QUEUE: StudentRegistrationApplication[] = [
     isUnderReview: true,
     items: [
       {
-        item: { id: "item-201", registration_id: "reg-app-002", section_id: "sec-cse225-b", status: "enrolled", created_at: "2027-04-14T13:20:00Z" },
+        item: { id: "item-201", registration_id: "reg-app-002", section_id: "sec-cse225-b", course_type: "general", status: "enrolled", created_at: "2027-04-14T13:20:00Z" },
         section: MOCK_SECTIONS.find((s) => s.id === "sec-cse225-b")!,
         course: MOCK_COURSES.find((c) => c.code === "CSE225")!,
+        course_type: "general",
       },
       {
-        item: { id: "item-202", registration_id: "reg-app-002", section_id: "sec-cse221-c", status: "enrolled", created_at: "2027-04-14T13:20:00Z" },
+        item: { id: "item-202", registration_id: "reg-app-002", section_id: "sec-cse221-c", course_type: "general", status: "enrolled", created_at: "2027-04-14T13:20:00Z" },
         section: MOCK_SECTIONS.find((s) => s.id === "sec-cse221-c")!,
         course: MOCK_COURSES.find((c) => c.code === "CSE221")!,
+        course_type: "general",
       },
       {
-        item: { id: "item-203", registration_id: "reg-app-002", section_id: "sec-swe312-a", status: "enrolled", created_at: "2027-04-14T13:20:00Z" },
+        item: { id: "item-203", registration_id: "reg-app-002", section_id: "sec-swe312-a", course_type: "general", status: "enrolled", created_at: "2027-04-14T13:20:00Z" },
         section: MOCK_SECTIONS.find((s) => s.id === "sec-swe312-a")!,
         course: MOCK_COURSES.find((c) => c.code === "SWE312")!,
+        course_type: "general",
       },
     ],
     totalCredits: 9.0,
     totalCourses: 3,
+    generalCourseCount: 3,
+    retakeCourseCount: 0,
     hasScheduleConflict: false,
     hasPrerequisiteConflict: false,
     isProbation: false,
   },
 
-  // 3. Sayedur Rahman - Unpaid, Pending Review
+  // 3. Sayedur Rahman - Unpaid, Pending Review (With Authorized Alternative Personal Email)
   {
     registration: {
       id: "reg-app-003",
@@ -1036,6 +1542,8 @@ export const MOCK_ADVISEE_QUEUE: StudentRegistrationApplication[] = [
       advisor_notes: null,
       payment_cleared: false,
       payment_reference: null,
+      previous_section: "61_B",
+      desired_section: "61_D",
       created_at: "2027-04-13T11:00:00Z",
       updated_at: "2027-04-13T16:15:00Z",
     },
@@ -1052,6 +1560,7 @@ export const MOCK_ADVISEE_QUEUE: StudentRegistrationApplication[] = [
       avatar_url: null,
       onboarding_completed: true,
       batch: "61",
+      authorized_alternative_email: "sayedur.personal@gmail.com",
       created_at: "2024-01-15T00:00:00Z",
       updated_at: "2027-04-13T00:00:00Z",
     },
@@ -1060,18 +1569,22 @@ export const MOCK_ADVISEE_QUEUE: StudentRegistrationApplication[] = [
     isUnderReview: false,
     items: [
       {
-        item: { id: "item-301", registration_id: "reg-app-003", section_id: "sec-cse221-a", status: "enrolled", created_at: "2027-04-13T16:15:00Z" },
+        item: { id: "item-301", registration_id: "reg-app-003", section_id: "sec-cse221-a", course_type: "general", status: "enrolled", created_at: "2027-04-13T16:15:00Z" },
         section: MOCK_SECTIONS.find((s) => s.id === "sec-cse221-a")!,
         course: MOCK_COURSES.find((c) => c.code === "CSE221")!,
+        course_type: "general",
       },
       {
-        item: { id: "item-302", registration_id: "reg-app-003", section_id: "sec-cse412-a", status: "enrolled", created_at: "2027-04-13T16:15:00Z" },
+        item: { id: "item-302", registration_id: "reg-app-003", section_id: "sec-cse412-a", course_type: "retake", status: "enrolled", created_at: "2027-04-13T16:15:00Z" },
         section: MOCK_SECTIONS.find((s) => s.id === "sec-cse412-a")!,
         course: MOCK_COURSES.find((c) => c.code === "CSE412")!,
+        course_type: "retake",
       },
     ],
     totalCredits: 6.0,
     totalCourses: 2,
+    generalCourseCount: 1,
+    retakeCourseCount: 1,
     hasScheduleConflict: false,
     hasPrerequisiteConflict: false,
     isProbation: false,
@@ -1090,6 +1603,8 @@ export const MOCK_ADVISEE_QUEUE: StudentRegistrationApplication[] = [
       advisor_notes: "Approved. All prerequisites and credit distributions verified.",
       payment_cleared: true,
       payment_reference: "DIU-AC-2027-4594",
+      previous_section: "61_A",
+      desired_section: "61_A",
       created_at: "2027-04-13T10:00:00Z",
       updated_at: "2027-04-14T09:30:00Z",
     },
@@ -1106,6 +1621,7 @@ export const MOCK_ADVISEE_QUEUE: StudentRegistrationApplication[] = [
       avatar_url: null,
       onboarding_completed: true,
       batch: "61",
+      authorized_alternative_email: null,
       created_at: "2024-01-15T00:00:00Z",
       updated_at: "2027-04-14T00:00:00Z",
     },
@@ -1114,18 +1630,82 @@ export const MOCK_ADVISEE_QUEUE: StudentRegistrationApplication[] = [
     isUnderReview: false,
     items: [
       {
-        item: { id: "item-401", registration_id: "reg-app-004", section_id: "sec-cse311-a", status: "enrolled", created_at: "2027-04-13T15:50:00Z" },
+        item: { id: "item-401", registration_id: "reg-app-004", section_id: "sec-cse311-a", course_type: "general", status: "enrolled", created_at: "2027-04-13T15:50:00Z" },
         section: MOCK_SECTIONS.find((s) => s.id === "sec-cse311-a")!,
         course: MOCK_COURSES.find((c) => c.code === "CSE311")!,
+        course_type: "general",
       },
       {
-        item: { id: "item-402", registration_id: "reg-app-004", section_id: "sec-cse412-a", status: "enrolled", created_at: "2027-04-13T15:50:00Z" },
+        item: { id: "item-402", registration_id: "reg-app-004", section_id: "sec-cse412-a", course_type: "general", status: "enrolled", created_at: "2027-04-13T15:50:00Z" },
         section: MOCK_SECTIONS.find((s) => s.id === "sec-cse412-a")!,
         course: MOCK_COURSES.find((c) => c.code === "CSE412")!,
+        course_type: "general",
       },
     ],
     totalCredits: 6.0,
     totalCourses: 2,
+    generalCourseCount: 2,
+    retakeCourseCount: 0,
+    hasScheduleConflict: false,
+    hasPrerequisiteConflict: false,
+    isProbation: false,
+  },
+
+  // 5. Siyam Ahmed - Pending Review (Demo Student Application with Section 69_K -> 69_D)
+  {
+    registration: {
+      id: "reg-app-siyam",
+      student_id: "student-siyam-01",
+      semester_id: "sem-spring-2027",
+      status: "pending_advisor",
+      submitted_at: "2027-04-14T15:00:00Z",
+      advisor_id: MOCK_ADVISOR_PROFILE.id,
+      reviewed_at: null,
+      advisor_notes: null,
+      payment_cleared: true,
+      payment_reference: "DIU-AC-2027-8812",
+      previous_section: "69_K",
+      desired_section: "69_D",
+      created_at: "2027-04-14T11:00:00Z",
+      updated_at: "2027-04-14T15:00:00Z",
+    },
+    student: {
+      ...MOCK_STUDENT_PROFILE,
+      authorized_alternative_email: "siyam.personal@gmail.com",
+    },
+    semester: MOCK_CURRENT_SEMESTER,
+    formattedApplicationDate: "Apr 14, 2027 • 3:00 PM",
+    isUnderReview: false,
+    items: [
+      {
+        item: { id: "item-501", registration_id: "reg-app-siyam", section_id: "sec-cse221-69d", course_type: "general", status: "enrolled", created_at: "2027-04-14T15:00:00Z" },
+        section: MOCK_SECTIONS.find((s) => s.id === "sec-cse221-69d") || MOCK_SECTIONS[0],
+        course: MOCK_COURSES.find((c) => c.code === "CSE221")!,
+        course_type: "general",
+      },
+      {
+        item: { id: "item-502", registration_id: "reg-app-siyam", section_id: "sec-cse222-69dl", course_type: "general", status: "enrolled", created_at: "2027-04-14T15:00:00Z" },
+        section: MOCK_SECTIONS.find((s) => s.id === "sec-cse222-69dl") || MOCK_SECTIONS[1],
+        course: MOCK_COURSES.find((c) => c.code === "CSE222")!,
+        course_type: "general",
+      },
+      {
+        item: { id: "item-503", registration_id: "reg-app-siyam", section_id: "sec-cse225-69d", course_type: "general", status: "enrolled", created_at: "2027-04-14T15:00:00Z" },
+        section: MOCK_SECTIONS.find((s) => s.id === "sec-cse225-69d") || MOCK_SECTIONS[2],
+        course: MOCK_COURSES.find((c) => c.code === "CSE225")!,
+        course_type: "general",
+      },
+      {
+        item: { id: "item-504", registration_id: "reg-app-siyam", section_id: "sec-cse110-69d", course_type: "retake", status: "enrolled", created_at: "2027-04-14T15:00:00Z" },
+        section: MOCK_SECTIONS.find((s) => s.id === "sec-cse110-69d") || MOCK_SECTIONS[0],
+        course: MOCK_COURSES.find((c) => c.code === "CSE110")!,
+        course_type: "retake",
+      },
+    ],
+    totalCredits: 10.5,
+    totalCourses: 4,
+    generalCourseCount: 3,
+    retakeCourseCount: 1,
     hasScheduleConflict: false,
     hasPrerequisiteConflict: false,
     isProbation: false,

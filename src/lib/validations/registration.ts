@@ -1,5 +1,37 @@
 import { z } from "zod";
 
+export const courseSelectionItemSchema = z.object({
+  courseId: z.string().min(1, "Course ID is required"),
+  courseCode: z.string().min(1, "Course code is required"),
+  courseTitle: z.string().min(1, "Course title is required"),
+  credits: z.number().positive("Credits must be a positive number"),
+  sectionId: z.string().min(1, "Section ID is required"),
+  sectionName: z.string().min(1, "Section name is required"),
+  courseType: z.enum(["general", "retake"], {
+    message: "Each course must be explicitly classified as 'general' or 'retake'",
+  }),
+});
+
+export const studentRegistrationSubmitSchema = z.object({
+  previousSection: z
+    .string()
+    .trim()
+    .min(1, "Previous Section is required (e.g. 69_K)")
+    .max(20, "Section format exceeds maximum allowed length of 20 characters"),
+  desiredSection: z
+    .string()
+    .trim()
+    .min(1, "Desired Section is required (e.g. 69_D)")
+    .max(20, "Section format exceeds maximum allowed length of 20 characters"),
+  courses: z
+    .array(courseSelectionItemSchema)
+    .min(1, "Select at least 1 course to submit registration application")
+    .max(8, "Cannot register for more than 8 courses simultaneously"),
+});
+
+export type CourseSelectionItemInput = z.infer<typeof courseSelectionItemSchema>;
+export type StudentRegistrationSubmitInput = z.infer<typeof studentRegistrationSubmitSchema>;
+
 export const courseRegistrationDraftSchema = z.object({
   semesterId: z.string().uuid("Invalid semester ID"),
   sectionIds: z

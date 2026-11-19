@@ -6,24 +6,25 @@ import {
   Search,
   CheckCircle2,
   AlertTriangle,
-  Clock,
   Trash2,
-  Send,
-  X,
-  ChevronRight,
+  ArrowLeft,
   ShieldCheck,
   Check,
-  ChevronDown,
-  ChevronUp,
+  Layers,
+  BookOpen,
+  ArrowRight,
+  Info,
 } from "lucide-react";
 import {
   MOCK_COURSES,
   MOCK_SECTIONS,
   MOCK_DEPARTMENTS,
   MOCK_COMPLETED_COURSE_CODES,
-  MOCK_STUDENT_CART_SECTIONS,
+  MOCK_STUDENT_PROFILE,
   ACTIVE_MOCK_SEMESTER_LABEL,
+  ACTIVE_MOCK_REGISTRATION_WINDOW,
   type ExtendedSection,
+  type ExtendedCourse,
 } from "@/lib/mock/data";
 import {
   getPrerequisiteStatus,
@@ -32,39 +33,127 @@ import {
 } from "@/lib/mock/helpers";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { submitStudentRegistration } from "@/app/courses/actions";
+import type { Database } from "@/types/database";
 
-export function UnifiedCoursesWorkspace() {
+export interface SelectedCourseItem {
+  course: ExtendedCourse;
+  section: ExtendedSection;
+  courseType: "general" | "retake";
+}
+
+interface UnifiedCoursesWorkspaceProps {
+  initialProfile?: Database["public"]["Tables"]["profiles"]["Row"];
+  initialActiveRegistration?: {
+    id: string;
+    status: string;
+    previous_section: string;
+    desired_section: string;
+    reference_id: string;
+    submitted_at: string;
+    courses: Array<{
+      courseId: string;
+      courseCode: string;
+      courseTitle: string;
+      credits: number;
+      sectionId: string;
+      sectionName: string;
+      courseType: "general" | "retake";
+    }>;
+    totalCredits: number;
+    generalCourseCount: number;
+    retakeCourseCount: number;
+  } | null;
+}
+
+export function UnifiedCoursesWorkspace({
+  initialProfile,
+  initialActiveRegistration,
+}: UnifiedCoursesWorkspaceProps) {
+  const profile = initialProfile || MOCK_STUDENT_PROFILE;
+
+  // Step state: 1 = Section Info, 2 = Course Selection, 3 = Classification, 4 = Review, 5 = Submitted
+  const [currentStep, setCurrentStep] = React.useState<1 | 2 | 3 | 4 | 5>(() => {
+    if (initialActiveRegistration?.status === "pending_advisor" || initialActiveRegistration?.status === "approved") {
+      return 5;
+    }
+    return 1;
+  });
+
+  // Step 1: Section Fields
+  const [previousSection, setPreviousSection] = React.useState(
+    initialActiveRegistration?.previous_section || "69_K"
+  );
+  const [desiredSection, setDesiredSection] = React.useState(
+    initialActiveRegistration?.desired_section || "69_D"
+  );
+  const [sectionError, setSectionError] = React.useState<string | null>(null);
+
+  // Step 2: Selected Courses Cart
+  // Initial cart populated with default courses for demonstration
+  const [selectedCourses, setSelectedCourses] = React.useState<SelectedCourseItem[]>(() => {
+    if (initialActiveRegistration?.courses && initialActiveRegistration.courses.length > 0) {
+      return initialActiveRegistration.courses.map((c) => {
+        const co = MOCK_COURSES.find((item) => item.code === c.courseCode) || MOCK_COURSES[0];
+        const sec = MOCK_SECTIONS.find((item) => item.id === c.sectionId) || MOCK_SECTIONS[0];
+        return {
+          course: co,
+          section: sec,
+          courseType: c.courseType,
+        };
+      });
+    }
+
+    // Default initial enrollment (4 core courses)
+    const initialCourseCodes = ["CSE221", "CSE222", "CSE225", "CSE110"];
+    const items: SelectedCourseItem[] = [];
+
+    initialCourseCodes.forEach((code) => {
+      const co = MOCK_COURSES.find((c) => c.code === code);
+      if (co) {
+        // Pick section matching desired section (69_D) or fallback
+        const sec =
+          MOCK_SECTIONS.find((s) => s.course_id === co.id && s.section_name.includes("69_D")) ||
+          MOCK_SECTIONS.find((s) => s.course_id === co.id) ||
+          MOCK_SECTIONS[0];
+        items.push({
+          course: co,
+          section: sec,
+          courseType: code === "CSE110" ? "retake" : "general",
+        });
+      }
+    });
+
+    return items;
+  });
+
   // Search & Filter State
   const [searchInput, setSearchInput] = React.useState("");
   const [debouncedSearch, setDebouncedSearch] = React.useState("");
   const [selectedDept, setSelectedDept] = React.useState("ALL");
   const [selectedLevel, setSelectedLevel] = React.useState("ALL");
-  const [selectedEnrollmentType, setSelectedEnrollmentType] = React.useState<"ALL" | "REGULAR" | "RETAKE">("ALL");
-  const [eligibilityFilter, setEligibilityFilter] = React.useState<"ALL" | "ELIGIBLE" | "LOCKED">("ALL");
-
-  // Track expanded sections for each course (all expanded by default for instant visibility)
-  const [expandedCourses, setExpandedCourses] = React.useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {};
-    MOCK_COURSES.forEach((c) => {
-      initial[c.id] = true;
-    });
-    return initial;
-  });
-
-  // Cart State (Local Prototype)
-  const [cart, setCart] = React.useState<ExtendedSection[]>(MOCK_STUDENT_CART_SECTIONS);
   const [feedback, setFeedback] = React.useState<{ text: string; type: "success" | "warning" } | null>(null);
 
-  // Review & Submit Modal
-  const [isSubmitModalOpen, setIsSubmitModalOpen] = React.useState(false);
-  const [isSubmitted, setIsSubmitted] = React.useState(false);
-  const [submissionTime, setSubmissionTime] = React.useState<string | null>(null);
+  // Submission State
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [submitError, setSubmitError] = React.useState<string | null>(null);
+  const [submittedData, setSubmittedData] = React.useState<{
+    registrationId: string;
+    referenceId: string;
+    submittedAt: string;
+  } | null>(() => {
+    if (initialActiveRegistration) {
+      return {
+        registrationId: initialActiveRegistration.id,
+        referenceId: initialActiveRegistration.reference_id,
+        submittedAt: initialActiveRegistration.submitted_at,
+      };
+    }
+    return null;
+  });
 
-  // Mobile Summary Drawer Open
-  const [isMobileSummaryOpen, setIsMobileSummaryOpen] = React.useState(false);
-
-  // Debounce search input (150ms)
+  // Debounce search input (150ms for snappy Linear-like response)
   React.useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchInput);
@@ -74,151 +163,317 @@ export function UnifiedCoursesWorkspace() {
 
   // Credit calculation
   const totalCredits = React.useMemo(() => {
-    return cart.reduce((sum, s) => sum + (s.credits || 3.0), 0);
-  }, [cart]);
-  const maxAllowedCredits = 15.0; // DIU regular limit
+    return selectedCourses.reduce((sum, item) => sum + (item.section.credits || item.course.credits || 3.0), 0);
+  }, [selectedCourses]);
+
+  const maxAllowedCredits = 15.0; // Standard DIU undergraduate term cap
   const isCreditOverload = totalCredits > maxAllowedCredits;
 
-  // Filter Courses
+  const generalCourseCount = React.useMemo(() => {
+    return selectedCourses.filter((c) => c.courseType === "general").length;
+  }, [selectedCourses]);
+
+  const retakeCourseCount = React.useMemo(() => {
+    return selectedCourses.filter((c) => c.courseType === "retake").length;
+  }, [selectedCourses]);
+
+  // Filter available courses
   const filteredCourses = React.useMemo(() => {
     return MOCK_COURSES.filter((course) => {
-      // Search
+      const q = debouncedSearch.trim().toLowerCase();
       const matchesSearch =
-        debouncedSearch === "" ||
-        course.code.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        course.title.toLowerCase().includes(debouncedSearch.toLowerCase());
+        q === "" ||
+        course.code.toLowerCase().includes(q) ||
+        course.title.toLowerCase().includes(q);
 
-      // Department
       const matchesDept = selectedDept === "ALL" || course.department_code === selectedDept;
-
-      // Level
       const matchesLevel = selectedLevel === "ALL" || course.level?.toString() === selectedLevel;
 
-      // Prerequisite
-      const isCompleted = MOCK_COMPLETED_COURSE_CODES.includes(course.code);
-      const { isEligible } = getPrerequisiteStatus(course.prerequisite_codes, MOCK_COMPLETED_COURSE_CODES);
-
-      let matchesEligibility = true;
-      if (eligibilityFilter === "ELIGIBLE") matchesEligibility = isEligible && !isCompleted;
-      if (eligibilityFilter === "LOCKED") matchesEligibility = !isEligible && !isCompleted;
-
-      // Enrollment Type (Regular vs Retake/Backlog)
-      let matchesEnrollmentType = true;
-      if (selectedEnrollmentType === "REGULAR") {
-        matchesEnrollmentType = !isCompleted && course.enrollment_type !== "retake" && course.enrollment_type !== "backlog";
-      } else if (selectedEnrollmentType === "RETAKE") {
-        matchesEnrollmentType = isCompleted || course.enrollment_type === "retake" || course.enrollment_type === "backlog";
-      }
-
-      return matchesSearch && matchesDept && matchesLevel && matchesEligibility && matchesEnrollmentType;
+      return matchesSearch && matchesDept && matchesLevel;
     });
-  }, [debouncedSearch, selectedDept, selectedLevel, eligibilityFilter, selectedEnrollmentType]);
+  }, [debouncedSearch, selectedDept, selectedLevel]);
 
-  // Course sections helper
+  // Get sections available for a specific course
   const getCourseSections = React.useCallback((courseId: string) => {
     return MOCK_SECTIONS.filter((s) => s.course_id === courseId);
   }, []);
 
-  const toggleCourseExpanded = (courseId: string) => {
-    setExpandedCourses((prev) => ({
-      ...prev,
-      [courseId]: !prev[courseId],
-    }));
+  // Section Step 1 Validation
+  const handleProceedFromSections = () => {
+    const prevTrimmed = previousSection.trim();
+    const desiredTrimmed = desiredSection.trim();
+
+    if (!prevTrimmed || !desiredTrimmed) {
+      setSectionError("Both Previous Section (e.g. 69_K) and Desired Section (e.g. 69_D) are mandatory.");
+      return;
+    }
+
+    setSectionError(null);
+    setCurrentStep(2);
   };
 
-  // Section selection handler
-  const handleSelectSection = (section: ExtendedSection) => {
-    const isSameSectionSelected = cart.some((s) => s.id === section.id);
-    if (isSameSectionSelected) {
-      setCart((prev) => prev.filter((s) => s.id !== section.id));
+  // Add / Switch Course in Selection
+  const handleToggleCourse = (course: ExtendedCourse, chosenSection?: ExtendedSection) => {
+    const existingIndex = selectedCourses.findIndex((c) => c.course.id === course.id);
+
+    // If already in cart, remove
+    if (existingIndex >= 0 && !chosenSection) {
+      setSelectedCourses((prev) => prev.filter((c) => c.course.id !== course.id));
       setFeedback({
-        text: `Removed ${section.course_code} (${section.section_name}) from registration slip.`,
+        text: `Removed ${course.code} from course selection.`,
         type: "success",
       });
       return;
     }
 
-    const otherCartSections = cart.filter((s) => s.course_id !== section.course_id);
-    const conflict = checkScheduleConflict(section.schedule, otherCartSections);
+    // Pick section: either chosen, or one matching desiredSection, or the first available
+    const available = getCourseSections(course.id);
+    const targetSection =
+      chosenSection ||
+      available.find((s) => s.section_name.toLowerCase().includes(desiredSection.trim().toLowerCase())) ||
+      available[0];
+
+    if (!targetSection) {
+      setFeedback({
+        text: `No active class sections are currently scheduled for ${course.code}.`,
+        type: "warning",
+      });
+      return;
+    }
+
+    // Schedule collision detection against other enrolled courses
+    const otherSections = selectedCourses
+      .filter((c) => c.course.id !== course.id)
+      .map((c) => c.section);
+
+    const conflict = checkScheduleConflict(targetSection.schedule, otherSections);
     if (conflict.hasConflict && conflict.conflictingDetails) {
       setFeedback({
-        text: `Schedule conflict: ${section.course_code} overlaps with ${conflict.conflictingDetails.conflictingCourseCode} (${conflict.conflictingDetails.day} ${conflict.conflictingDetails.time}).`,
+        text: `Schedule conflict: ${course.code} (${targetSection.section_name}) overlaps with ${conflict.conflictingDetails.conflictingCourseCode} on ${conflict.conflictingDetails.day} at ${conflict.conflictingDetails.time}.`,
         type: "warning",
       });
       return;
     }
 
-    const courseCredits = section.credits || 3.0;
-    const currentCreditsWithoutThisCourse = otherCartSections.reduce((sum, s) => sum + (s.credits || 3.0), 0);
-    if (currentCreditsWithoutThisCourse + courseCredits > maxAllowedCredits) {
+    // Credit overload safety
+    const additionalCredits = targetSection.credits || course.credits || 3.0;
+    const currentCreditsWithoutThis = otherSections.reduce((sum, s) => sum + (s.credits || 3.0), 0);
+    if (currentCreditsWithoutThis + additionalCredits > maxAllowedCredits) {
       setFeedback({
-        text: `Credit limit exceeded: Adding this course would bring your load to ${currentCreditsWithoutThisCourse + courseCredits} Cr (maximum allowed: ${maxAllowedCredits} Cr).`,
+        text: `Credit limit warning: Total load would reach ${(currentCreditsWithoutThis + additionalCredits).toFixed(1)} Cr (maximum regular cap: ${maxAllowedCredits} Cr).`,
         type: "warning",
       });
-      return;
     }
 
-    const existingSection = cart.find((s) => s.course_id === section.course_id);
-    if (existingSection) {
-      setCart((prev) => prev.map((s) => (s.course_id === section.course_id ? section : s)));
+    if (existingIndex >= 0) {
+      // Update section of already selected course
+      setSelectedCourses((prev) =>
+        prev.map((item, idx) =>
+          idx === existingIndex
+            ? { ...item, section: targetSection }
+            : item
+        )
+      );
       setFeedback({
-        text: `Switched ${section.course_code} to Section ${section.section_name}.`,
+        text: `Updated ${course.code} to Section ${targetSection.section_name}.`,
         type: "success",
       });
     } else {
-      setCart((prev) => [...prev, section]);
+      // Add new course with default classification (retake if in backlog, else general)
+      const isRetake = MOCK_COMPLETED_COURSE_CODES.includes(course.code);
+      setSelectedCourses((prev) => [
+        ...prev,
+        {
+          course,
+          section: targetSection,
+          courseType: isRetake ? "retake" : "general",
+        },
+      ]);
       setFeedback({
-        text: `Added ${section.course_code} (${section.section_name}) to registration slip.`,
+        text: `Added ${course.code} (Section ${targetSection.section_name}) to selection.`,
         type: "success",
       });
     }
   };
 
-  const handleRemoveSection = (sectionId: string) => {
-    setCart((prev) => prev.filter((s) => s.id !== sectionId));
+  // Switch section for an already selected course
+  const handleSectionChange = (courseId: string, newSectionId: string) => {
+    const newSection = MOCK_SECTIONS.find((s) => s.id === newSectionId);
+    if (!newSection) return;
+
+    setSelectedCourses((prev) =>
+      prev.map((item) =>
+        item.course.id === courseId ? { ...item, section: newSection } : item
+      )
+    );
   };
 
-  const handleConfirmSubmit = () => {
-    setIsSubmitted(true);
-    setSubmissionTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-    setIsSubmitModalOpen(false);
+  // Remove a course from selection
+  const handleRemoveCourse = (courseId: string) => {
+    setSelectedCourses((prev) => prev.filter((c) => c.course.id !== courseId));
+  };
+
+  // Step 3: Change course classification for an individual course
+  const handleSetClassification = (courseId: string, courseType: "general" | "retake") => {
+    setSelectedCourses((prev) =>
+      prev.map((item) =>
+        item.course.id === courseId ? { ...item, courseType } : item
+      )
+    );
+  };
+
+  // Step 4 & 5: Submission Handler
+  const handleFinalSubmit = async () => {
+    if (selectedCourses.length === 0) {
+      setSubmitError("Please select at least 1 course before submitting.");
+      return;
+    }
+
+    if (!previousSection.trim() || !desiredSection.trim()) {
+      setSubmitError("Previous section and desired section must be specified.");
+      setCurrentStep(1);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const payload = {
+        previousSection: previousSection.trim(),
+        desiredSection: desiredSection.trim(),
+        courses: selectedCourses.map((c) => ({
+          courseId: c.course.id,
+          courseCode: c.course.code,
+          courseTitle: c.course.title,
+          credits: c.section.credits || c.course.credits,
+          sectionId: c.section.id,
+          sectionName: c.section.section_name,
+          courseType: c.courseType,
+        })),
+      };
+
+      const result = await submitStudentRegistration(payload);
+
+      if (!result.success) {
+        setIsSubmitting(false);
+        setSubmitError(result.error || "Failed to submit course registration application.");
+        return;
+      }
+
+      setIsSubmitting(false);
+      setSubmittedData({
+        registrationId: result.registrationId || "reg-app-submitted",
+        referenceId: result.referenceId || "REG-2027-SP-7819",
+        submittedAt: result.submittedAt || new Date().toISOString(),
+      });
+      setCurrentStep(5);
+    } catch (err: unknown) {
+      setIsSubmitting(false);
+      const message = err instanceof Error ? err.message : "An unexpected network error occurred.";
+      setSubmitError(message);
+    }
+  };
+
+  // Stepper Header Component
+  const renderStepper = () => {
+    const steps = [
+      { num: 1, title: "Section Info", desc: `${previousSection || "—"} → ${desiredSection || "—"}` },
+      { num: 2, title: "Course Selection", desc: `${selectedCourses.length} Courses • ${totalCredits.toFixed(1)} Cr` },
+      { num: 3, title: "Course Type", desc: `${generalCourseCount} General • ${retakeCourseCount} Retake` },
+      { num: 4, title: "Review & Submit", desc: "Final Verification" },
+    ];
+
+    return (
+      <div className="bg-[#121827] border border-[#1c263c] rounded-xl p-3 sm:p-4 mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
+          {steps.map((st) => {
+            const isCompleted = currentStep > st.num || currentStep === 5;
+            const isCurrent = currentStep === st.num;
+
+            return (
+              <button
+                key={st.num}
+                type="button"
+                onClick={() => {
+                  if (currentStep !== 5 && (isCompleted || isCurrent || st.num < currentStep)) {
+                    setCurrentStep(st.num as 1 | 2 | 3 | 4);
+                  }
+                }}
+                disabled={currentStep === 5 || (!isCompleted && !isCurrent)}
+                className={`flex items-start gap-2.5 p-2 rounded-lg text-left transition-all ${
+                  isCurrent
+                    ? "bg-[#172136] border border-[#25324d] text-white shadow-xs"
+                    : isCompleted
+                    ? "hover:bg-[#1a233a] cursor-pointer text-slate-300"
+                    : "opacity-40 cursor-not-allowed text-slate-500"
+                }`}
+              >
+                <div
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-mono font-bold ${
+                    isCurrent
+                      ? "bg-blue-600 text-white"
+                      : isCompleted
+                      ? "bg-[#008764] text-white"
+                      : "bg-[#1c263c] text-slate-400"
+                  }`}
+                >
+                  {isCompleted && !isCurrent ? <Check className="h-3.5 w-3.5" /> : st.num}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold leading-tight truncate">
+                    {st.title}
+                  </div>
+                  <div className="text-[11px] font-mono text-slate-400 truncate mt-0.5">
+                    {st.desc}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
   };
 
   return (
     <div className="space-y-4 text-slate-100 max-w-7xl mx-auto py-2">
-      {/* Top Header: Linear style */}
-      <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 border-b border-slate-800 pb-3">
+      {/* Top Header: Linear simplicity */}
+      <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 border-b border-[#1c263c] pb-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight text-white">
-            Course Registration Workspace
+          <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+            <span>Course Registration Application</span>
+            <span className="text-xs font-mono font-normal text-emerald-400 px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-800/80">
+              {ACTIVE_MOCK_SEMESTER_LABEL}
+            </span>
           </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
-            {ACTIVE_MOCK_SEMESTER_LABEL} • Department of Computer Science & Engineering
+          <p className="text-xs text-[#8e9db2] mt-0.5">
+            Daffodil International University • Registration Window: {ACTIVE_MOCK_REGISTRATION_WINDOW}
           </p>
         </div>
 
-        {/* Mobile quick cart pill */}
-        <div className="lg:hidden flex items-center justify-between p-2 rounded-md bg-slate-900 border border-slate-800">
-          <span className="text-xs text-slate-300 font-mono">
-            {cart.length} Courses ({totalCredits.toFixed(1)} / {maxAllowedCredits} Cr)
-          </span>
-          <Button
-            size="sm"
-            onClick={() => setIsMobileSummaryOpen(true)}
-            className="bg-[#008764] hover:bg-[#007053] text-white text-xs h-7 px-2.5 ml-3"
+        {/* Quick return or status */}
+        <div className="flex items-center gap-2">
+          <Link
+            href="/dashboard"
+            className="text-xs text-[#8e9db2] hover:text-white inline-flex items-center gap-1 transition-colors"
           >
-            Review Slip ({cart.length})
-          </Button>
+            <ArrowLeft className="h-3.5 w-3.5" />
+            <span>Dashboard</span>
+          </Link>
         </div>
       </div>
+
+      {/* Interactive Progress Stepper */}
+      {renderStepper()}
 
       {/* Floating feedback alert */}
       {feedback && (
         <div
-          className={`flex items-center justify-between p-3 rounded-md border text-xs animate-in fade-in duration-100 ${
+          className={`flex items-center justify-between p-3 rounded-xl border text-xs animate-in fade-in duration-100 ${
             feedback.type === "success"
-              ? "bg-slate-900 border-emerald-800/80 text-emerald-300"
-              : "bg-slate-900 border-amber-800/80 text-amber-300"
+              ? "bg-[#121827] border-emerald-800 text-emerald-300"
+              : "bg-[#121827] border-amber-800 text-amber-300"
           }`}
         >
           <div className="flex items-center gap-2">
@@ -238,526 +493,831 @@ export function UnifiedCoursesWorkspace() {
         </div>
       )}
 
-      {/* Main Workspace Layout: High-density list (Left 8 cols) + Sticky Inspector (Right 4 cols) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* Left Column: Course Directory */}
-        <div className="lg:col-span-8 space-y-3">
-          {/* Linear-style Filter Bar */}
-          <div className="p-2.5 rounded-lg border border-slate-800 bg-slate-900/80 space-y-2">
-            <div className="flex flex-col sm:flex-row gap-2">
-              {/* Search Input */}
-              <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-500 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Filter by course code or title (e.g. CSE224)..."
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-950 border border-slate-800 rounded-md text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
-                />
+      {/* ========================================================================= */}
+      {/* STEP 1: PREVIOUS SECTION AND DESIRED SECTION                              */}
+      {/* ========================================================================= */}
+      {currentStep === 1 && (
+        <div className="max-w-2xl mx-auto py-4 space-y-6">
+          <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
+            <div className="space-y-1.5 border-b border-[#1c263c] pb-4">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#172136] text-blue-400 text-xs font-medium mb-1">
+                <Layers className="h-3.5 w-3.5" />
+                <span>Step 1 of 4 • Academic Sections</span>
               </div>
-
-              {/* Department Filter */}
-              <select
-                value={selectedDept}
-                onChange={(e) => setSelectedDept(e.target.value)}
-                className="text-xs bg-slate-950 border border-slate-800 rounded-md px-2.5 py-1.5 text-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-              >
-                <option value="ALL">All Departments</option>
-                {MOCK_DEPARTMENTS.map((d) => (
-                  <option key={d.code} value={d.code}>
-                    {d.code}
-                  </option>
-                ))}
-              </select>
-
-              {/* Level Filter */}
-              <select
-                value={selectedLevel}
-                onChange={(e) => setSelectedLevel(e.target.value)}
-                className="text-xs bg-slate-950 border border-slate-800 rounded-md px-2.5 py-1.5 text-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-              >
-                <option value="ALL">All Levels</option>
-                <option value="1">Level 1 (Freshman)</option>
-                <option value="2">Level 2 (Sophomore)</option>
-                <option value="3">Level 3 (Junior)</option>
-                <option value="4">Level 4 (Senior)</option>
-              </select>
+              <h2 className="text-lg font-bold text-white tracking-tight">
+                Academic Section Details
+              </h2>
+              <p className="text-xs text-[#8e9db2] leading-relaxed">
+                Provide your previous enrolled section and your desired cohort section for {ACTIVE_MOCK_SEMESTER_LABEL}.
+                This informs your academic advisor of your cohort scheduling preference.
+              </p>
             </div>
 
-            {/* Segmented Filter Pills */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-800/60 text-xs">
-              <span className="text-[11px] text-slate-500 font-mono mr-1">Curriculum:</span>
-              <button
-                onClick={() => setSelectedEnrollmentType("ALL")}
-                className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
-                  selectedEnrollmentType === "ALL"
-                    ? "bg-slate-800 text-white"
-                    : "text-slate-400 hover:text-slate-200"
-                }`}
-              >
-                All Courses ({MOCK_COURSES.length})
-              </button>
-              <button
-                onClick={() => setSelectedEnrollmentType("REGULAR")}
-                className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
-                  selectedEnrollmentType === "REGULAR"
-                    ? "bg-slate-800 text-white"
-                    : "text-slate-400 hover:text-slate-200"
-                }`}
-              >
-                Regular Curriculum (10)
-              </button>
-              <button
-                onClick={() => setSelectedEnrollmentType("RETAKE")}
-                className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
-                  selectedEnrollmentType === "RETAKE"
-                    ? "bg-amber-950/60 text-amber-300 border border-amber-800/60"
-                    : "text-slate-400 hover:text-slate-200"
-                }`}
-              >
-                Optional Retake / Backlog (2)
-              </button>
-
-              <span className="text-slate-700 mx-1">|</span>
-
-              <button
-                onClick={() => setEligibilityFilter(eligibilityFilter === "ELIGIBLE" ? "ALL" : "ELIGIBLE")}
-                className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
-                  eligibilityFilter === "ELIGIBLE"
-                    ? "bg-emerald-950/60 text-emerald-300 border border-emerald-800/60"
-                    : "text-slate-400 hover:text-slate-200"
-                }`}
-              >
-                Prerequisites Met Only
-              </button>
-            </div>
-          </div>
-
-          {/* Results Summary Bar */}
-          <div className="flex items-center justify-between text-xs text-slate-400 px-1 font-mono">
-            <span>{filteredCourses.length} courses matching filters</span>
-            <span>Department of Computer Science & Engineering</span>
-          </div>
-
-          {/* Structured Course List (Linear high-clarity layout) */}
-          <div className="space-y-2.5">
-            {filteredCourses.map((course) => {
-              const isPassed = MOCK_COMPLETED_COURSE_CODES.includes(course.code);
-              const { isEligible, missingCodes } = getPrerequisiteStatus(
-                course.prerequisite_codes,
-                MOCK_COMPLETED_COURSE_CODES
-              );
-              const isRetake = isPassed || course.enrollment_type === "retake" || course.enrollment_type === "backlog";
-              const courseSections = getCourseSections(course.id);
-              const selectedSection = cart.find((s) => s.course_id === course.id);
-              const isExpanded = expandedCourses[course.id] ?? true;
-
-              return (
-                <div
-                  key={course.id}
-                  className={`rounded-lg border transition-all ${
-                    selectedSection
-                      ? "border-emerald-600/60 bg-slate-900/90"
-                      : "border-slate-800 bg-slate-900/40 hover:border-slate-700/80"
-                  }`}
-                >
-                  {/* Course Row Header */}
-                  <div className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-emerald-400">
-                          {course.code}
-                        </span>
-                        <h3 className="font-semibold text-sm text-white">
-                          {course.title}
-                        </h3>
-                        <span className="text-[11px] font-mono text-slate-400">
-                          {course.credits.toFixed(1)} Credits
-                        </span>
-                        <span className="text-[10px] font-mono text-slate-500">
-                          Level {course.level || 1}
-                        </span>
-                        {isRetake && (
-                          <span className="text-[10px] font-medium font-mono px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-300 border border-amber-800/60">
-                            Retake / Backlog
-                          </span>
-                        )}
-                        {selectedSection && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-medium font-mono px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-800">
-                            <Check className="h-3 w-3" />
-                            Enrolled: Sec {selectedSection.section_name}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Prerequisite status line */}
-                      <div className="text-xs">
-                        {isEligible ? (
-                          <span className="text-slate-400 text-[11px]">
-                            Prerequisites satisfied ({course.prerequisite_codes.length > 0 ? course.prerequisite_codes.join(", ") : "None required"})
-                          </span>
-                        ) : (
-                          <span className="text-rose-400 text-[11px] font-medium">
-                            Prerequisites missing: {missingCodes.join(", ")}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Toggle Sections Button */}
-                    <button
-                      onClick={() => toggleCourseExpanded(course.id)}
-                      className="text-xs font-mono text-slate-400 hover:text-slate-200 self-end sm:self-center flex items-center gap-1 px-2 py-1 rounded bg-slate-950/60 border border-slate-800"
-                    >
-                      <span>{courseSections.length} Sections</span>
-                      {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                    </button>
-                  </div>
-
-                  {/* Available Class Sections (Expandable high-density table) */}
-                  {isExpanded && (
-                    <div className="border-t border-slate-800/80 bg-slate-950/40 p-3 pt-2 space-y-1.5">
-                      <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 px-1 pb-1">
-                        Select a Class Section for {course.code}:
-                      </div>
-
-                      <div className="space-y-1.5">
-                        {courseSections.map((sec) => {
-                          const isThisSectionSelected = selectedSection?.id === sec.id;
-                          const isFull = sec.enrolled_count >= sec.capacity;
-                          const openSeats = sec.capacity - sec.enrolled_count;
-
-                          return (
-                            <div
-                              key={sec.id}
-                              className={`p-2.5 rounded-md border text-xs transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                                isThisSectionSelected
-                                  ? "bg-emerald-950/30 border-emerald-600/70"
-                                  : "bg-slate-950 border-slate-800/80 hover:border-slate-700"
-                              }`}
-                            >
-                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 flex-1">
-                                <div>
-                                  <span className="font-semibold text-white">
-                                    Section {sec.section_name}
-                                  </span>
-                                  <div className="text-[11px] text-slate-400">
-                                    {sec.instructor_name}
-                                  </div>
-                                </div>
-
-                                <div className="text-slate-300 font-mono text-[11px]">
-                                  <div className="flex items-center gap-1 text-slate-400">
-                                    <Clock className="h-3 w-3 text-slate-500 shrink-0" />
-                                    <span>{sec.schedule.map(formatScheduleSlot).join(", ")}</span>
-                                  </div>
-                                  <div className="text-[10px] text-slate-500 mt-0.5">
-                                    Room: {sec.room}
-                                  </div>
-                                </div>
-
-                                <div className="sm:text-right font-mono text-[11px]">
-                                  <div className="text-slate-300">
-                                    Capacity: <strong className={openSeats <= 3 ? "text-amber-400" : "text-white"}>{sec.enrolled_count}/{sec.capacity}</strong>
-                                  </div>
-                                  <div className={`text-[10px] ${openSeats === 0 ? "text-rose-400 font-semibold" : "text-emerald-400"}`}>
-                                    {openSeats === 0 ? "Section Full (0 seats)" : `${openSeats} seats available`}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="shrink-0 self-end sm:self-center">
-                                <Button
-                                  size="sm"
-                                  disabled={!isEligible || (isFull && !isThisSectionSelected)}
-                                  onClick={() => handleSelectSection(sec)}
-                                  className={`text-xs h-7 px-3 font-medium transition-colors ${
-                                    isThisSectionSelected
-                                      ? "bg-slate-800 hover:bg-rose-950/80 text-emerald-400 hover:text-rose-300 border border-emerald-700/60 hover:border-rose-700"
-                                      : isFull
-                                      ? "bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed"
-                                      : selectedSection
-                                      ? "bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700"
-                                      : "bg-[#008764] hover:bg-[#007053] text-white"
-                                  }`}
-                                >
-                                  {isThisSectionSelected
-                                    ? "Selected ✓ (Click to Remove)"
-                                    : isFull
-                                    ? "Full"
-                                    : selectedSection
-                                    ? `Switch to Sec ${sec.section_name}`
-                                    : `Select Section ${sec.section_name}`}
-                                </Button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {filteredCourses.length === 0 && (
-              <div className="p-8 text-center rounded-lg border border-slate-800 bg-slate-900/40 text-slate-400 text-xs">
-                No course offerings matched your filter criteria.
+            {sectionError && (
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-950/40 border border-rose-800 text-rose-300 text-xs">
+                <AlertTriangle className="h-4 w-4 text-rose-400 shrink-0" />
+                <span>{sectionError}</span>
               </div>
             )}
-          </div>
-        </div>
 
-        {/* Right Column: Sticky Registration Slip Inspector (Desktop) */}
-        <div className="hidden lg:block lg:col-span-4 sticky top-18">
-          <div className="rounded-lg border border-slate-800 bg-slate-900 shadow-sm space-y-3">
-            {/* Inspector Header */}
-            <div className="p-4 border-b border-slate-800 space-y-2">
-              <div className="flex items-baseline justify-between">
-                <h2 className="text-sm font-semibold text-white">
-                  Registration Slip
-                </h2>
-                <span className="font-mono text-[11px] text-slate-400">
-                  {ACTIVE_MOCK_SEMESTER_LABEL}
-                </span>
-              </div>
-
-              {/* Credit Meter */}
-              <div className="space-y-1.5 pt-1">
-                <div className="flex items-baseline justify-between text-xs font-mono">
-                  <span className="text-slate-400">Credit Load:</span>
-                  <span className={`font-semibold ${isCreditOverload ? "text-rose-400 font-bold" : "text-emerald-400"}`}>
-                    {totalCredits.toFixed(1)} / {maxAllowedCredits.toFixed(1)} Cr
-                  </span>
+            <div className="space-y-5">
+              {/* Previous Section */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="prevSection" className="text-xs font-semibold text-white">
+                    Previous Section <span className="text-rose-400">*</span>
+                  </label>
+                  <span className="text-[11px] font-mono text-slate-400">Example: 69_K</span>
                 </div>
-                <Progress
-                  value={(totalCredits / maxAllowedCredits) * 100}
-                  className="h-1.5 bg-slate-950"
-                  variant={isCreditOverload ? "destructive" : "diu"}
+                <input
+                  id="prevSection"
+                  type="text"
+                  value={previousSection}
+                  onChange={(e) => {
+                    setPreviousSection(e.target.value);
+                    if (sectionError) setSectionError(null);
+                  }}
+                  placeholder="e.g. 69_K"
+                  className="w-full px-3.5 py-2.5 bg-[#0b0f19] border border-[#1c263c] rounded-xl text-white font-mono text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-slate-600"
                 />
-                <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-                  <span>{cart.length} Courses Selected</span>
-                  <span>Max Limit: 15.0 Cr</span>
+                <p className="text-[11px] text-[#8e9db2]">
+                  The class section you attended in the preceding semester (e.g., 69_K, 60_A, 58_B).
+                </p>
+              </div>
+
+              {/* Desired Section */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="desiredSection" className="text-xs font-semibold text-white">
+                    Desired Section <span className="text-rose-400">*</span>
+                  </label>
+                  <span className="text-[11px] font-mono text-slate-400">Example: 69_D</span>
+                </div>
+                <input
+                  id="desiredSection"
+                  type="text"
+                  value={desiredSection}
+                  onChange={(e) => {
+                    setDesiredSection(e.target.value);
+                    if (sectionError) setSectionError(null);
+                  }}
+                  placeholder="e.g. 69_D"
+                  className="w-full px-3.5 py-2.5 bg-[#0b0f19] border border-[#1c263c] rounded-xl text-white font-mono text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-slate-600"
+                />
+                <p className="text-[11px] text-[#8e9db2]">
+                  The target section cohort you are requesting for your courses this semester (e.g., 69_D, 60_A).
+                </p>
+              </div>
+
+              {/* Educational Note */}
+              <div className="p-3.5 rounded-xl bg-[#0b0f19] border border-[#1c263c] text-xs text-[#8e9db2] flex items-start gap-2.5">
+                <Info className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <div className="font-semibold text-slate-200">How DIU Cohort Sections Work:</div>
+                  <p className="text-[11px] leading-relaxed">
+                    Sections (such as <strong className="text-emerald-400 font-mono">69_K</strong> or <strong className="text-emerald-400 font-mono">69_D</strong>) bundle standard class routines. When you advance to Course Selection, courses matching your desired section will be prioritized.
+                  </p>
                 </div>
               </div>
             </div>
 
-            {/* Selected Courses List */}
-            <div className="p-4 pt-1 space-y-2 max-h-[380px] overflow-y-auto divide-y divide-slate-800/60">
-              {cart.map((sec) => (
-                <div
-                  key={sec.id}
-                  className="pt-2 first:pt-0 flex items-start justify-between gap-2 text-xs"
-                >
-                  <div className="space-y-0.5 min-w-0">
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="font-mono font-bold text-emerald-400">{sec.course_code}</span>
-                      <span className="text-slate-200 font-medium">Sec {sec.section_name}</span>
-                      <span className="text-[10px] font-mono text-slate-500">({sec.credits || 3.0} Cr)</span>
-                    </div>
-                    <div className="text-[11px] text-slate-400 truncate">
-                      {sec.instructor_name}
-                    </div>
-                    <div className="text-[10px] font-mono text-slate-500">
-                      {sec.schedule.map(formatScheduleSlot).join(", ")}
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => handleRemoveSection(sec.id)}
-                    title="Remove from slip"
-                    className="p-1 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded transition-colors shrink-0"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
-
-              {cart.length === 0 && (
-                <div className="py-8 text-center text-xs text-slate-500 font-mono">
-                  No courses selected yet. Select sections from the catalog to build your advising slip.
-                </div>
-              )}
-            </div>
-
-            {/* Inspector Footer */}
-            <div className="p-4 pt-3 border-t border-slate-800 space-y-3 bg-slate-950/40 rounded-b-lg">
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                <ShieldCheck className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                <span>Tuition Accounts Cleared: <strong className="text-slate-300 font-mono">DIU-AC-2026-8812</strong></span>
-              </div>
-
-              <Button
-                disabled={cart.length === 0 || isCreditOverload}
-                onClick={() => setIsSubmitModalOpen(true)}
-                className="w-full bg-[#008764] hover:bg-[#007053] text-white text-xs font-medium py-2 h-9 shadow-xs"
+            {/* Action Bar */}
+            <div className="pt-2 flex items-center justify-between border-t border-[#1c263c]">
+              <Link
+                href="/dashboard"
+                className="text-xs text-[#8e9db2] hover:text-white transition-colors"
               >
-                Review & Submit Advising Slip
-                <ChevronRight className="h-4 w-4 ml-1" />
+                Cancel
+              </Link>
+              <Button
+                type="button"
+                onClick={handleProceedFromSections}
+                className="bg-white hover:bg-slate-100 text-[#0b0f19] font-semibold text-xs px-5 h-9 rounded-xl transition-all shadow-xs"
+              >
+                <span>Continue to Course Selection</span>
+                <ArrowRight className="h-4 w-4 ml-1 text-[#0b0f19]" />
               </Button>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Review & Submit Confirmation Modal (Stripe Checkout clarity) */}
-      <Dialog open={isSubmitModalOpen} onClose={() => setIsSubmitModalOpen(false)}>
-        <DialogContent className="border-slate-800 bg-slate-900 text-slate-100 max-w-lg">
-          <DialogHeader className="border-b border-slate-800 pb-3">
-            <DialogTitle className="text-base font-semibold text-white flex items-center gap-2">
-              <Send className="h-4 w-4 text-emerald-400" />
-              Review & Submit Advising Slip
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-400">
-              Verify your proposed course sections before forwarding your application to your academic advisor.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3 py-3 text-xs">
-            {/* Checklist */}
-            <div className="p-3 rounded-md bg-slate-950 border border-slate-800 space-y-1.5 text-slate-300 font-mono text-[11px]">
-              <div className="flex items-center gap-2 text-emerald-400">
-                <Check className="h-3.5 w-3.5 shrink-0" />
-                <span>Prerequisites Satisfied for All {cart.length} Courses</span>
+      {/* ========================================================================= */}
+      {/* STEP 2: COURSE SELECTION WORKSPACE                                        */}
+      {/* ========================================================================= */}
+      {currentStep === 2 && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          {/* Left Column: Course Directory (8 cols) */}
+          <div className="lg:col-span-8 space-y-3">
+            {/* Context bar with Section Summary */}
+            <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-[#121827] border border-[#1c263c] text-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-[#8e9db2]">Assigned Cohort:</span>
+                <span className="font-mono text-emerald-400 font-bold bg-[#0b0f19] px-2 py-0.5 rounded border border-[#1c263c]">
+                  Prev: {previousSection}
+                </span>
+                <span className="text-slate-600">&rarr;</span>
+                <span className="font-mono text-sky-400 font-bold bg-[#0b0f19] px-2 py-0.5 rounded border border-[#1c263c]">
+                  Desired: {desiredSection}
+                </span>
               </div>
-              <div className="flex items-center gap-2 text-emerald-400">
-                <Check className="h-3.5 w-3.5 shrink-0" />
-                <span>Zero Timetable Clashes Detected</span>
-              </div>
-              <div className="flex items-center gap-2 text-emerald-400">
-                <Check className="h-3.5 w-3.5 shrink-0" />
-                <span>Total Load: {totalCredits} Cr (Within 15.0 Cr Limit)</span>
-              </div>
-              <div className="flex items-center gap-2 text-emerald-400">
-                <Check className="h-3.5 w-3.5 shrink-0" />
-                <span>Tuition Clearance Confirmed (DIU-AC-2026-8812)</span>
-              </div>
-            </div>
-
-            {/* Courses Table */}
-            <div className="rounded-md border border-slate-800 overflow-hidden font-mono text-[11px]">
-              <div className="p-2 bg-slate-950 text-slate-400 font-semibold grid grid-cols-12 gap-1 border-b border-slate-800">
-                <span className="col-span-3">Code</span>
-                <span className="col-span-3">Section</span>
-                <span className="col-span-4">Schedule</span>
-                <span className="col-span-2 text-right">Credits</span>
-              </div>
-              <div className="divide-y divide-slate-800 max-h-44 overflow-y-auto">
-                {cart.map((sec) => (
-                  <div key={sec.id} className="p-2 grid grid-cols-12 gap-1 items-center bg-slate-900/60">
-                    <span className="col-span-3 font-bold text-emerald-400">{sec.course_code}</span>
-                    <span className="col-span-3 text-slate-300">Sec {sec.section_name}</span>
-                    <span className="col-span-4 text-slate-400 text-[10px]">{sec.schedule.map(formatScheduleSlot).join(", ")}</span>
-                    <span className="col-span-2 text-right text-slate-200">{sec.credits || 3.0} Cr</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2 sm:gap-0 border-t border-slate-800 pt-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsSubmitModalOpen(false)}
-              className="text-xs border-slate-700 text-slate-300 hover:bg-slate-800 h-8"
-            >
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleConfirmSubmit}
-              className="bg-[#008764] hover:bg-[#007053] text-white text-xs font-medium h-8"
-            >
-              Confirm & Submit to Advisor
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Submission Success Dialog */}
-      <Dialog open={isSubmitted} onClose={() => setIsSubmitted(false)}>
-        <DialogContent className="border-slate-800 bg-slate-900 text-slate-100 max-w-md text-center p-6">
-          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400 mb-2">
-            <CheckCircle2 className="h-5 w-5" />
-          </div>
-          <DialogTitle className="text-base font-semibold text-white">
-            Advising Slip Submitted Successfully
-          </DialogTitle>
-          <DialogDescription className="text-xs text-slate-300 space-y-2 mt-2">
-            <p>
-              Your advising slip has been recorded and submitted for audit by your academic advisor, <strong>Dr. Sheak Rashed Haider Noori</strong>.
-            </p>
-            <div className="p-2.5 rounded-md bg-slate-950 border border-slate-800 font-mono text-[11px] text-slate-300">
-              Reference: <strong className="text-emerald-400">REG-2026-SP-7819</strong> • {submissionTime}
-            </div>
-          </DialogDescription>
-          <DialogFooter className="mt-4 sm:justify-center">
-            <Button asChild size="sm" className="bg-[#008764] hover:bg-[#007053] text-white text-xs h-8">
-              <Link href="/student/tracking">
-                Go to Application Tracking
-              </Link>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Mobile Drawer (Bottom Sheet) */}
-      {isMobileSummaryOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs lg:hidden flex flex-col justify-end">
-          <div className="p-4 rounded-t-xl bg-slate-900 border-t border-slate-800 max-h-[85vh] overflow-y-auto space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-              <h3 className="font-semibold text-sm text-white">
-                Registration Slip Summary
-              </h3>
               <button
-                onClick={() => setIsMobileSummaryOpen(false)}
-                className="p-1 rounded-md text-slate-400 hover:text-white"
+                type="button"
+                onClick={() => setCurrentStep(1)}
+                className="text-xs text-blue-400 hover:text-blue-300 hover:underline font-medium"
               >
-                <X className="h-4 w-4" />
+                Edit Sections
               </button>
             </div>
 
-            <div className="space-y-1 text-xs font-mono">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-400">Total Credits:</span>
-                <span className="font-bold text-emerald-400">{totalCredits.toFixed(1)} / {maxAllowedCredits} Cr</span>
+            {/* Search and Filters */}
+            <div className="p-3 rounded-xl border border-[#1c263c] bg-[#121827] space-y-2.5">
+              <div className="flex flex-col sm:flex-row gap-2">
+                {/* Search Input */}
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-500 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    placeholder="Search by course code or title (e.g. CSE221, Algorithms, Math)..."
+                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-[#0b0f19] border border-[#1c263c] rounded-lg text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                  {searchInput && (
+                    <button
+                      onClick={() => setSearchInput("")}
+                      className="absolute right-2.5 top-2 text-slate-400 hover:text-white text-xs"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* Department Dropdown */}
+                <select
+                  value={selectedDept}
+                  onChange={(e) => setSelectedDept(e.target.value)}
+                  className="text-xs bg-[#0b0f19] border border-[#1c263c] rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="ALL">All Departments</option>
+                  {MOCK_DEPARTMENTS.map((d) => (
+                    <option key={d.code} value={d.code}>
+                      {d.code} ({d.name})
+                    </option>
+                  ))}
+                </select>
+
+                {/* Level Dropdown */}
+                <select
+                  value={selectedLevel}
+                  onChange={(e) => setSelectedLevel(e.target.value)}
+                  className="text-xs bg-[#0b0f19] border border-[#1c263c] rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="ALL">All Academic Levels</option>
+                  <option value="1">Level 1 (Freshman)</option>
+                  <option value="2">Level 2 (Sophomore)</option>
+                  <option value="3">Level 3 (Junior)</option>
+                  <option value="4">Level 4 (Senior)</option>
+                </select>
               </div>
-              <Progress
-                value={(totalCredits / maxAllowedCredits) * 100}
-                className="h-1.5 bg-slate-950"
-                variant={isCreditOverload ? "destructive" : "diu"}
-              />
+
+              <div className="flex items-center justify-between text-[11px] text-[#8e9db2] pt-1">
+                <span>
+                  Showing <strong>{filteredCourses.length}</strong> available courses in DIU curriculum
+                </span>
+                {(searchInput || selectedDept !== "ALL" || selectedLevel !== "ALL") && (
+                  <button
+                    onClick={() => {
+                      setSearchInput("");
+                      setSelectedDept("ALL");
+                      setSelectedLevel("ALL");
+                    }}
+                    className="text-blue-400 hover:underline"
+                  >
+                    Reset Filters
+                  </button>
+                )}
+              </div>
             </div>
 
-            <div className="space-y-1.5 max-h-48 overflow-y-auto">
-              {cart.map((sec) => (
-                <div key={sec.id} className="p-2 rounded bg-slate-950 border border-slate-800 text-xs flex justify-between items-center">
-                  <div>
-                    <div className="font-mono font-bold text-emerald-400">{sec.course_code} • Sec {sec.section_name}</div>
-                    <div className="text-[10px] text-slate-400">{sec.schedule.map(formatScheduleSlot).join(", ")}</div>
-                  </div>
-                  <button
-                    onClick={() => handleRemoveSection(sec.id)}
-                    className="text-slate-400 hover:text-rose-400 p-1"
+            {/* Courses List */}
+            <div className="space-y-2.5">
+              {filteredCourses.length === 0 ? (
+                <div className="p-12 text-center bg-[#121827] border border-[#1c263c] rounded-xl space-y-2">
+                  <BookOpen className="h-8 w-8 text-slate-600 mx-auto" />
+                  <div className="text-sm font-semibold text-slate-300">No courses match your query</div>
+                  <p className="text-xs text-[#8e9db2] max-w-sm mx-auto">
+                    Try searching for another course code (e.g. CSE110, CSE221) or clear the department and level filters.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSearchInput("");
+                      setSelectedDept("ALL");
+                      setSelectedLevel("ALL");
+                    }}
+                    className="text-xs mt-2 border-[#1c263c]"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                    Clear Search
+                  </Button>
+                </div>
+              ) : (
+                filteredCourses.map((course) => {
+                  const selectedItem = selectedCourses.find((c) => c.course.id === course.id);
+                  const isSelected = Boolean(selectedItem);
+                  const { isEligible, missingCodes } = getPrerequisiteStatus(
+                    course.prerequisite_codes,
+                    MOCK_COMPLETED_COURSE_CODES
+                  );
+                  const availableSections = getCourseSections(course.id);
+
+                  return (
+                    <div
+                      key={course.id}
+                      className={`p-3.5 rounded-xl border transition-all ${
+                        isSelected
+                          ? "bg-[#141d30] border-blue-600/70 shadow-xs"
+                          : "bg-[#121827] border-[#1c263c] hover:border-slate-700"
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-xs font-bold text-emerald-400 px-2 py-0.5 rounded bg-[#0b0f19] border border-[#1c263c]">
+                              {course.code}
+                            </span>
+                            <span className="text-xs font-semibold text-white">
+                              {course.title}
+                            </span>
+                            <span className="text-[11px] font-mono text-slate-400">
+                              {course.credits.toFixed(1)} Credits
+                            </span>
+                            {course.level && (
+                              <span className="text-[10px] text-slate-500 font-mono">
+                                Level {course.level}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Prerequisites compliance tag */}
+                          <div className="text-[11px] text-[#8e9db2] flex items-center gap-1.5 pt-0.5">
+                            {course.prerequisite_codes.length === 0 ? (
+                              <span className="text-slate-500">Prerequisites: None required</span>
+                            ) : isEligible ? (
+                              <span className="text-emerald-400 flex items-center gap-1">
+                                <Check className="h-3 w-3" />
+                                Prerequisites satisfied ({course.prerequisite_codes.join(", ")})
+                              </span>
+                            ) : (
+                              <span className="text-rose-400 flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                Prerequisite missing: {missingCodes.join(", ")}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Add / Selected Action */}
+                        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                          {selectedItem ? (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-mono text-blue-400 bg-blue-950/60 border border-blue-800/80 px-2 py-1 rounded-lg flex items-center gap-1">
+                                <Check className="h-3 w-3" />
+                                <span>Sec {selectedItem.section.section_name}</span>
+                              </span>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleRemoveCourse(course.id)}
+                                className="h-7 px-2 text-xs text-rose-400 border-rose-900/50 hover:bg-rose-950/40"
+                              >
+                                Remove
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              size="sm"
+                              onClick={() => handleToggleCourse(course)}
+                              className="h-7 text-xs bg-white hover:bg-slate-100 text-[#0b0f19] font-medium"
+                            >
+                              + Add Course
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Section Picker Row if course is selected or has sections */}
+                      {availableSections.length > 0 && (
+                        <div className="mt-2.5 pt-2 border-t border-[#1c263c] flex flex-wrap items-center justify-between gap-2 text-xs">
+                          <div className="flex items-center gap-2 text-[#8e9db2]">
+                            <span>Class Section:</span>
+                            {selectedItem ? (
+                              <select
+                                value={selectedItem.section.id}
+                                onChange={(e) => handleSectionChange(course.id, e.target.value)}
+                                className="text-xs font-mono bg-[#0b0f19] border border-[#1c263c] rounded px-2 py-1 text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              >
+                                {availableSections.map((s) => (
+                                  <option key={s.id} value={s.id}>
+                                    Section {s.section_name} ({s.enrolled_count}/{s.capacity} seats) • {s.schedule.map(formatScheduleSlot).join(", ")}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="text-slate-400 font-mono text-[11px]">
+                                {availableSections.length} offering{availableSections.length > 1 ? "s" : ""} available ({availableSections.map((s) => s.section_name).join(", ")})
+                              </span>
+                            )}
+                          </div>
+
+                          {selectedItem && (
+                            <span className="text-[11px] font-mono text-slate-400">
+                              Room: {selectedItem.section.room || "TBA"} • {selectedItem.section.instructor_name}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Right Column: Persistent Selected-Course Summary (4 cols) */}
+          <div className="lg:col-span-4 sticky top-20 space-y-3">
+            <div className="bg-[#121827] border border-[#1c263c] rounded-xl p-4 space-y-4 shadow-sm">
+              <div className="space-y-1 border-b border-[#1c263c] pb-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-white">
+                    Registration Slip
+                  </h3>
+                  <span className="text-[11px] font-mono text-emerald-400">
+                    {ACTIVE_MOCK_SEMESTER_LABEL}
+                  </span>
+                </div>
+                <div className="text-[11px] font-mono text-slate-400">
+                  Cohort: <strong className="text-white">{previousSection} &rarr; {desiredSection}</strong>
+                </div>
+              </div>
+
+              {/* Credit Meter */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs font-mono">
+                  <span className="text-[#8e9db2]">Credit Load:</span>
+                  <span className={isCreditOverload ? "text-rose-400 font-bold" : "text-emerald-400 font-bold"}>
+                    {totalCredits.toFixed(1)} / {maxAllowedCredits.toFixed(1)} Cr
+                  </span>
+                </div>
+                <Progress
+                  value={Math.min((totalCredits / maxAllowedCredits) * 100, 100)}
+                  className={`h-2 ${isCreditOverload ? "[&>div]:bg-rose-500" : "[&>div]:bg-[#008764]"}`}
+                />
+                <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+                  <span>{selectedCourses.length} Courses Selected</span>
+                  <span>Max Limit: {maxAllowedCredits.toFixed(1)} Cr</span>
+                </div>
+              </div>
+
+              {/* Selected List */}
+              <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+                {selectedCourses.length === 0 ? (
+                  <div className="py-6 text-center text-xs text-slate-500">
+                    No courses added yet. Select courses from the left list.
+                  </div>
+                ) : (
+                  selectedCourses.map((item) => (
+                    <div
+                      key={item.course.id}
+                      className="p-2.5 rounded-lg bg-[#0b0f19] border border-[#1c263c] flex items-center justify-between text-xs"
+                    >
+                      <div className="min-w-0 pr-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-bold text-emerald-400">
+                            {item.course.code}
+                          </span>
+                          <span className="text-slate-300 font-mono text-[11px]">
+                            Sec {item.section.section_name}
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            ({item.section.credits || item.course.credits} Cr)
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-[#8e9db2] truncate">
+                          {item.course.title}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveCourse(item.course.id)}
+                        className="text-slate-500 hover:text-rose-400 p-1 shrink-0 transition-colors"
+                        title="Remove course"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Accounts Clearance Voucher */}
+              <div className="p-2.5 rounded-lg bg-[#0b0f19] border border-[#1c263c] flex items-center gap-2 text-[11px] text-[#8e9db2]">
+                <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" />
+                <span>Tuition Accounts Cleared: DIU-AC-2027-4561</span>
+              </div>
+
+              {/* Navigation Actions */}
+              <div className="space-y-2 pt-1 border-t border-[#1c263c]">
+                <Button
+                  disabled={selectedCourses.length === 0 || isCreditOverload}
+                  onClick={() => setCurrentStep(3)}
+                  className="w-full bg-white hover:bg-slate-100 text-[#0b0f19] text-xs font-semibold h-9 rounded-xl shadow-xs transition-all disabled:opacity-40"
+                >
+                  <span>Proceed to Course Classification</span>
+                  <ArrowRight className="h-4 w-4 ml-1 text-[#0b0f19]" />
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(1)}
+                  className="w-full text-center text-xs text-[#8e9db2] hover:text-white py-1 transition-colors"
+                >
+                  &larr; Back to Section Details
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* STEP 3: GENERAL OR RETAKE CLASSIFICATION                                 */}
+      {/* ========================================================================= */}
+      {currentStep === 3 && (
+        <div className="max-w-3xl mx-auto py-2 space-y-6">
+          <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
+            <div className="space-y-1.5 border-b border-[#1c263c] pb-4">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#172136] text-blue-400 text-xs font-medium mb-1">
+                <Layers className="h-3.5 w-3.5" />
+                <span>Step 3 of 4 • Course Classification</span>
+              </div>
+              <h2 className="text-lg font-bold text-white tracking-tight">
+                Classify Each Selected Course
+              </h2>
+              <p className="text-xs text-[#8e9db2] leading-relaxed">
+                Specify whether each course is a <strong>General</strong> enrollment (regular semester curriculum) or a <strong>Retake</strong> (repeating course for grade improvement or cleared backlog).
+              </p>
+            </div>
+
+            {/* Courses Classification Table */}
+            <div className="space-y-3">
+              {selectedCourses.map((item) => (
+                <div
+                  key={item.course.id}
+                  className="p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c] flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs font-bold text-emerald-400 px-2 py-0.5 rounded bg-[#121827] border border-[#1c263c]">
+                        {item.course.code}
+                      </span>
+                      <span className="text-xs font-semibold text-white">
+                        {item.course.title}
+                      </span>
+                    </div>
+                    <div className="text-[11px] font-mono text-[#8e9db2]">
+                      Section: <strong className="text-slate-300">{item.section.section_name}</strong> • {item.section.credits || item.course.credits} Credits • {item.section.schedule.map(formatScheduleSlot).join(", ")}
+                    </div>
+                  </div>
+
+                  {/* Explicit Radio/Segmented Control per Course */}
+                  <div className="flex items-center gap-1.5 bg-[#121827] p-1 rounded-xl border border-[#1c263c] shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleSetClassification(item.course.id, "general")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        item.courseType === "general"
+                          ? "bg-blue-600 text-white font-semibold shadow-xs"
+                          : "text-[#8e9db2] hover:text-white"
+                      }`}
+                    >
+                      General
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSetClassification(item.course.id, "retake")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        item.courseType === "retake"
+                          ? "bg-amber-600 text-white font-semibold shadow-xs"
+                          : "text-[#8e9db2] hover:text-white"
+                      }`}
+                    >
+                      Retake
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
 
-            <Button
-              disabled={cart.length === 0 || isCreditOverload}
-              onClick={() => {
-                setIsMobileSummaryOpen(false);
-                setIsSubmitModalOpen(true);
-              }}
-              className="w-full bg-[#008764] hover:bg-[#007053] text-white text-xs font-medium py-2 h-9"
-            >
-              Review & Submit Advising Slip
-            </Button>
+            {/* Summary Strip */}
+            <div className="p-3.5 rounded-xl bg-[#0b0f19] border border-[#1c263c] flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+              <div className="flex items-center gap-4 text-slate-300">
+                <span>
+                  General: <strong className="text-blue-400">{generalCourseCount}</strong>
+                </span>
+                <span>•</span>
+                <span>
+                  Retake: <strong className="text-amber-400">{retakeCourseCount}</strong>
+                </span>
+                <span>•</span>
+                <span>
+                  Total Credits: <strong className="text-emerald-400">{totalCredits.toFixed(1)} Cr</strong>
+                </span>
+              </div>
+              <span className="text-slate-500 text-[11px]">
+                {selectedCourses.length} courses classified
+              </span>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="pt-2 flex items-center justify-between border-t border-[#1c263c]">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCurrentStep(2)}
+                className="text-xs border-[#1c263c] text-slate-300 h-9 rounded-xl"
+              >
+                &larr; Back to Course Selection
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setCurrentStep(4)}
+                className="bg-white hover:bg-slate-100 text-[#0b0f19] font-semibold text-xs px-5 h-9 rounded-xl transition-all shadow-xs"
+              >
+                <span>Review Application</span>
+                <ArrowRight className="h-4 w-4 ml-1 text-[#0b0f19]" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* STEP 4: REVIEW APPLICATION                                                */}
+      {/* ========================================================================= */}
+      {currentStep === 4 && (
+        <div className="max-w-4xl mx-auto py-2 space-y-6">
+          <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
+            {/* Header */}
+            <div className="space-y-1.5 border-b border-[#1c263c] pb-4">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#172136] text-blue-400 text-xs font-medium mb-1">
+                <Layers className="h-3.5 w-3.5" />
+                <span>Step 4 of 4 • Final Review</span>
+              </div>
+              <h2 className="text-lg font-bold text-white tracking-tight">
+                Review Course Registration Application
+              </h2>
+              <p className="text-xs text-[#8e9db2] leading-relaxed">
+                Carefully review all submitted academic and section details before forwarding to your academic advisor for final audit.
+              </p>
+            </div>
+
+            {submitError && (
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-950/40 border border-rose-800 text-rose-300 text-xs">
+                <AlertTriangle className="h-4 w-4 text-rose-400 shrink-0" />
+                <span>{submitError}</span>
+              </div>
+            )}
+
+            {/* 1. STUDENT INFORMATION */}
+            <div className="p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c] space-y-2">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                1. Student Profile Information
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <span className="text-[#8e9db2] block text-[11px]">Full Name:</span>
+                  <strong className="text-white">{profile.full_name}</strong>
+                </div>
+                <div>
+                  <span className="text-[#8e9db2] block text-[11px]">Student ID:</span>
+                  <strong className="font-mono text-emerald-400">{profile.diu_id || "221-15-12345"}</strong>
+                </div>
+                <div>
+                  <span className="text-[#8e9db2] block text-[11px]">Academic Batch:</span>
+                  <span className="text-slate-300">{profile.batch || "60th Batch"}</span>
+                </div>
+                <div>
+                  <span className="text-[#8e9db2] block text-[11px]">Institutional Email:</span>
+                  <span className="font-mono text-slate-300 truncate block">{profile.email}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. SECTION INFORMATION */}
+            <div className="p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c] flex flex-wrap items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  2. Academic Section Assignment
+                </div>
+                <div className="flex items-center gap-3 text-xs font-mono">
+                  <span>
+                    Previous Section: <strong className="text-white px-2 py-0.5 rounded bg-[#121827] border border-[#1c263c]">{previousSection}</strong>
+                  </span>
+                  <span className="text-slate-600">&rarr;</span>
+                  <span>
+                    Desired Section: <strong className="text-emerald-400 px-2 py-0.5 rounded bg-[#121827] border border-[#1c263c]">{desiredSection}</strong>
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCurrentStep(1)}
+                className="text-xs text-blue-400 hover:text-blue-300 hover:underline font-medium"
+              >
+                Change Sections
+              </button>
+            </div>
+
+            {/* 3. SELECTED COURSES TABLE */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  3. Selected Courses & Classifications ({selectedCourses.length})
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(2)}
+                  className="text-xs text-blue-400 hover:text-blue-300 hover:underline font-medium"
+                >
+                  Edit Courses
+                </button>
+              </div>
+
+              <div className="border border-[#1c263c] rounded-xl overflow-hidden bg-[#0b0f19]">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#121827] border-b border-[#1c263c] font-mono text-[11px] text-[#8e9db2]">
+                    <tr>
+                      <th className="py-2.5 px-3 font-medium">Course Code & Title</th>
+                      <th className="py-2.5 px-3 font-medium w-16 text-center">Credits</th>
+                      <th className="py-2.5 px-3 font-medium w-28">Classification</th>
+                      <th className="py-2.5 px-3 font-medium w-28">Section</th>
+                      <th className="py-2.5 px-3 font-medium">Class Routine</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#1c263c]">
+                    {selectedCourses.map((item) => (
+                      <tr key={item.course.id} className="hover:bg-[#121827]/50 transition-colors">
+                        <td className="py-2.5 px-3">
+                          <span className="font-mono font-bold text-emerald-400 mr-2">
+                            {item.course.code}
+                          </span>
+                          <span className="text-white font-medium">
+                            {item.course.title}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-center font-mono text-slate-300">
+                          {item.section.credits || item.course.credits}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          {item.courseType === "general" ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-blue-950/70 border border-blue-800 text-blue-300">
+                              General
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-amber-950/70 border border-amber-800 text-amber-300">
+                              Retake
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-slate-300">
+                          Sec {item.section.section_name}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-[11px] text-slate-400">
+                          {item.section.schedule.map(formatScheduleSlot).join(", ")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* 4. APPLICATION METRICS SUMMARY */}
+            <div className="p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c] grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
+              <div>
+                <span className="text-[#8e9db2] block text-[11px]">Total Courses:</span>
+                <strong className="text-white text-sm">{selectedCourses.length} Courses</strong>
+              </div>
+              <div>
+                <span className="text-[#8e9db2] block text-[11px]">Total Credits:</span>
+                <strong className="text-emerald-400 text-sm">{totalCredits.toFixed(1)} Credits</strong>
+              </div>
+              <div>
+                <span className="text-[#8e9db2] block text-[11px]">Course Breakdown:</span>
+                <span className="text-slate-300">
+                  {generalCourseCount} General • {retakeCourseCount} Retake
+                </span>
+              </div>
+              <div>
+                <span className="text-[#8e9db2] block text-[11px]">Payment Clearance:</span>
+                <span className="text-emerald-400 font-medium">Cleared (DIU-AC-2027)</span>
+              </div>
+            </div>
+
+            {/* Submission Actions */}
+            <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-[#1c263c]">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCurrentStep(3)}
+                className="text-xs border-[#1c263c] text-slate-300 h-9 rounded-xl order-2 sm:order-1"
+              >
+                &larr; Back to Classification
+              </Button>
+
+              <Button
+                type="button"
+                disabled={isSubmitting || selectedCourses.length === 0}
+                onClick={handleFinalSubmit}
+                className="bg-[#008764] hover:bg-[#007053] text-white font-semibold text-xs px-6 h-10 rounded-xl transition-all shadow-md active:scale-[0.98] order-1 sm:order-2 disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Submitting Application...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span>Submit Advising Slip to Advisor</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </div>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* STEP 5: SUBMITTED SUCCESS STATE                                           */}
+      {/* ========================================================================= */}
+      {currentStep === 5 && submittedData && (
+        <div className="max-w-xl mx-auto py-8">
+          <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-8 text-center space-y-5 shadow-lg">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+              <CheckCircle2 className="h-8 w-8" />
+            </div>
+
+            <div className="space-y-1">
+              <h2 className="text-xl font-bold text-white tracking-tight">
+                Advising Application Submitted
+              </h2>
+              <p className="text-xs text-[#8e9db2] max-w-sm mx-auto leading-relaxed">
+                Your course registration request has been forwarded to your assigned academic advisor, <strong>Dr. Rahman Ahmed</strong>.
+              </p>
+            </div>
+
+            {/* Submission Receipt Card */}
+            <div className="p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c] text-left space-y-2.5 font-mono text-xs">
+              <div className="flex justify-between border-b border-[#1c263c] pb-2">
+                <span className="text-[#8e9db2]">Reference Voucher:</span>
+                <strong className="text-emerald-400">{submittedData.referenceId}</strong>
+              </div>
+              <div className="flex justify-between border-b border-[#1c263c] pb-2">
+                <span className="text-[#8e9db2]">Assigned Sections:</span>
+                <span className="text-slate-300">{previousSection} &rarr; {desiredSection}</span>
+              </div>
+              <div className="flex justify-between border-b border-[#1c263c] pb-2">
+                <span className="text-[#8e9db2]">Enrolled Courses:</span>
+                <span className="text-slate-300">{selectedCourses.length} Courses ({totalCredits.toFixed(1)} Cr)</span>
+              </div>
+              <div className="flex justify-between border-b border-[#1c263c] pb-2">
+                <span className="text-[#8e9db2]">Course Types:</span>
+                <span className="text-slate-300">{generalCourseCount} General • {retakeCourseCount} Retake</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#8e9db2]">Status:</span>
+                <StatusBadge status="pending_advisor" className="text-[10px]" />
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <Link
+                href="/student/tracking"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#008764] hover:bg-[#007053] text-white font-semibold text-xs transition-all shadow-sm"
+              >
+                <span>Go to Application Tracking</span>
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Button
+                variant="outline"
+                onClick={() => setCurrentStep(2)}
+                className="w-full sm:w-auto text-xs border-[#1c263c] text-slate-300 h-10 rounded-xl"
+              >
+                Modify Selections
+              </Button>
+            </div>
           </div>
         </div>
       )}

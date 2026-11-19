@@ -126,6 +126,8 @@ CREATE TABLE IF NOT EXISTS public.registrations (
     advisor_notes TEXT,
     payment_cleared BOOLEAN NOT NULL DEFAULT false,
     payment_reference VARCHAR(50),
+    previous_section VARCHAR(20),
+    desired_section VARCHAR(20),
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
     CONSTRAINT unique_student_semester_registration UNIQUE (student_id, semester_id)
@@ -136,6 +138,7 @@ CREATE TABLE IF NOT EXISTS public.registration_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     registration_id UUID NOT NULL REFERENCES public.registrations(id) ON DELETE CASCADE,
     section_id UUID NOT NULL REFERENCES public.sections(id) ON DELETE RESTRICT,
+    course_type VARCHAR(20) NOT NULL DEFAULT 'general' CHECK (course_type IN ('general', 'retake')),
     status VARCHAR(20) NOT NULL DEFAULT 'enrolled' CHECK (status IN ('enrolled', 'waitlisted', 'dropped')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
     CONSTRAINT unique_registration_section UNIQUE (registration_id, section_id)

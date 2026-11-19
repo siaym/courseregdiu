@@ -76,6 +76,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       departments: {
         Row: {
@@ -99,6 +100,7 @@ export interface Database {
           faculty?: string;
           created_at?: string;
         };
+        Relationships: [];
       };
       semesters: {
         Row: {
@@ -128,6 +130,7 @@ export interface Database {
           registration_ends_at?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       courses: {
         Row: {
@@ -160,6 +163,7 @@ export interface Database {
           syllabus_url?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       sections: {
         Row: {
@@ -198,6 +202,7 @@ export interface Database {
           instructor_name?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       registrations: {
         Row: {
@@ -211,6 +216,8 @@ export interface Database {
           advisor_notes: string | null;
           payment_cleared: boolean;
           payment_reference: string | null;
+          previous_section: string | null;
+          desired_section: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -225,6 +232,8 @@ export interface Database {
           advisor_notes?: string | null;
           payment_cleared?: boolean;
           payment_reference?: string | null;
+          previous_section?: string | null;
+          desired_section?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -239,15 +248,19 @@ export interface Database {
           advisor_notes?: string | null;
           payment_cleared?: boolean;
           payment_reference?: string | null;
+          previous_section?: string | null;
+          desired_section?: string | null;
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       registration_items: {
         Row: {
           id: string;
           registration_id: string;
           section_id: string;
+          course_type: "general" | "retake";
           status: "enrolled" | "waitlisted" | "dropped";
           created_at: string;
         };
@@ -255,6 +268,7 @@ export interface Database {
           id?: string;
           registration_id: string;
           section_id: string;
+          course_type?: "general" | "retake";
           status?: "enrolled" | "waitlisted" | "dropped";
           created_at?: string;
         };
@@ -262,9 +276,11 @@ export interface Database {
           id?: string;
           registration_id?: string;
           section_id?: string;
+          course_type?: "general" | "retake";
           status?: "enrolled" | "waitlisted" | "dropped";
           created_at?: string;
         };
+        Relationships: [];
       };
       audit_logs: {
         Row: {
@@ -297,6 +313,7 @@ export interface Database {
           ip_address?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       advisor_assignments: {
         Row: {
@@ -323,6 +340,7 @@ export interface Database {
           assigned_at?: string;
           created_at?: string;
         };
+        Relationships: [];
       };
       authorized_emails: {
         Row: {
@@ -364,6 +382,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       email_authorization_audit: {
         Row: {
@@ -399,6 +418,7 @@ export interface Database {
           metadata?: Json;
           created_at?: string;
         };
+        Relationships: [];
       };
     };
     Views: Record<string, never>;
