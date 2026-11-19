@@ -159,11 +159,23 @@ Tamper-proof event logs for compliance and accountability.
 | `ip_address` | TEXT | NULLABLE | Client IP |
 | `created_at` | TIMESTAMPTZ | NOT NULL, DEFAULT `now()` | Timestamp of event |
 
+### 3.9 `public.advisor_assignments` (P0 Security Remediation)
+Authoritative mapping between faculty advisors and assigned student advisees.
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | UUID | PK, DEFAULT `gen_random_uuid()` | Assignment ID |
+| `advisor_id` | UUID | FK -> `profiles(id)` ON DELETE CASCADE | Faculty advisor |
+| `student_id` | UUID | FK -> `profiles(id)` ON DELETE CASCADE | Assigned student |
+| `department_code` | VARCHAR(10) | FK -> `departments(code)` ON DELETE SET NULL | Academic department |
+| `assigned_at` | TIMESTAMPTZ | NOT NULL, DEFAULT `now()` | Assignment timestamp |
+| `is_active` | BOOLEAN | NOT NULL, DEFAULT `true` | Active status flag |
+*Constraint*: `CONSTRAINT unique_active_advisor_student UNIQUE (advisor_id, student_id)`
+
 ---
 
 ## 4. Triggers & Stored Procedures
 
-### Automated Profile Provisioning (`handle_new_user`)
+### 4.1 Automated Profile Provisioning (`handle_new_user`)
 Executes `AFTER INSERT` on `auth.users`. Extracts metadata provided during Google Single Sign-On and provisions a synchronized record in `public.profiles`:
 ```sql
 CREATE OR REPLACE TRIGGER on_auth_user_created
@@ -171,3 +183,34 @@ CREATE OR REPLACE TRIGGER on_auth_user_created
     FOR EACH ROW
     EXECUTE FUNCTION public.handle_new_user();
 ```
+
+### 4.2 Profile Privilege Escalation Guard (`check_profile_privilege_escalation`)
+Executes `BEFORE UPDATE` on `public.profiles`. Prevents non-administrative callers from tampering with sensitive authorization or academic progression attributes:
+- Prohibits unauthorized modifications to `role`.
+- Prohibits client mutations to `cgpa` and `completed_credits`.
+- Prohibits changing `diu_id` once verified during onboarding.
+
+### 4.3 Secure Student Onboarding RPC (`complete_student_onboarding`)
+A `SECURITY DEFINER` function that validates DIU Student ID syntax (`^\d{3}-\d{2}-\d{4,6}$`), checks for existing collisions, and updates `full_name`, `diu_id`, `batch`, and `onboarding_completed = true` in a single transaction.
+
+---
+
+## 5. Row-Level Security (RLS) Policy Architecture
+
+All tables have `ROW LEVEL SECURITY` explicitly enabled:
+- **`profiles`**:
+  - `SELECT`: Self, assigned advisors (via `advisor_assignments`), department heads, and admins.
+  - `UPDATE`: Authenticated users can modify non-sensitive profile attributes (guarded by trigger).
+- **`advisor_assignments`**:
+  - `SELECT`: The assigned student, the assigned advisor, department heads, and admins.
+  - `INSERT/UPDATE/DELETE`: Admins and department heads only.
+- **`registrations`**:
+  - `SELECT`: Enrolled student or assigned advisor (via `advisor_assignments`), department heads, admins.
+  - `INSERT`: Students can create applications strictly in `'draft'` status.
+  - `UPDATE`: Students can modify draft registrations; assigned advisors can transition `pending_advisor` to `approved` or `rejected`.
+- **`registration_items`**:
+  - `SELECT`: Student or assigned advisor.
+  - `INSERT/DELETE`: Students on draft applications; assigned advisors during review.
+- **`audit_logs`**:
+  - `INSERT`: Admins and backend service role only.
+  - `SELECT`: Admins and department heads only.

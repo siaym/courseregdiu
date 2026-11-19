@@ -85,17 +85,16 @@ Incoming agents **MUST** read the following architectural specifications in the 
 The incoming engineering team should execute **Phase 2: Database Connectivity & Live Advising Cart Transactions**:
 
 ### Milestone 2.1: Supabase Database Seeding (`supabase/seed.sql`)
-1. Migrate the mock curriculum from `src/lib/mock/data.ts` into a permanent `supabase/seed.sql` migration script.
-2. Insert departments (`CSE`, `SWE`, `EEE`, `BBA`), active semester (`Spring 2026`), courses, prerequisite records, and class sections.
-3. Verify that all foreign keys, unique constraints, and check constraints defined in `supabase/migrations/20261118000000_phase0_init.sql` and `supabase/migrations/20261119000000_student_onboarding.sql` are satisfied.
+1. Migrate the curriculum from `src/lib/mock/data.ts` into a permanent `supabase/seed.sql` migration script.
+2. Insert departments (`CSE`, `SWE`, `EEE`, `BBA`), active semester (`Spring 2027`), courses, prerequisite records, class sections, and initial advisor assignments.
+3. Verify that all foreign keys, unique constraints, and check constraints defined across migrations (`20261118000000_phase0_init.sql`, `20261119000000_student_onboarding.sql`, and `20261119110000_security_remediation_p0.sql`) are satisfied.
 
-### Milestone 2.2: First-Time Onboarding Server Action & Session Binding
-1. Create `completeOnboardingAction(formData)` in `src/lib/actions/onboarding.ts`:
-   - Validates inputs using `studentOnboardingSchema` in `src/lib/validations/onboarding.ts`.
+### Milestone 2.2: First-Time Onboarding Server Action & Session Binding (COMPLETED in P0 Security Remediation)
+1. Server action `completeOnboardingAction` created in `src/app/onboarding/actions.ts`:
+   - Validates inputs strictly using Zod (`fullName`, `diuId` regex, `batch`).
    - Checks for duplicate DIU Student ID in `public.profiles`.
-   - Updates `public.profiles` with `name`, `diu_id`, `batch`, `department_id`, and sets `onboarding_completed = true`.
-   - Revalidates session and redirects to `/dashboard`.
-2. Ensure `requireOnboarded()` in `src/lib/auth/roles.ts` reads live Supabase profile state.
+   - Executes `complete_student_onboarding()` RPC setting `onboarding_completed = true`.
+2. Guard `requireOnboarded()` in `src/lib/auth/roles.ts` guards all student pages and redirects uncompleted profiles to `/onboarding`.
 
 ### Milestone 2.3: Server Actions & Zod Validations for Registration Cart
 1. Create Server Actions in `src/lib/actions/registration.ts`:

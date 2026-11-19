@@ -1,7 +1,8 @@
 # IMPLEMENTATION STATUS — DIU Course Registration Platform
 
-> **Milestones**: Phase 0 Complete (100%) | Phase 1 Complete (100%) | Phase 1.5 Simplification & Reference Mockup Alignment (100%)  
+> **Milestones**: Phase 0 Complete (100%) | Phase 1 Complete (100%) | Phase 1.5 Simplification (100%) | **P0 Security Remediation Complete (100%)**  
 > **Build Status**: Passing (`next build` & `eslint` exit code 0)  
+> **Test Status**: Passing (`npm test` — 4/4 suites pass)  
 > **Total Routes**: 20 Routes Compiled (Static & Dynamic SSR)  
 > **Active Mock Term**: Unified to **Spring 2027** (`Apr 14 – Apr 20, 2027`) Across All Views  
 > **Last Verification**: November 2026  
@@ -10,7 +11,31 @@
 
 ## 1. Executive Summary
 
-**Phase 1.5 Simplification & Reference Mockup Alignment** has been executed to completion. The application matches the visual layout, surface colors, card hierarchies, and typographic styling of the uploaded reference mockups:
+**P0 Security Remediation & Code Review Resolution** has been executed to completion following comprehensive external security audit. Critical architectural and authorization protections have been hardened:
+
+1. **Server-Side Route Authorization & Role Enforcement**:
+   - Every protected page route (`/dashboard`, `/courses`, `/schedule`, `/student/*`, `/advisor/*`) now executes server-side guards (`requireAuth`, `requireRole`, `requireOnboarded`, `requireAdvisor`).
+   - Unauthenticated access returns HTTP 307 redirects to `/login`.
+   - Students attempting to reach advisor routes are redirected to `/unauthorized`.
+   - Incomplete student profiles are intercepted and routed to `/onboarding`.
+
+2. **Persistent Student Onboarding Pipeline**:
+   - Replaced browser `localStorage` stub with authentic PostgreSQL persistence.
+   - Server Action `completeOnboardingAction` validates DIU ID syntax (`^\d{3}-\d{2}-\d{4,6}$`), checks database-level uniqueness, and executes `complete_student_onboarding()` RPC.
+   - Removed unrequested extra fields (`departmentCode`), requiring strictly: Full Name, DIU Student ID, and Batch.
+
+3. **Database RLS & Privilege Escalation Mitigation**:
+   - Versioned migration `20261119110000_security_remediation_p0.sql` applied.
+   - Added `check_profile_privilege_escalation()` trigger blocking unauthorized role, CGPA, or passed credits tampering.
+   - Created `advisor_assignments` table enforcing strict cohort isolation: advisors can only inspect and manage assigned students.
+   - Hardened `registrations` policies: students can insert only `draft` status; advisors can only update pending records assigned to them; `audit_logs` restricted to admin/service role.
+
+4. **OAuth Callback Security & Open Redirect Prevention**:
+   - Implemented strict URL sanitizer `validateSafeRedirect()` rejecting protocol-relative URLs (`//`), backslashes (`/\`), and non-whitelisted paths.
+   - Enforced server-side domain verification ensuring Google email ends with `@diu.edu.bd`.
+
+5. **Automated Security Verification Test Suite**:
+   - `tests/security-verification.test.mjs` verifies open redirect mitigation, domain rejection, schema validation, and live route HTTP redirection (4/4 passed).
 
 1. **Student Portal Dashboard (Image 1 Alignment)**:
    - Deep canvas background `#0b0f19` with ambient top-right contour lines (`ContourBackground`).

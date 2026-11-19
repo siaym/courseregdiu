@@ -98,6 +98,20 @@ sequenceDiagram
 2. **Callback Validation (`src/app/auth/callback/route.ts`)**: Server-side inspection immediately parses user email domain. If a non-DIU domain arrives, the session is purged with `supabase.auth.signOut()` and redirected to `/login?error=invalid_domain`.
 3. **Middleware Guard (`src/middleware.ts` & `src/lib/supabase/middleware.ts`)**: Every subsequent page request validates that the session is valid and institutional email criteria remain satisfied.
 
+### 3.2 Open Redirect Mitigation (`validateSafeRedirect`)
+To defend against phishing and open redirection vulnerabilities in the OAuth callback lifecycle:
+1. All `returnTo` parameters pass through `validateSafeRedirect()`.
+2. Targets starting with `//`, containing backslashes (`\`), or specifying external protocols (`http:`, `https:`) are rejected.
+3. Destination paths must match an explicit whitelist of internal application prefixes: `/dashboard`, `/courses`, `/student`, `/advisor`, `/schedule`, or `/onboarding`.
+4. Invalid destinations cleanly fallback to `/dashboard`.
+
+### 3.3 Server-Side Authorization & Onboarding Guards
+Route access is shielded at the React Server Component layer before any UI rendering occurs:
+- `requireAuth()`: Verifies authenticated Supabase session or issues HTTP 307 redirect to `/login`.
+- `requireRole(allowedRoles)`: Verifies role membership or redirects to `/unauthorized`.
+- `requireAdvisor()`: Enforces `advisor`, `department_head`, or `admin` role.
+- `requireOnboarded()`: Checks `profiles.onboarding_completed`. Incomplete profiles are redirected to `/onboarding`.
+
 ---
 
 ## 4. Supabase Client Architecture

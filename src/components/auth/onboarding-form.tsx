@@ -4,9 +4,9 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { GraduationCap, ArrowRight, CheckCircle2, ShieldCheck, AlertCircle } from "lucide-react";
+import { GraduationCap, ArrowRight, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { studentOnboardingSchema, type StudentOnboardingInput } from "@/lib/validations/onboarding";
-import { MOCK_DEPARTMENTS, MOCK_ADVISEE_QUEUE, MOCK_STUDENT_PROFILE } from "@/lib/mock/data";
+import { submitStudentOnboarding } from "@/app/onboarding/actions";
 
 interface OnboardingFormProps {
   initialFullName?: string;
@@ -14,27 +14,18 @@ interface OnboardingFormProps {
 }
 
 export function OnboardingForm({
-  initialFullName = "Tanvir Ahmed Chowdhury",
-  initialEmail = "tanvir.new@diu.edu.bd",
+  initialFullName = "",
+  initialEmail = "",
 }: OnboardingFormProps) {
   const router = useRouter();
-  const [duplicateError, setDuplicateError] = React.useState<string | null>(null);
+  const [serverError, setServerError] = React.useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [successNotice, setSuccessNotice] = React.useState(false);
-
-  // Collect existing student IDs to prevent duplicates
-  const existingDiuIds = React.useMemo(() => {
-    const ids = new Set<string>();
-    if (MOCK_STUDENT_PROFILE.diu_id) ids.add(MOCK_STUDENT_PROFILE.diu_id);
-    MOCK_ADVISEE_QUEUE.forEach((app) => {
-      if (app.student.diu_id) ids.add(app.student.diu_id);
-    });
-    return ids;
-  }, []);
 
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors },
   } = useForm<StudentOnboardingInput>({
     resolver: zodResolver(studentOnboardingSchema),
@@ -42,189 +33,189 @@ export function OnboardingForm({
       fullName: initialFullName,
       diuId: "",
       batch: "61st Batch",
-      departmentCode: "CSE",
     },
   });
 
   const onSubmit = async (data: StudentOnboardingInput) => {
-    setDuplicateError(null);
+    setServerError(null);
     setIsSubmitting(true);
 
-    // 1. Duplicate Student ID check
-    if (existingDiuIds.has(data.diuId.trim())) {
+    try {
+      const result = await submitStudentOnboarding(data);
+
+      if (!result.success) {
+        setIsSubmitting(false);
+        if (result.fieldErrors) {
+          Object.entries(result.fieldErrors).forEach(([field, msg]) => {
+            setError(field as keyof StudentOnboardingInput, { message: msg });
+          });
+        }
+        setServerError(result.error || "Failed to complete onboarding.");
+        return;
+      }
+
       setIsSubmitting(false);
-      setDuplicateError(
-        `DIU Student ID "${data.diuId}" is already registered. If this is your authentic ID, please contact the DIU Registrar Office.`
-      );
-      return;
+      setSuccessNotice(true);
+
+      // Redirect to the Student Dashboard workspace
+      setTimeout(() => {
+        router.push("/dashboard?onboarded=true");
+        router.refresh();
+      }, 1000);
+    } catch (err: unknown) {
+      setIsSubmitting(false);
+      const message = err instanceof Error ? err.message : "An unexpected error occurred during submission.";
+      setServerError(message);
     }
-
-    // 2. Simulate persisting profile and marking onboarding_completed = true
-    await new Promise((resolve) => setTimeout(resolve, 600));
-
-    // Store in localStorage for prototype demonstration persistence
-    if (typeof window !== "undefined") {
-      localStorage.setItem(
-        "diu_onboarded_student",
-        JSON.stringify({
-          fullName: data.fullName,
-          diuId: data.diuId,
-          batch: data.batch,
-          departmentCode: data.departmentCode,
-          email: initialEmail,
-          onboardingCompleted: true,
-          completedAt: new Date().toISOString(),
-        })
-      );
-    }
-
-    setIsSubmitting(false);
-    setSuccessNotice(true);
-
-    // Redirect to the Student Dashboard workspace
-    setTimeout(() => {
-      router.push("/dashboard?onboarded=true");
-      router.refresh();
-    }, 1000);
   };
 
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900 shadow-xl max-w-md w-full overflow-hidden text-slate-100">
+    <div className="rounded-2xl border border-[#1c263c] bg-[#121827] shadow-xl max-w-md w-full overflow-hidden text-slate-100">
       {/* Header */}
-      <div className="p-6 pb-4 border-b border-slate-800 space-y-1.5 text-center">
-        <div className="mx-auto w-10 h-10 rounded-lg bg-[#008764] flex items-center justify-center text-white mb-2 shadow-xs">
-          <GraduationCap className="h-5 w-5" />
+      <div className="p-6 pb-4 border-b border-[#1c263c] space-y-1.5 text-center">
+        <div className="mx-auto w-11 h-11 rounded-xl bg-[#008764] flex items-center justify-center text-white mb-2 shadow-xs">
+          <GraduationCap className="h-6 w-6" />
         </div>
         <h1 className="text-lg font-semibold tracking-tight text-white">
-          Student Identity Verification
+          Student Profile Onboarding
         </h1>
-        <p className="text-xs text-slate-400">
-          Daffodil International University Course Registration
+        <p className="text-xs text-[#8e9db2]">
+          Confirm your academic identity to activate course registration.
         </p>
-        <div className="inline-flex items-center gap-1 text-[11px] font-mono text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-800/60 mt-1">
-          <ShieldCheck className="h-3.5 w-3.5" />
-          <span>{initialEmail}</span>
-        </div>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4 text-xs">
-        {duplicateError && (
-          <div className="p-3 rounded-md bg-rose-950/60 border border-rose-800 text-rose-300 flex items-start gap-2">
-            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-            <div>
-              <div className="font-semibold text-xs">Duplicate Student ID</div>
-              <p className="text-[11px] mt-0.5">{duplicateError}</p>
-            </div>
-          </div>
-        )}
-
-        {successNotice && (
-          <div className="p-3 rounded-md bg-emerald-950/80 border border-emerald-800 text-emerald-300 flex items-start gap-2">
-            <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-400" />
-            <div>
-              <div className="font-semibold text-xs">Profile Verified Successfully</div>
-              <p className="text-[11px] mt-0.5">Redirecting to your course registration workspace...</p>
-            </div>
-          </div>
-        )}
+      <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
+        {/* Institutional Email (Read-only reference from Google OAuth) */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-slate-300">
+            Institutional Google Account
+          </label>
+          <input
+            type="email"
+            value={initialEmail || "student@diu.edu.bd"}
+            readOnly
+            disabled
+            className="w-full px-3 py-2 text-xs bg-[#0b0f19] border border-[#1e293b] rounded-xl text-slate-400 cursor-not-allowed font-mono"
+          />
+          <p className="text-[11px] text-[#8e9db2]">
+            Restricted to verified @diu.edu.bd domain.
+          </p>
+        </div>
 
         {/* Full Name */}
-        <div className="space-y-1">
-          <div className="flex justify-between items-baseline">
-            <label htmlFor="fullName" className="font-medium text-slate-300">
-              Full Name <span className="text-rose-400">*</span>
-            </label>
-            <span className="text-[10px] text-slate-500 font-mono">From Google Session</span>
-          </div>
+        <div className="space-y-1.5">
+          <label htmlFor="fullName" className="text-xs font-medium text-slate-200">
+            Full Name <span className="text-rose-400">*</span>
+          </label>
           <input
             id="fullName"
             type="text"
+            placeholder="e.g. Siyam Ahmed"
             {...register("fullName")}
-            placeholder="e.g. Tanvir Ahmed Chowdhury"
-            className="w-full px-3 py-2 text-xs bg-slate-950 border border-slate-800 rounded-md text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium"
+            className={`w-full px-3 py-2 text-xs bg-[#0b0f19] border rounded-xl text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors ${
+              errors.fullName ? "border-rose-500" : "border-[#1e293b]"
+            }`}
           />
           {errors.fullName && (
-            <p className="text-rose-400 text-[10px] font-mono">{errors.fullName.message}</p>
+            <p className="text-[11px] text-rose-400 flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" />
+              <span>{errors.fullName.message}</span>
+            </p>
           )}
         </div>
 
         {/* DIU Student ID */}
-        <div className="space-y-1">
-          <div className="flex justify-between items-baseline">
-            <label htmlFor="diuId" className="font-medium text-slate-300">
-              DIU Student ID <span className="text-rose-400">*</span>
-            </label>
-            <span className="text-[10px] text-slate-500 font-mono">Format: 2XX-XX-XXXXX</span>
-          </div>
+        <div className="space-y-1.5">
+          <label htmlFor="diuId" className="text-xs font-medium text-slate-200">
+            DIU Student ID <span className="text-rose-400">*</span>
+          </label>
           <input
             id="diuId"
             type="text"
+            placeholder="e.g. 211-15-456 or 221-15-12345"
             {...register("diuId")}
-            placeholder="e.g. 221-15-4921"
-            className="w-full px-3 py-2 text-xs bg-slate-950 border border-slate-800 rounded-md text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono font-medium"
+            className={`w-full px-3 py-2 text-xs bg-[#0b0f19] border rounded-xl text-slate-100 placeholder:text-slate-500 font-mono focus:outline-none focus:border-blue-500 transition-colors ${
+              errors.diuId || serverError ? "border-rose-500" : "border-[#1e293b]"
+            }`}
           />
           {errors.diuId && (
-            <p className="text-rose-400 text-[10px] font-mono">{errors.diuId.message}</p>
+            <p className="text-[11px] text-rose-400 flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" />
+              <span>{errors.diuId.message}</span>
+            </p>
           )}
+          <p className="text-[10px] text-[#8e9db2]">
+            Standard DIU format: Semester-Dept-Roll (e.g. 211-15-456).
+          </p>
         </div>
 
-        {/* Intake Batch */}
-        <div className="space-y-1">
-          <label htmlFor="batch" className="font-medium text-slate-300 block">
-            Academic Intake Batch <span className="text-rose-400">*</span>
+        {/* Batch */}
+        <div className="space-y-1.5">
+          <label htmlFor="batch" className="text-xs font-medium text-slate-200">
+            Intake Batch <span className="text-rose-400">*</span>
           </label>
           <input
             id="batch"
             type="text"
+            placeholder="e.g. 61st Batch or 60th Batch"
             {...register("batch")}
-            placeholder="e.g. 60th Batch"
-            className="w-full px-3 py-2 text-xs bg-slate-950 border border-slate-800 rounded-md text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
+            className={`w-full px-3 py-2 text-xs bg-[#0b0f19] border rounded-xl text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors ${
+              errors.batch ? "border-rose-500" : "border-[#1e293b]"
+            }`}
           />
           {errors.batch && (
-            <p className="text-rose-400 text-[10px] font-mono">{errors.batch.message}</p>
+            <p className="text-[11px] text-rose-400 flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" />
+              <span>{errors.batch.message}</span>
+            </p>
           )}
         </div>
 
-        {/* Department Code */}
-        <div className="space-y-1">
-          <label htmlFor="departmentCode" className="font-medium text-slate-300 block">
-            Academic Department <span className="text-rose-400">*</span>
-          </label>
-          <select
-            id="departmentCode"
-            {...register("departmentCode")}
-            className="w-full px-3 py-2 text-xs bg-slate-950 border border-slate-800 rounded-md text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-          >
-            {MOCK_DEPARTMENTS.map((dept) => (
-              <option key={dept.code} value={dept.code}>
-                {dept.code} — {dept.name}
-              </option>
-            ))}
-          </select>
-          {errors.departmentCode && (
-            <p className="text-rose-400 text-[10px] font-mono">{errors.departmentCode.message}</p>
-          )}
-        </div>
+        {/* Server Error Alert */}
+        {serverError && (
+          <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-800 text-xs text-rose-300 flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 text-rose-400 shrink-0 mt-0.5" />
+            <div className="space-y-0.5">
+              <span className="font-semibold text-rose-200">Onboarding Failed</span>
+              <p className="text-[11px] text-rose-300">{serverError}</p>
+            </div>
+          </div>
+        )}
 
-        {/* Action */}
-        <div className="pt-2 border-t border-slate-800/80">
+        {/* Success Notice */}
+        {successNotice && (
+          <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-800 text-xs text-emerald-300 flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+            <span>Profile submitted successfully. Redirecting to your workspace...</span>
+          </div>
+        )}
+
+        {/* Submit Button */}
+        <div className="pt-2">
           <button
             type="submit"
             disabled={isSubmitting || successNotice}
-            className="w-full bg-[#008764] hover:bg-[#007053] disabled:opacity-50 text-white font-medium py-2 rounded-md transition-colors flex items-center justify-center gap-1.5 h-9"
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#008764] hover:bg-[#007355] text-white font-semibold text-xs transition-all shadow-xs disabled:opacity-50 cursor-pointer"
           >
             {isSubmitting ? (
-              <span className="font-mono">Verifying Credentials...</span>
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Saving Profile to Database...</span>
+              </>
             ) : successNotice ? (
-              <span className="font-mono">Verified ✓ Redirecting</span>
+              <span>Redirecting...</span>
             ) : (
               <>
-                <span>Complete Verification & Proceed</span>
+                <span>Complete Profile & Enter Portal</span>
                 <ArrowRight className="h-4 w-4" />
               </>
             )}
           </button>
         </div>
+
+        <p className="text-[11px] text-[#8e9db2] text-center pt-2">
+          Official DIU academic records will be reconciled with the Department Registrar.
+        </p>
       </form>
     </div>
   );

@@ -2,8 +2,8 @@ import { z } from "zod";
 
 /**
  * DIU First-Time Student Onboarding Validation Schema
- * Authoritative verification will link to DIU ERP/Student Information System in Phase 2+.
- * For Phase 1, format structure is validated without inventing rigid fictional constraints.
+ * Authoritative verification: strictly requires Full Name, DIU Student ID, and Batch.
+ * Matches official DIU conventions (e.g. 211-15-456 or 221-15-12345).
  */
 export const studentOnboardingSchema = z.object({
   fullName: z
@@ -15,22 +15,18 @@ export const studentOnboardingSchema = z.object({
   diuId: z
     .string()
     .trim()
-    .min(9, "DIU Student ID must be in standard format (e.g. 221-15-12345)")
+    .min(8, "DIU Student ID must follow format XXX-XX-XXX (e.g. 211-15-456 or 221-15-12345)")
     .max(20, "DIU Student ID is too long")
     .regex(
-      /^\d{3}-\d{2}-\d{4,6}$/,
-      "Student ID format must follow DIU convention: Semester-Dept-Roll (e.g. 221-15-12345)"
+      /^\d{3}-\d{2}-\d{3,6}$/,
+      "Student ID format must follow DIU convention: Semester-Dept-Roll (e.g. 211-15-456 or 221-15-12345)"
     ),
 
   batch: z
     .string()
     .trim()
-    .min(1, "Academic Intake Batch is required (e.g. 60th Batch, 59th Batch)")
+    .min(1, "Academic Intake Batch is required (e.g. 61st Batch, 60th Batch)")
     .max(30, "Batch name is too long"),
-
-  departmentCode: z
-    .string()
-    .min(2, "Department selection is required"),
 });
 
 export type StudentOnboardingInput = z.infer<typeof studentOnboardingSchema>;

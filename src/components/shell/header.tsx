@@ -10,8 +10,10 @@ import {
   GraduationCap,
   UserCheck,
   User as UserIcon,
+  LogOut,
 } from "lucide-react";
 import { ACTIVE_MOCK_SEMESTER_LABEL } from "@/lib/mock/data";
+import { clearSession } from "@/app/login/actions";
 
 export interface HeaderProps {
   onToggleSidebar?: () => void;
@@ -95,6 +97,18 @@ export function Header({
           <div className="h-9 w-9 rounded-full bg-[#1e293b] border border-[#334155] flex items-center justify-center text-white font-semibold text-sm select-none shadow-xs">
             {!isAdvisor ? "S" : "R"}
           </div>
+
+          {/* Secure Sign Out Button */}
+          <form action={clearSession}>
+            <button
+              type="submit"
+              className="p-2 rounded-xl text-[#8e9db2] hover:text-rose-400 hover:bg-[#121827] transition-colors"
+              title="Sign Out"
+              aria-label="Sign Out"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </form>
         </div>
       </div>
     </header>

@@ -298,12 +298,46 @@ export interface Database {
           created_at?: string;
         };
       };
+      advisor_assignments: {
+        Row: {
+          id: string;
+          advisor_id: string;
+          student_id: string;
+          semester_id: string;
+          assigned_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          advisor_id: string;
+          student_id: string;
+          semester_id: string;
+          assigned_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          advisor_id?: string;
+          student_id?: string;
+          semester_id?: string;
+          assigned_at?: string;
+          created_at?: string;
+        };
+      };
     };
     Views: Record<string, never>;
     Functions: {
       get_current_user_role: {
         Args: Record<PropertyKey, never>;
         Returns: UserRole;
+      };
+      complete_student_onboarding: {
+        Args: {
+          p_full_name: string;
+          p_diu_id: string;
+          p_batch: string;
+        };
+        Returns: Json;
       };
     };
     Enums: {

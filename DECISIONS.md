@@ -260,3 +260,38 @@ Review of the Phase 1 prototype identified redundant screens (separate `/courses
 ### Consequences
 - **Positive**: Extremely fast, coherent, and minimal registration workflow; eliminates page bouncing between catalog and cart; eliminates duplicate component rendering; reduces client bundle overhead; provides focused decision-making for students and advisors.
 - **Negative**: Requires students to view transcript history and degree progress within Profile rather than having it on the primary dashboard.
+
+---
+
+## ADR-016: P0 Security Remediation — Server Route Guards, Onboarding Persistence, RLS Hardening, and OAuth Redirect Whitelisting
+
+### Context
+External security and code review of the initial prototype identified critical vulnerabilities:
+1. Student and Advisor pages were unshielded by server-side guards, allowing unauthenticated or unauthorized role access via direct URL manipulation.
+2. First-login onboarding persisted data exclusively to browser `localStorage` without writing to PostgreSQL `public.profiles`.
+3. Inadequate Row-Level Security (RLS) policies permitted users to update their own `role`, `cgpa`, and `completed_credits` fields.
+4. Advisors lacked strict cohort isolation, permitting cross-departmental or unassigned student inspection.
+5. The OAuth callback handler contained potential open redirect exposure via untrusted `returnTo` parameters.
+
+### Decision
+1. **Server-Side Route Authorization**:
+   - Enforce `requireAuth()`, `requireRole()`, `requireOnboarded()`, and `requireAdvisor()` across all 12 protected server pages (`/dashboard`, `/courses`, `/schedule`, `/student/*`, `/advisor/*`).
+   - Intercept unauthenticated requests with server-side HTTP 307 redirects to `/login`.
+   - Direct students attempting to access advisor routes to `/unauthorized`.
+2. **Server-Side Onboarding Persistence & Validation**:
+   - Remove all `localStorage` prototype simulations.
+   - Implement `completeOnboardingAction` in `src/app/onboarding/actions.ts` validating strictly `fullName`, `diuId` (`^\d{3}-\d{2}-\d{4,6}$`), and `batch`.
+   - Persist to PostgreSQL `public.profiles` using a `SECURITY DEFINER` RPC (`complete_student_onboarding`) with database-level uniqueness enforcement on `diu_id`.
+3. **Database Privilege Escalation Defense**:
+   - Revoke raw `UPDATE` on sensitive profile columns (`role`, `cgpa`, `completed_credits`, `diu_id`).
+   - Attach trigger `check_profile_privilege_escalation()` preventing non-admin callers from modifying authorization or academic record attributes.
+4. **Advisor Cohort Data Isolation**:
+   - Provision `public.advisor_assignments` table with foreign keys linking `advisor_id` and `student_id`.
+   - Update RLS policies on `registrations` and `registration_items` ensuring advisors can only view and manage students explicitly assigned to them in `advisor_assignments`.
+5. **Open Redirect Mitigation & Domain Enforcement**:
+   - Implement strict URL sanitizer `validateSafeRedirect()` rejecting protocol-relative URLs (`//`), backslashes (`/\`), and off-domain targets, whitelisting only authorized internal application paths.
+   - Enforce server-side verification that authenticated Google emails end strictly with `@diu.edu.bd`.
+
+### Consequences
+- **Positive**: Complete defense-in-depth security model; route spoofing and client state manipulation are rendered structurally ineffective; zero privilege escalation paths.
+- **Negative**: Unassigned students cannot be viewed by advisors unless an explicit assignment record exists in `advisor_assignments`.
