@@ -1,36 +1,87 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Daffodil International University (DIU) — Course Registration Platform
 
-## Getting Started
+> An institutional, production-grade course registration platform designed and engineered for Daffodil International University (DIU). Built with Next.js 16 (App Router), TypeScript (Strict), Tailwind CSS v4, and Supabase PostgreSQL with Row-Level Security (RLS).
 
-First, run the development server:
+---
 
+## 📸 Visual Previews
+
+### Student Portal Dashboard
+![Student Portal](public/screenshots/student_portal_screenshot.png)
+
+### Advisor Portal Dashboard
+![Advisor Portal](public/screenshots/advisor_portal_screenshot.png)
+
+---
+
+## ⚡ Core Architecture & Features
+
+- **Institutional Design System**: Bespoke dark aesthetic (`#0b0f19` canvas, `#121827` elevated cards, `#1c263c` borders, `#172136` active nav pill) with authentic DIU emblem crest and topographic contour curves.
+- **Unified Courses Registration Workspace (`/courses`)**: Single-screen course selection with 150ms debounced search, level filtering, regular vs. retake/backlog categorization, live section seat counters, and persistent registration cart summary with review-and-submit workflow.
+- **Academic Advising Queue & Review Studio (`/advisor`)**:
+  - Live KPI stats: Assigned Students, Pending Applications, Under Review, Completed.
+  - Multi-parameter filter ribbon (Search, Status, Batch, Payment clearance).
+  - One-by-one advisee review studio with in-place section reassignment and atomic approval/revision determination.
+- **Strict Role-Based Access Control**:
+  - `student`: Profile, Course Selection, Timetable, Application Tracking, Academic Transcript.
+  - `advisor`: Advisee Queue, Roster, Application Audit, Determination.
+  - `department_head` & `admin`: Capacity overrides, semester scheduling, departmental roster oversight.
+- **Zero Academic Fabrication**: Standard DIU 4.00 grading scale, department codes (CSE, SWE, EEE, BBA, ENG), authentic course codes, and prerequisite verification.
+
+---
+
+## 🛠️ Technology Stack
+
+| Layer | Technology |
+| :--- | :--- |
+| **Framework** | Next.js 16 (App Router with Turbopack) |
+| **Language** | TypeScript 5 (Strict Mode) |
+| **Styling** | Tailwind CSS v4 + Lucide Icons |
+| **Database** | PostgreSQL via Supabase (Strict RLS Policies) |
+| **Validation** | Zod Schemas |
+| **Email** | Resend API Integration with fallback logger |
+
+---
+
+## 🚀 Getting Started
+
+### 1. Clone & Install Dependencies
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/siaym/courseregdiu.git
+cd courseregdiu
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Environment Configuration
+Copy the template and provide your Supabase and Resend credentials:
+```bash
+cp .env.example .env.local
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Run Development Server
+```bash
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Visit [http://localhost:3000](http://localhost:3000) to access the application.
 
-## Learn More
+### 4. Build & Typecheck
+```bash
+npm run lint
+npm run build
+```
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 📚 Project Documentation
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- [`AGENTS.md`](./AGENTS.md) — Multi-Agent Engineering Playbook & Operational Rules
+- [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) — Institutional Brand Tokens & UI Specifications
+- [`SYSTEM_ARCHITECTURE.md`](./SYSTEM_ARCHITECTURE.md) — App Router, SSR, Middleware & Auth Pipelines
+- [`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md) — PostgreSQL Schemas, Foreign Keys & RLS Security Policies
+- [`IMPLEMENTATION_STATUS.md`](./IMPLEMENTATION_STATUS.md) — Feature Progress Matrix & Verification Logs
+- [`HANDOFF.md`](./HANDOFF.md) — Sprint Handover & Architecture Decisions
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+© Daffodil International University. Engineered for academic excellence.
