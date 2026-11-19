@@ -116,17 +116,18 @@ export async function submitStudentRegistration(
     isUnderReview: false,
     items: courses.map((c, idx) => {
       const existingSection = MOCK_SECTIONS.find((s) => s.id === c.sectionId);
+      const isLab = c.courseTitle.toLowerCase().includes("lab") || c.credits <= 1.5;
       const fallbackSection: ExtendedSection = existingSection || {
         id: c.sectionId,
         course_id: c.courseId,
         semester_id: MOCK_CURRENT_SEMESTER.id,
         section_name: c.sectionName,
-        capacity: 40,
-        enrolled_count: 32,
-        room: "AB4-501",
+        capacity: isLab ? 25 : 50,
+        enrolled_count: isLab ? 18 : 36,
+        room: isLab ? "CS-Lab 1" : "AB4-501",
         schedule: [
-          { day: "Sunday", start_time: "08:30", end_time: "10:00", room: "AB4-501" },
-          { day: "Tuesday", start_time: "08:30", end_time: "10:00", room: "AB4-501" },
+          { day: "Sunday", start_time: "08:30", end_time: "10:00", room: isLab ? "CS-Lab 1" : "AB4-501" },
+          { day: "Tuesday", start_time: "08:30", end_time: "10:00", room: isLab ? "CS-Lab 1" : "AB4-501" },
         ],
         instructor_name: "Assigned Faculty",
         course_code: c.courseCode,

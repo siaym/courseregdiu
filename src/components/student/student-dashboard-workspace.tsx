@@ -354,7 +354,7 @@ export function StudentDashboardWorkspace() {
                 Revision Requested by Faculty Advisor
               </h4>
               <p className="text-xs text-slate-200">
-                Advisor Remark: <em className="text-white">&ldquo;Please swap CSE225 Section A to Section B due to lab capacity constraints, then resubmit your slip.&rdquo;</em>
+                Advisor Remark: <em className="text-white">&ldquo;Please swap CSE225 Section A to Section B due to section capacity limits, then resubmit your slip.&rdquo;</em>
               </p>
             </div>
           </div>

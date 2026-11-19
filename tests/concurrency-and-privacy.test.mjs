@@ -108,23 +108,37 @@ test("Capacity Test 4: Section capacity enforcement logic rejects over-enrollmen
     };
   }
 
-  // Case A: Full section
-  const fullSection = { id: "sec-full", capacity: 40, enrolled_count: 40 };
-  const fullResult = simulateAtomicEnrollment(fullSection, [], "course-cse412");
-  assert.equal(fullResult.success, false);
-  assert.equal(fullResult.error, "Section is fully enrolled");
+  // Case A1: Full Lab section (25 seats fixed)
+  const fullLabSection = { id: "sec-lab-full", capacity: 25, enrolled_count: 25 };
+  const fullLabResult = simulateAtomicEnrollment(fullLabSection, [], "course-cse111");
+  assert.equal(fullLabResult.success, false);
+  assert.equal(fullLabResult.error, "Section is fully enrolled");
 
-  // Case B: Available section
-  const openSection = { id: "sec-open", capacity: 40, enrolled_count: 38 };
-  const openResult = simulateAtomicEnrollment(openSection, [], "course-cse412");
-  assert.equal(openResult.success, true);
-  assert.equal(openResult.enrolled_count, 39);
+  // Case A2: Full Theory section (50 seats fixed)
+  const fullTheorySection = { id: "sec-theory-full", capacity: 50, enrolled_count: 50 };
+  const fullTheoryResult = simulateAtomicEnrollment(fullTheorySection, [], "course-cse110");
+  assert.equal(fullTheoryResult.success, false);
+  assert.equal(fullTheoryResult.error, "Section is fully enrolled");
+
+  // Case B1: Available Lab section (25 seats fixed)
+  const openLabSection = { id: "sec-lab-open", capacity: 25, enrolled_count: 22 };
+  const openLabResult = simulateAtomicEnrollment(openLabSection, [], "course-cse111");
+  assert.equal(openLabResult.success, true);
+  assert.equal(openLabResult.enrolled_count, 23);
+  assert.equal(openLabResult.capacity, 25);
+
+  // Case B2: Available Theory section (50 seats fixed)
+  const openTheorySection = { id: "sec-theory-open", capacity: 50, enrolled_count: 48 };
+  const openTheoryResult = simulateAtomicEnrollment(openTheorySection, [], "course-cse110");
+  assert.equal(openTheoryResult.success, true);
+  assert.equal(openTheoryResult.enrolled_count, 49);
+  assert.equal(openTheoryResult.capacity, 50);
 
   // Case C: Duplicate course enrollment attempt
   const dupResult = simulateAtomicEnrollment(
-    openSection,
-    [{ course_id: "course-cse412" }],
-    "course-cse412"
+    openTheorySection,
+    [{ course_id: "course-cse110" }],
+    "course-cse110"
   );
   assert.equal(dupResult.success, false);
   assert.equal(dupResult.error, "Already enrolled in this course");

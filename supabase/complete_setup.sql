@@ -104,7 +104,8 @@ CREATE TABLE IF NOT EXISTS public.sections (
     course_id UUID NOT NULL REFERENCES public.courses(id) ON DELETE RESTRICT,
     semester_id UUID NOT NULL REFERENCES public.semesters(id) ON DELETE RESTRICT,
     section_number VARCHAR(10) NOT NULL,
-    capacity INTEGER NOT NULL DEFAULT 40 CHECK (capacity > 0),
+    -- DIU Academic Rule: Lab courses = 25 seats fixed; Theory courses = 50 seats fixed
+    capacity INTEGER NOT NULL DEFAULT 50 CHECK (capacity > 0),
     enrolled_count INTEGER NOT NULL DEFAULT 0 CHECK (enrolled_count >= 0),
     faculty_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     schedule JSONB NOT NULL DEFAULT '[]'::jsonb,

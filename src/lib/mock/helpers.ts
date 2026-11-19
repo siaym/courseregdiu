@@ -30,6 +30,25 @@ export function getPrerequisiteStatus(
 }
 
 /**
+ * Determines whether a course is a laboratory course.
+ * DIU Academic Rules: Lab courses have <= 1.5 credits or 'Lab' in title.
+ */
+export function isLabCourse(course: { title?: string; code?: string; credits?: number }): boolean {
+  const title = (course.title || "").toLowerCase();
+  const code = (course.code || "").toUpperCase();
+  return title.includes("lab") || code.endsWith("_L") || code.endsWith("L") || (course.credits !== undefined && course.credits <= 1.5 && title.includes("lab"));
+}
+
+/**
+ * Standard DIU fixed section capacities:
+ * - Lab courses: 25 seats fixed
+ * - Theory / lecture courses: 50 seats fixed
+ */
+export function getStandardSectionCapacity(isLab: boolean): number {
+  return isLab ? 25 : 50;
+}
+
+/**
  * Calculates section enrollment capacity state.
  */
 export function getSectionAvailability(section: SectionRow): {
