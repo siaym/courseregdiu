@@ -693,6 +693,7 @@ export const MOCK_AUTHORIZED_EMAILS: AuthorizedEmailRow[] = [
   {
     id: "auth-email-siyam-diu",
     profile_id: "student-siyam-01",
+    auth_user_id: "student-siyam-01",
     email: "siyam.cse@diu.edu.bd",
     email_type: "primary_diu",
     is_active: true,
@@ -705,6 +706,7 @@ export const MOCK_AUTHORIZED_EMAILS: AuthorizedEmailRow[] = [
   {
     id: "auth-email-siyam-alt",
     profile_id: "student-siyam-01",
+    auth_user_id: null,
     email: "siyam.personal@gmail.com",
     email_type: "alternative_personal",
     is_active: true,
@@ -717,6 +719,7 @@ export const MOCK_AUTHORIZED_EMAILS: AuthorizedEmailRow[] = [
   {
     id: "auth-email-atikur-diu",
     profile_id: "prof-student-01",
+    auth_user_id: "prof-student-01",
     email: "atikur.rahman@diu.edu.bd",
     email_type: "primary_diu",
     is_active: true,
@@ -729,6 +732,7 @@ export const MOCK_AUTHORIZED_EMAILS: AuthorizedEmailRow[] = [
   {
     id: "auth-email-atikur-alt",
     profile_id: "prof-student-01",
+    auth_user_id: null,
     email: "atikur.personal@gmail.com",
     email_type: "alternative_personal",
     is_active: true,
@@ -741,6 +745,7 @@ export const MOCK_AUTHORIZED_EMAILS: AuthorizedEmailRow[] = [
   {
     id: "auth-email-advisor-diu",
     profile_id: "advisor-prof-rahman",
+    auth_user_id: "advisor-prof-rahman",
     email: "rahman.cse@diu.edu.bd",
     email_type: "advisor_authorized",
     is_active: true,
@@ -753,6 +758,7 @@ export const MOCK_AUTHORIZED_EMAILS: AuthorizedEmailRow[] = [
   {
     id: "auth-email-advisor-alt",
     profile_id: "advisor-prof-rahman",
+    auth_user_id: null,
     email: "dr.rahman.ahmed@gmail.com",
     email_type: "advisor_authorized",
     is_active: true,
@@ -765,6 +771,7 @@ export const MOCK_AUTHORIZED_EMAILS: AuthorizedEmailRow[] = [
   {
     id: "auth-email-advisor-deactivated",
     profile_id: "advisor-prof-rahman",
+    auth_user_id: null,
     email: "deactivated.advisor@gmail.com",
     email_type: "advisor_authorized",
     is_active: false,
@@ -777,6 +784,7 @@ export const MOCK_AUTHORIZED_EMAILS: AuthorizedEmailRow[] = [
   {
     id: "auth-email-admin-diu",
     profile_id: "admin-registrar-01",
+    auth_user_id: "admin-registrar-01",
     email: "admin.registrar@diu.edu.bd",
     email_type: "admin_authorized",
     is_active: true,
@@ -789,6 +797,7 @@ export const MOCK_AUTHORIZED_EMAILS: AuthorizedEmailRow[] = [
   {
     id: "auth-email-admin-alt",
     profile_id: "admin-registrar-01",
+    auth_user_id: null,
     email: "admin.personal@gmail.com",
     email_type: "admin_authorized",
     is_active: true,

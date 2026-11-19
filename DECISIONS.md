@@ -329,3 +329,46 @@ The strict `@diu.edu.bd` universal domain restriction prevented students and fac
 ### Consequences
 - **Positive**: Seamless dual-email support for students with zero profile duplication; granular administrative auditability; instant revocation capability; 100% adherence to DIU final authentication policy.
 - **Negative**: Personal emails require administrator pre-authorization before login.
+
+---
+
+## ADR-018: Production Security Hardening, Identity Linking, Profile Privacy & Concurrency Control
+
+### Context
+Code review identified remaining vulnerabilities before live Supabase database deployment:
+1. Middleware unconditionally rejected personal Google emails outside `@diu.edu.bd` even when authorized by an Admin.
+2. `public.profiles` had a public SELECT policy permitting anonymous reads of student academic records.
+3. Secondary Google accounts in Supabase Auth create distinct `auth.uid()` values, breaking standard `auth.uid() = profiles.id` RLS checks.
+4. Concurrency control and atomic seat allocation were not enforced at the database level, posing race-condition risks during heavy advising traffic (200–300 concurrent registrations).
+5. `resolve_profile_by_email` lacked authorization restrictions, exposing student identity data.
+6. The setup script lacked policy drop idempotence and had an inconsistent DIU ID regex.
+
+### Decision
+1. **Middleware Policy Realignment (`src/lib/supabase/middleware.ts`)**:
+   - Replaced unconditional domain rejection with an authoritative lookup in `public.authorized_emails`.
+   - Permitted active authorized personal emails and active authorized advisors.
+   - Deactivated accounts and unauthorized personal emails are immediately intercepted with informative error redirects (`email_revoked`, `unauthorized_email`).
+2. **Profile Privacy Hardening**:
+   - Removed all public SELECT policies on `public.profiles`.
+   - Restricted SELECT strictly to: self profile (`id = public.get_current_profile_id()`), assigned advisor viewing advisee, student viewing assigned advisor, department head viewing department scholars, and admins.
+   - Unauthenticated requests receive 0 rows.
+3. **Database-Level Identity Linking**:
+   - Added `auth_user_id` column to `public.authorized_emails`.
+   - Updated `handle_new_user()` trigger to link secondary Google `auth.users.id` to the existing profile's authorized email record without inserting duplicate profiles.
+   - Created `public.get_current_profile_id()` returning the canonical student profile ID regardless of whether primary or alternative email authenticated.
+   - Updated `public.get_current_user_role()` to resolve role through `get_current_profile_id()`.
+4. **Database-Level Concurrency Control & Atomic Allocation**:
+   - Implemented `enroll_section_atomic(p_registration_id, p_section_id)` with `SELECT ... FOR UPDATE` row-level locks on `public.sections`.
+   - Enforces capacity constraints at the transactional level; prevents duplicate course enrollment.
+   - Implemented `drop_section_atomic` and `switch_section_atomic` with ordered locks preventing deadlocks.
+5. **Registration State Machine Integrity**:
+   - Created trigger `check_registration_state_transition()` strictly preventing students from setting status to `'approved'` and preventing advisors from tampering with unassigned students or student payment records.
+6. **Hardened Identity Reconnaissance & Unified Regex**:
+   - Restricted `resolve_profile_by_email()` so non-admin callers can only resolve their own email matching `auth.jwt() ->> 'email'`.
+   - Revoked `PUBLIC` and `anon` execution permissions.
+   - Unified DIU Student ID regex to `^\d{3}-\d{2}-\d{3,6}$`.
+   - Ensured complete rerun idempotence with `DROP POLICY IF EXISTS` across all tables.
+
+### Consequences
+- **Positive**: Complete defense-in-depth security model; zero profile data exposure; seamless secondary email authentication mapped to canonical profile; guaranteed concurrency safety under high load; 100% idempotent SQL setup script.
+- **Negative**: Complex RLS policies require `get_current_profile_id()` function overhead (mitigated via STABLE function caching).

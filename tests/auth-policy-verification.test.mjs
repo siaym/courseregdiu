@@ -105,6 +105,7 @@ test("Policy Test 5: Removing alternative email revokes access", async () => {
   registerMockAuthorizedEmail({
     id: `temp-auth-${Date.now()}`,
     profile_id: MOCK_STUDENT_PROFILE.id,
+    auth_user_id: null,
     email: tempEmail,
     email_type: "alternative_personal",
     is_active: true,

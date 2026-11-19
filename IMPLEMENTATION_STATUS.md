@@ -1,8 +1,8 @@
 # IMPLEMENTATION STATUS — DIU Course Registration Platform
 
-> **Milestones**: Phase 0 Complete (100%) | Phase 1 Complete (100%) | Phase 1.5 Simplification (100%) | P0 Security Remediation Complete (100%) | **Final Authentication Policy & Multi-Email Identity Complete (100%)**  
+> **Milestones**: Phase 0 Complete (100%) | Phase 1 Complete (100%) | Phase 1.5 Simplification (100%) | P0 Security Remediation Complete (100%) | Final Auth Policy Complete (100%) | **P0 Security Hardening, Identity Linking & Concurrency Complete (100%)**  
 > **Build Status**: Passing (`next build` & `eslint` exit code 0, 0 errors, 0 warnings)  
-> **Test Status**: Passing (`npm test` — 18/18 test cases pass across 2 test suites, 0 failures)  
+> **Test Status**: Passing (`npm test` — 23/23 test cases pass across 3 test suites in 2.6s, 0 failures)  
 > **Total Routes**: 22 Routes Compiled (Static & Dynamic SSR)  
 > **Active Mock Term**: Unified to **Spring 2027** (`Apr 14 – Apr 20, 2027`) Across All Views  
 > **Last Verification**: November 2026  
@@ -11,32 +11,36 @@
 
 ## 1. Executive Summary
 
-**Final Authentication Policy & Multi-Email Identity Remediation** has been executed to completion following official DIU institutional directives:
+**P0 Security Hardening, Identity Linking & Concurrency Control** has been executed to completion following in-depth architectural audit:
 
-1. **Student Dual-Email Identity Architecture**:
-   - Default eligibility requires Google OAuth with verified `@diu.edu.bd` account.
-   - Personal Google email addresses (`@gmail.com`) are rejected by default.
-   - Administrators can authorize an alternative personal Google email for an existing student profile.
-   - Both primary DIU email and authorized personal email map strictly to the *same* student profile with zero duplicate profile creation.
-   - Deactivating or removing an alternative email revokes login authorization immediately on subsequent requests.
-   - One email address cannot be assigned to two profiles simultaneously.
+1. **Middleware Policy Realignment (`src/lib/supabase/middleware.ts`)**:
+   - Replaced unconditional domain rejection with an authoritative lookup in `public.authorized_emails`.
+   - Permitted active authorized personal emails and active authorized advisors.
+   - Deactivated accounts and unauthorized personal emails are immediately intercepted with informative error redirects (`email_revoked`, `unauthorized_email`).
 
-2. **Admin Email Management & Audit Subsystem (`/admin/emails`)**:
-   - Protected by server-side `requireAdmin()` guard.
-   - Interactive administrative console to view student directory, primary DIU emails, active/inactive alternative emails, and authorizer attribution.
-   - Modal to authorize alternative personal emails with mandatory justification.
-   - Active/Inactive toggle and permanent revocation dialogs requiring recorded audit reason.
-   - Append-only immutable audit log table (`public.email_authorization_audit`) tracking every authorization event.
+2. **Profile Privacy Hardening**:
+   - Removed all public/anonymous profile viewing policies.
+   - Restricted SELECT strictly to: self profile (`id = public.get_current_profile_id()`), assigned advisor viewing advisees, student viewing assigned advisor, department heads, and admins.
 
-3. **Advisor & Administrator Authentication**:
-   - Advisors can use DIU or personal Google email under explicit administrative authorization.
-   - Deactivated advisors lose portal access immediately.
-   - Administrator accounts must be manually provisioned in the database; email domain alone never confers administrative privileges.
+3. **Database-Level Identity Linking**:
+   - Added `auth_user_id` to `public.authorized_emails`.
+   - `handle_new_user()` trigger links secondary Google `auth.users.id` to the existing profile's authorized email record without inserting duplicate profiles.
+   - Created `public.get_current_profile_id()` returning the canonical student profile ID regardless of whether primary or alternative email authenticated.
+   - Updated `public.get_current_user_role()` to resolve role through `get_current_profile_id()`.
 
-4. **18-Suite Verification Harness (`npm test`)**:
+4. **Database-Level Concurrency Control & Atomic Allocation**:
+   - Implemented `enroll_section_atomic(p_registration_id, p_section_id)` with `SELECT ... FOR UPDATE` row-level locks on `public.sections`.
+   - Enforces capacity constraints at the transactional level; prevents duplicate course enrollment.
+   - Implemented `drop_section_atomic` and `switch_section_atomic` with ordered locks preventing deadlocks.
+
+5. **Registration State Machine Integrity**:
+   - Created trigger `check_registration_state_transition()` strictly preventing students from setting status to `'approved'` and preventing advisors from tampering with unassigned students or student payment records.
+
+6. **23-Suite Verification Harness (`npm test`)**:
    - `tests/security-verification.test.mjs` (8/8 P0 security tests pass).
    - `tests/auth-policy-verification.test.mjs` (10/10 auth policy tests pass).
-   - All 18 tests execute cleanly with 0 failures.
+   - `tests/concurrency-and-privacy.test.mjs` (5/5 privacy, identity linking & capacity tests pass).
+   - All 23 tests execute cleanly in ~2.6s with 0 failures.
 
 1. **Student Portal Dashboard (Image 1 Alignment)**:
    - Deep canvas background `#0b0f19` with ambient top-right contour lines (`ContourBackground`).

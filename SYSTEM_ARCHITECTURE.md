@@ -100,6 +100,8 @@ The authentication layer implements the DIU Final Authentication Policy:
    - Personal emails (e.g., `@gmail.com`) are rejected by default unless explicitly authorized by an Administrator in `public.authorized_emails`.
    - Admin-authorized personal emails resolve to the student's *existing* canonical profile via `resolve_profile_by_email` / `resolveEmailAuthorization`.
    - Zero duplicate profile creation: primary DIU email and authorized personal email map to the same `profile_id`.
+   - In Supabase Auth, secondary Google accounts link `authorized_emails.auth_user_id` to the existing profile without inserting duplicate `public.profiles`.
+   - Canonical resolver `public.get_current_profile_id()` ensures all RLS policies operate on the student's canonical profile.
    - Removing an alternative email terminates its login authorization immediately on subsequent requests.
 2. **Advisor Authentication**:
    - Faculty can use DIU or personal Google email, but the account must be explicitly pre-authorized by an Administrator in `public.authorized_emails`.
@@ -107,7 +109,10 @@ The authentication layer implements the DIU Final Authentication Policy:
 3. **Admin Authentication**:
    - Administrator accounts must be manually provisioned in the database.
    - DIU or personal Google email is permitted, but domain alone never grants administrative privileges.
-4. **OAuth Callback Enforcement (`src/app/auth/callback/route.ts`)**:
+4. **Middleware Enforcement (`src/lib/supabase/middleware.ts`)**:
+   - Verifies session tokens on edge requests.
+   - Queries `authorized_emails` to authorize approved personal Google accounts while intercepting deactivated accounts or unauthorized personal emails with immediate sign-out.
+5. **OAuth Callback Enforcement (`src/app/auth/callback/route.ts`)**:
    - Code exchange completes through Google OAuth.
    - Evaluates `resolveEmailAuthorization(email)`. Unauthorized personal accounts or deactivated accounts are purged via `supabase.auth.signOut()` and redirected to `/login?error=unauthorized_email` or `/login?error=email_revoked`.
 

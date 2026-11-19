@@ -42,15 +42,43 @@ export async function updateSession(request: NextRequest) {
 
     user = authUser;
 
-    // Strict Institutional Domain Enforcement (@diu.edu.bd)
+    // Authentication Policy: Validate Email Authorization
     const allowedDomain = (process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN || "diu.edu.bd").toLowerCase();
     if (user && user.email) {
-      const emailDomain = user.email.split("@")[1]?.toLowerCase();
-      if (emailDomain !== allowedDomain) {
+      const normEmail = user.email.trim().toLowerCase();
+      const isDiuDomain = normEmail.endsWith("@" + allowedDomain);
+
+      // Check authorized_emails table for active exception or explicit mapping
+      let authRecord = null;
+      try {
+        const { data } = (await supabase
+          .from("authorized_emails")
+          .select("is_active, email_type, profile_id")
+          .eq("email", normEmail)
+          .maybeSingle()) as {
+            data: { is_active: boolean; email_type: string; profile_id: string } | null;
+          };
+        authRecord = data;
+      } catch {
+        // Table not ready or offline fallback
+      }
+
+      if (authRecord) {
+        if (!authRecord.is_active) {
+          // Deactivated account (student exception or advisor)
+          await supabase.auth.signOut();
+          const redirectUrl = request.nextUrl.clone();
+          redirectUrl.pathname = "/login";
+          redirectUrl.searchParams.set("error", "email_revoked");
+          return NextResponse.redirect(redirectUrl);
+        }
+        // Active authorized email (either DIU or approved personal exception)
+      } else if (!isDiuDomain) {
+        // Unregistered personal email without admin authorization
         await supabase.auth.signOut();
         const redirectUrl = request.nextUrl.clone();
         redirectUrl.pathname = "/login";
-        redirectUrl.searchParams.set("error", "invalid_domain");
+        redirectUrl.searchParams.set("error", "unauthorized_email");
         return NextResponse.redirect(redirectUrl);
       }
     }
@@ -84,7 +112,7 @@ export async function updateSession(request: NextRequest) {
 
   // 2. Only admins can access /admin
   if (pathname.startsWith("/admin")) {
-    if (devSessionRole !== "admin") {
+    if (devSessionRole && devSessionRole !== "admin") {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = "/unauthorized";
       return NextResponse.redirect(redirectUrl);
@@ -103,7 +131,7 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
-  // 3. Un-onboarded first-time students are strictly redirected to /onboarding
+  // 4. Un-onboarded first-time students are strictly redirected to /onboarding
   if (devSessionRole === "student_new") {
     const hasCompletedOnboardingCookie = Boolean(
       request.cookies.get("diu_onboarded_student_data")?.value
@@ -123,10 +151,12 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
-  // 4. Authenticated users visiting /login are redirected to their authorized workspace
+  // 5. Authenticated users visiting /login are redirected to their authorized workspace
   if (pathname === "/login" && isAuthenticated) {
     const redirectUrl = request.nextUrl.clone();
-    if (devSessionRole === "advisor") {
+    if (devSessionRole === "admin") {
+      redirectUrl.pathname = "/admin/emails";
+    } else if (devSessionRole === "advisor" || devSessionRole === "advisor_personal") {
       redirectUrl.pathname = "/advisor";
     } else if (devSessionRole === "student_new" && !request.cookies.get("diu_onboarded_student_data")?.value) {
       redirectUrl.pathname = "/onboarding";

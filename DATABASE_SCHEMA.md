@@ -220,23 +220,40 @@ Executes `BEFORE UPDATE` on `public.profiles`. Prevents non-administrative calle
 - Prohibits changing `diu_id` once verified during onboarding.
 
 ### 4.3 Secure Student Onboarding RPC (`complete_student_onboarding`)
-A `SECURITY DEFINER` function that validates DIU Student ID syntax (`^\d{3}-\d{2}-\d{4,6}$`), checks for existing collisions, and updates `full_name`, `diu_id`, `batch`, and `onboarding_completed = true` in a single transaction.
+A `SECURITY DEFINER` function that validates DIU Student ID syntax (`^\d{3}-\d{2}-\d{3,6}$`), checks for existing collisions, and updates `full_name`, `diu_id`, `batch`, and `onboarding_completed = true` in a single transaction.
 
 ### 4.4 Canonical Multi-Email Resolution RPC (`resolve_profile_by_email`)
 A `SECURITY DEFINER` PostgreSQL function resolving an input email to its canonical profile, enforcing active status and role verification:
 - Normalizes email (`TRIM(LOWER(p_email))`).
-- Checks `authorized_emails` for active exception or primary mapping.
-- Defaults `@diu.edu.bd` addresses to `'student'` if not explicitly registered.
-- Rejects deactivated or revoked email records immediately.
+- Authorization restricted: caller must be admin or the identity owner (`auth.jwt() ->> 'email' = p_email`).
+- Execution revoked from `PUBLIC` and `anon`.
+
+### 4.5 Canonical Profile Resolver (`get_current_profile_id`)
+A `SECURITY DEFINER` function that returns the caller's canonical profile ID:
+- Directly matches `auth.uid() = profiles.id`.
+- If secondary Google auth account is used, matches `authorized_emails.auth_user_id = auth.uid()` or `auth.jwt() ->> 'email'`.
+- Returns canonical `profile_id`, ensuring RLS policies work seamlessly across multi-email identities.
+
+### 4.6 Registration State Machine Integrity Trigger (`check_registration_state_transition`)
+Row-level trigger strictly enforcing state transition constraints:
+- `student_id` and `semester_id` are permanently immutable.
+- Students can only update draft/rejected applications and CANNOT self-approve.
+- Advisors can only transition `pending_advisor` applications assigned to them in `advisor_assignments` to `approved` or `rejected`.
+- Advisors cannot modify student payment clearance or submission timestamps.
+
+### 4.7 Concurrency Control & Atomic Seat Allocation
+- `enroll_section_atomic(p_registration_id, p_section_id)`: Acquires exclusive row lock (`SELECT ... FOR UPDATE`) on the target section, checks capacity, increments `enrolled_count`, and inserts `registration_items` atomically.
+- `drop_section_atomic(p_registration_id, p_section_id)`: Row-locked atomic drop decrementing `enrolled_count`.
+- `switch_section_atomic(p_registration_id, p_old_section_id, p_new_section_id)`: Ordered-lock atomic section swap preventing deadlocks.
 
 ---
 
 ## 5. Row-Level Security (RLS) Policy Architecture
 
 All tables have `ROW LEVEL SECURITY` explicitly enabled:
-- **`profiles`**:
-  - `SELECT`: Self, assigned advisors (via `advisor_assignments`), department heads, and admins.
-  - `UPDATE`: Authenticated users can modify non-sensitive profile attributes (guarded by trigger).
+- **`profiles`** (Strict Institutional Privacy):
+  - `SELECT`: Restricted to authenticated users viewing their own profile (`id = public.get_current_profile_id()`), assigned advisors viewing advisees, students viewing assigned advisor, department heads, and admins. Public/anon reads return 0 rows.
+  - `UPDATE`: Authenticated users can modify non-sensitive profile attributes (guarded by privilege escalation trigger).
 - **`authorized_emails`**:
   - `SELECT`: Admins, or authenticated users viewing entries tied to their own `profile_id`.
   - `INSERT/UPDATE/DELETE`: Admins only. Students cannot self-authorize.

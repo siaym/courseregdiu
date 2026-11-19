@@ -328,6 +328,7 @@ export interface Database {
         Row: {
           id: string;
           profile_id: string;
+          auth_user_id: string | null;
           email: string;
           email_type: "primary_diu" | "alternative_personal" | "advisor_authorized" | "admin_authorized";
           is_active: boolean;
@@ -340,6 +341,7 @@ export interface Database {
         Insert: {
           id?: string;
           profile_id: string;
+          auth_user_id?: string | null;
           email: string;
           email_type?: "primary_diu" | "alternative_personal" | "advisor_authorized" | "admin_authorized";
           is_active?: boolean;
@@ -352,6 +354,7 @@ export interface Database {
         Update: {
           id?: string;
           profile_id?: string;
+          auth_user_id?: string | null;
           email?: string;
           email_type?: "primary_diu" | "alternative_personal" | "advisor_authorized" | "admin_authorized";
           is_active?: boolean;
@@ -400,6 +403,10 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      get_current_profile_id: {
+        Args: Record<PropertyKey, never>;
+        Returns: string | null;
+      };
       get_current_user_role: {
         Args: Record<PropertyKey, never>;
         Returns: UserRole;
@@ -425,6 +432,28 @@ export interface Database {
           is_authorized: boolean;
           deactivation_reason: string | null;
         }[];
+      };
+      enroll_section_atomic: {
+        Args: {
+          p_registration_id: string;
+          p_section_id: string;
+        };
+        Returns: Json;
+      };
+      drop_section_atomic: {
+        Args: {
+          p_registration_id: string;
+          p_section_id: string;
+        };
+        Returns: Json;
+      };
+      switch_section_atomic: {
+        Args: {
+          p_registration_id: string;
+          p_old_section_id: string;
+          p_new_section_id: string;
+        };
+        Returns: Json;
       };
     };
     Enums: {

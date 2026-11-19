@@ -154,6 +154,7 @@ export async function addAlternativeEmailAction(
     const mockNewRecord: AuthorizedEmailRow = {
       id: `auth-email-${Date.now()}`,
       profile_id: profileId,
+      auth_user_id: null,
       email: normEmail,
       email_type: "alternative_personal",
       is_active: true,
