@@ -28,8 +28,6 @@ import {
 } from "@/lib/mock/data";
 import {
   getPrerequisiteStatus,
-  checkScheduleConflict,
-  formatScheduleSlot,
 } from "@/lib/mock/helpers";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -73,10 +71,10 @@ export function UnifiedCoursesWorkspace({
 }: UnifiedCoursesWorkspaceProps) {
   const profile = initialProfile || MOCK_STUDENT_PROFILE;
 
-  // Step state: 1 = Section Info, 2 = Course Selection, 3 = Classification, 4 = Review, 5 = Submitted
-  const [currentStep, setCurrentStep] = React.useState<1 | 2 | 3 | 4 | 5>(() => {
+  // Step state: 1 = Section Info, 2 = Course Selection, 3 = Review & Submit, 4 = Submitted Receipt
+  const [currentStep, setCurrentStep] = React.useState<1 | 2 | 3 | 4>(() => {
     if (initialActiveRegistration?.status === "pending_advisor" || initialActiveRegistration?.status === "approved") {
-      return 5;
+      return 4;
     }
     return 1;
   });
@@ -90,8 +88,7 @@ export function UnifiedCoursesWorkspace({
   );
   const [sectionError, setSectionError] = React.useState<string | null>(null);
 
-  // Step 2: Selected Courses Cart
-  // Initial cart populated with default courses for demonstration
+  // Step 2: Selected Courses Cart (Initially all courses marked general)
   const [selectedCourses, setSelectedCourses] = React.useState<SelectedCourseItem[]>(() => {
     if (initialActiveRegistration?.courses && initialActiveRegistration.courses.length > 0) {
       return initialActiveRegistration.courses.map((c) => {
@@ -100,12 +97,12 @@ export function UnifiedCoursesWorkspace({
         return {
           course: co,
           section: sec,
-          courseType: c.courseType,
+          courseType: c.courseType || "general",
         };
       });
     }
 
-    // Default initial enrollment (4 core courses)
+    // Default initial enrollment (all initially marked general)
     const initialCourseCodes = ["CSE221", "CSE222", "CSE225", "CSE110"];
     const items: SelectedCourseItem[] = [];
 
@@ -120,7 +117,7 @@ export function UnifiedCoursesWorkspace({
         items.push({
           course: co,
           section: sec,
-          courseType: code === "CSE110" ? "retake" : "general",
+          courseType: "general",
         });
       }
     });
@@ -241,21 +238,10 @@ export function UnifiedCoursesWorkspace({
       return;
     }
 
-    // Schedule collision detection against other enrolled courses
+    // Credit overload safety check
     const otherSections = selectedCourses
       .filter((c) => c.course.id !== course.id)
       .map((c) => c.section);
-
-    const conflict = checkScheduleConflict(targetSection.schedule, otherSections);
-    if (conflict.hasConflict && conflict.conflictingDetails) {
-      setFeedback({
-        text: `Schedule conflict: ${course.code} (${targetSection.section_name}) overlaps with ${conflict.conflictingDetails.conflictingCourseCode} on ${conflict.conflictingDetails.day} at ${conflict.conflictingDetails.time}.`,
-        type: "warning",
-      });
-      return;
-    }
-
-    // Credit overload safety
     const additionalCredits = targetSection.credits || course.credits || 3.0;
     const currentCreditsWithoutThis = otherSections.reduce((sum, s) => sum + (s.credits || 3.0), 0);
     if (currentCreditsWithoutThis + additionalCredits > maxAllowedCredits) {
@@ -279,18 +265,17 @@ export function UnifiedCoursesWorkspace({
         type: "success",
       });
     } else {
-      // Add new course with default classification (retake if in backlog, else general)
-      const isRetake = MOCK_COMPLETED_COURSE_CODES.includes(course.code);
+      // Add new course with default classification (initially all marked general)
       setSelectedCourses((prev) => [
         ...prev,
         {
           course,
           section: targetSection,
-          courseType: isRetake ? "retake" : "general",
+          courseType: "general",
         },
       ]);
       setFeedback({
-        text: `Added ${course.code} (Section ${targetSection.section_name}) to selection.`,
+        text: `Added ${course.code} (Section ${targetSection.section_name}) as General course.`,
         type: "success",
       });
     }
@@ -367,7 +352,7 @@ export function UnifiedCoursesWorkspace({
         referenceId: result.referenceId || "REG-2027-SP-7819",
         submittedAt: result.submittedAt || new Date().toISOString(),
       });
-      setCurrentStep(5);
+      setCurrentStep(4);
     } catch (err: unknown) {
       setIsSubmitting(false);
       const message = err instanceof Error ? err.message : "An unexpected network error occurred.";
@@ -379,16 +364,15 @@ export function UnifiedCoursesWorkspace({
   const renderStepper = () => {
     const steps = [
       { num: 1, title: "Section Info", desc: `${previousSection || "—"} → ${desiredSection || "—"}` },
-      { num: 2, title: "Course Selection", desc: `${selectedCourses.length} Courses • ${totalCredits.toFixed(1)} Cr` },
-      { num: 3, title: "Course Type", desc: `${generalCourseCount} General • ${retakeCourseCount} Retake` },
-      { num: 4, title: "Review & Submit", desc: "Final Verification" },
+      { num: 2, title: "Course Selection", desc: `${selectedCourses.length} Courses • ${generalCourseCount} Gen, ${retakeCourseCount} Ret` },
+      { num: 3, title: "Review & Submit", desc: "Final Verification" },
     ];
 
     return (
       <div className="bg-[#121827] border border-[#1c263c] rounded-xl p-3 sm:p-4 mb-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
           {steps.map((st) => {
-            const isCompleted = currentStep > st.num || currentStep === 5;
+            const isCompleted = currentStep > st.num || currentStep === 4;
             const isCurrent = currentStep === st.num;
 
             return (
@@ -396,11 +380,11 @@ export function UnifiedCoursesWorkspace({
                 key={st.num}
                 type="button"
                 onClick={() => {
-                  if (currentStep !== 5 && (isCompleted || isCurrent || st.num < currentStep)) {
-                    setCurrentStep(st.num as 1 | 2 | 3 | 4);
+                  if (currentStep !== 4 && (isCompleted || isCurrent || st.num < currentStep)) {
+                    setCurrentStep(st.num as 1 | 2 | 3);
                   }
                 }}
-                disabled={currentStep === 5 || (!isCompleted && !isCurrent)}
+                disabled={currentStep === 4 || (!isCompleted && !isCurrent)}
                 className={`flex items-start gap-2.5 p-2 rounded-lg text-left transition-all ${
                   isCurrent
                     ? "bg-[#172136] border border-[#25324d] text-white shadow-xs"
@@ -575,7 +559,7 @@ export function UnifiedCoursesWorkspace({
                 <div className="space-y-1">
                   <div className="font-semibold text-slate-200">How DIU Cohort Sections Work:</div>
                   <p className="text-[11px] leading-relaxed">
-                    Sections (such as <strong className="text-emerald-400 font-mono">69_K</strong> or <strong className="text-emerald-400 font-mono">69_D</strong>) bundle standard class routines. When you advance to Course Selection, courses matching your desired section will be prioritized.
+                    Sections (such as <strong className="text-emerald-400 font-mono">69_K</strong> or <strong className="text-emerald-400 font-mono">69_D</strong>) represent your academic cohort. When you advance to Course Selection, courses matching your desired section will be prioritized.
                   </p>
                 </div>
               </div>
@@ -807,27 +791,60 @@ export function UnifiedCoursesWorkspace({
                         </div>
                       </div>
 
-                      {/* Section Picker Row if course is selected or has sections */}
+                      {/* Section Picker & Classification Row */}
                       {availableSections.length > 0 && (
-                        <div className="mt-2.5 pt-2 border-t border-[#1c263c] flex flex-wrap items-center justify-between gap-2 text-xs">
-                          <div className="flex items-center gap-2 text-[#8e9db2]">
-                            <span>Class Section:</span>
-                            {selectedItem ? (
-                              <select
-                                value={selectedItem.section.id}
-                                onChange={(e) => handleSectionChange(course.id, e.target.value)}
-                                className="text-xs font-mono bg-[#0b0f19] border border-[#1c263c] rounded px-2 py-1 text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              >
-                                {availableSections.map((s) => (
-                                  <option key={s.id} value={s.id}>
-                                    Section {s.section_name} ({s.enrolled_count}/{s.capacity} seats) • {s.schedule.map(formatScheduleSlot).join(", ")}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <span className="text-slate-400 font-mono text-[11px]">
-                                {availableSections.length} offering{availableSections.length > 1 ? "s" : ""} available ({availableSections.map((s) => s.section_name).join(", ")})
-                              </span>
+                        <div className="mt-2.5 pt-2 border-t border-[#1c263c] flex flex-wrap items-center justify-between gap-2.5 text-xs">
+                          <div className="flex flex-wrap items-center gap-3 text-[#8e9db2]">
+                            <div className="flex items-center gap-2">
+                              <span>Class Section:</span>
+                              {selectedItem ? (
+                                <select
+                                  value={selectedItem.section.id}
+                                  onChange={(e) => handleSectionChange(course.id, e.target.value)}
+                                  className="text-xs font-mono bg-[#0b0f19] border border-[#1c263c] rounded px-2 py-1 text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                >
+                                  {availableSections.map((s) => (
+                                    <option key={s.id} value={s.id}>
+                                      Section {s.section_name} ({s.enrolled_count}/{s.capacity} seats)
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="text-slate-400 font-mono text-[11px]">
+                                  {availableSections.length} offering{availableSections.length > 1 ? "s" : ""} available ({availableSections.map((s) => s.section_name).join(", ")})
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Option: General or Retake (initially all marked general) */}
+                            {selectedItem && (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[11px] font-mono text-[#8e9db2]">Type:</span>
+                                <div className="inline-flex rounded-lg bg-[#0b0f19] p-0.5 border border-[#1c263c]">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSetClassification(course.id, "general")}
+                                    className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-all ${
+                                      selectedItem.courseType === "general"
+                                        ? "bg-blue-600 text-white shadow-xs"
+                                        : "text-[#8e9db2] hover:text-white"
+                                    }`}
+                                  >
+                                    General
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSetClassification(course.id, "retake")}
+                                    className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-all ${
+                                      selectedItem.courseType === "retake"
+                                        ? "bg-amber-600 text-white shadow-xs"
+                                        : "text-[#8e9db2] hover:text-white"
+                                    }`}
+                                  >
+                                    Retake
+                                  </button>
+                                </div>
+                              </div>
                             )}
                           </div>
 
@@ -892,7 +909,7 @@ export function UnifiedCoursesWorkspace({
                       key={item.course.id}
                       className="p-2.5 rounded-lg bg-[#0b0f19] border border-[#1c263c] flex items-center justify-between text-xs"
                     >
-                      <div className="min-w-0 pr-2">
+                      <div className="min-w-0 pr-2 space-y-1">
                         <div className="flex items-center gap-1.5">
                           <span className="font-mono font-bold text-emerald-400">
                             {item.course.code}
@@ -906,6 +923,31 @@ export function UnifiedCoursesWorkspace({
                         </div>
                         <div className="text-[11px] text-[#8e9db2] truncate">
                           {item.course.title}
+                        </div>
+                        {/* Option: General or Retake per course */}
+                        <div className="flex items-center gap-1 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => handleSetClassification(item.course.id, "general")}
+                            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all ${
+                              item.courseType === "general"
+                                ? "bg-blue-600 text-white shadow-xs"
+                                : "bg-[#121827] text-slate-400 hover:text-white border border-[#1c263c]"
+                            }`}
+                          >
+                            General
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSetClassification(item.course.id, "retake")}
+                            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all ${
+                              item.courseType === "retake"
+                                ? "bg-amber-600 text-white shadow-xs"
+                                : "bg-[#121827] text-slate-400 hover:text-white border border-[#1c263c]"
+                            }`}
+                          >
+                            Retake
+                          </button>
                         </div>
                       </div>
                       <button
@@ -926,6 +968,12 @@ export function UnifiedCoursesWorkspace({
                 <span>Tuition Accounts Cleared: DIU-AC-2027-4561</span>
               </div>
 
+              {/* Breakdown summary */}
+              <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 px-0.5">
+                <span>General: <strong className="text-blue-400">{generalCourseCount}</strong></span>
+                <span>Retake: <strong className="text-amber-400">{retakeCourseCount}</strong></span>
+              </div>
+
               {/* Navigation Actions */}
               <div className="space-y-2 pt-1 border-t border-[#1c263c]">
                 <Button
@@ -933,7 +981,7 @@ export function UnifiedCoursesWorkspace({
                   onClick={() => setCurrentStep(3)}
                   className="w-full bg-white hover:bg-slate-100 text-[#0b0f19] text-xs font-semibold h-9 rounded-xl shadow-xs transition-all disabled:opacity-40"
                 >
-                  <span>Proceed to Course Classification</span>
+                  <span>Review & Submit Application</span>
                   <ArrowRight className="h-4 w-4 ml-1 text-[#0b0f19]" />
                 </Button>
                 <button
@@ -950,128 +998,16 @@ export function UnifiedCoursesWorkspace({
       )}
 
       {/* ========================================================================= */}
-      {/* STEP 3: GENERAL OR RETAKE CLASSIFICATION                                 */}
+      {/* STEP 3: REVIEW APPLICATION & FINAL VERIFICATION                          */}
       {/* ========================================================================= */}
       {currentStep === 3 && (
-        <div className="max-w-3xl mx-auto py-2 space-y-6">
-          <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
-            <div className="space-y-1.5 border-b border-[#1c263c] pb-4">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#172136] text-blue-400 text-xs font-medium mb-1">
-                <Layers className="h-3.5 w-3.5" />
-                <span>Step 3 of 4 • Course Classification</span>
-              </div>
-              <h2 className="text-lg font-bold text-white tracking-tight">
-                Classify Each Selected Course
-              </h2>
-              <p className="text-xs text-[#8e9db2] leading-relaxed">
-                Specify whether each course is a <strong>General</strong> enrollment (regular semester curriculum) or a <strong>Retake</strong> (repeating course for grade improvement or cleared backlog).
-              </p>
-            </div>
-
-            {/* Courses Classification Table */}
-            <div className="space-y-3">
-              {selectedCourses.map((item) => (
-                <div
-                  key={item.course.id}
-                  className="p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c] flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-emerald-400 px-2 py-0.5 rounded bg-[#121827] border border-[#1c263c]">
-                        {item.course.code}
-                      </span>
-                      <span className="text-xs font-semibold text-white">
-                        {item.course.title}
-                      </span>
-                    </div>
-                    <div className="text-[11px] font-mono text-[#8e9db2]">
-                      Section: <strong className="text-slate-300">{item.section.section_name}</strong> • {item.section.credits || item.course.credits} Credits • {item.section.schedule.map(formatScheduleSlot).join(", ")}
-                    </div>
-                  </div>
-
-                  {/* Explicit Radio/Segmented Control per Course */}
-                  <div className="flex items-center gap-1.5 bg-[#121827] p-1 rounded-xl border border-[#1c263c] shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => handleSetClassification(item.course.id, "general")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                        item.courseType === "general"
-                          ? "bg-blue-600 text-white font-semibold shadow-xs"
-                          : "text-[#8e9db2] hover:text-white"
-                      }`}
-                    >
-                      General
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSetClassification(item.course.id, "retake")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                        item.courseType === "retake"
-                          ? "bg-amber-600 text-white font-semibold shadow-xs"
-                          : "text-[#8e9db2] hover:text-white"
-                      }`}
-                    >
-                      Retake
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Summary Strip */}
-            <div className="p-3.5 rounded-xl bg-[#0b0f19] border border-[#1c263c] flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
-              <div className="flex items-center gap-4 text-slate-300">
-                <span>
-                  General: <strong className="text-blue-400">{generalCourseCount}</strong>
-                </span>
-                <span>•</span>
-                <span>
-                  Retake: <strong className="text-amber-400">{retakeCourseCount}</strong>
-                </span>
-                <span>•</span>
-                <span>
-                  Total Credits: <strong className="text-emerald-400">{totalCredits.toFixed(1)} Cr</strong>
-                </span>
-              </div>
-              <span className="text-slate-500 text-[11px]">
-                {selectedCourses.length} courses classified
-              </span>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="pt-2 flex items-center justify-between border-t border-[#1c263c]">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setCurrentStep(2)}
-                className="text-xs border-[#1c263c] text-slate-300 h-9 rounded-xl"
-              >
-                &larr; Back to Course Selection
-              </Button>
-              <Button
-                type="button"
-                onClick={() => setCurrentStep(4)}
-                className="bg-white hover:bg-slate-100 text-[#0b0f19] font-semibold text-xs px-5 h-9 rounded-xl transition-all shadow-xs"
-              >
-                <span>Review Application</span>
-                <ArrowRight className="h-4 w-4 ml-1 text-[#0b0f19]" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* STEP 4: REVIEW APPLICATION                                                */}
-      {/* ========================================================================= */}
-      {currentStep === 4 && (
         <div className="max-w-4xl mx-auto py-2 space-y-6">
           <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
             {/* Header */}
             <div className="space-y-1.5 border-b border-[#1c263c] pb-4">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#172136] text-blue-400 text-xs font-medium mb-1">
                 <Layers className="h-3.5 w-3.5" />
-                <span>Step 4 of 4 • Final Review</span>
+                <span>Step 3 of 3 • Final Review</span>
               </div>
               <h2 className="text-lg font-bold text-white tracking-tight">
                 Review Course Registration Application
@@ -1161,7 +1097,7 @@ export function UnifiedCoursesWorkspace({
                       <th className="py-2.5 px-3 font-medium w-16 text-center">Credits</th>
                       <th className="py-2.5 px-3 font-medium w-28">Classification</th>
                       <th className="py-2.5 px-3 font-medium w-28">Section</th>
-                      <th className="py-2.5 px-3 font-medium">Class Routine</th>
+                      <th className="py-2.5 px-3 font-medium">Room & Instructor</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#1c263c]">
@@ -1193,7 +1129,7 @@ export function UnifiedCoursesWorkspace({
                           Sec {item.section.section_name}
                         </td>
                         <td className="py-2.5 px-3 font-mono text-[11px] text-slate-400">
-                          {item.section.schedule.map(formatScheduleSlot).join(", ")}
+                          Room: {item.section.room || "TBA"} • {item.section.instructor_name}
                         </td>
                       </tr>
                     ))}
@@ -1229,10 +1165,10 @@ export function UnifiedCoursesWorkspace({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setCurrentStep(3)}
+                onClick={() => setCurrentStep(2)}
                 className="text-xs border-[#1c263c] text-slate-300 h-9 rounded-xl order-2 sm:order-1"
               >
-                &larr; Back to Classification
+                &larr; Back to Course Selection
               </Button>
 
               <Button
@@ -1259,9 +1195,9 @@ export function UnifiedCoursesWorkspace({
       )}
 
       {/* ========================================================================= */}
-      {/* STEP 5: SUBMITTED SUCCESS STATE                                           */}
+      {/* STEP 4: SUBMITTED SUCCESS STATE                                           */}
       {/* ========================================================================= */}
-      {currentStep === 5 && submittedData && (
+      {currentStep === 4 && submittedData && (
         <div className="max-w-xl mx-auto py-8">
           <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-8 text-center space-y-5 shadow-lg">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">

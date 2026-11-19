@@ -12,7 +12,6 @@ import {
 import {
   getPrerequisiteStatus,
   getCreditLimitByCgpa,
-  formatScheduleSlot,
 } from "@/lib/mock/helpers";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -402,7 +401,7 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
                 <th className="py-2.5 px-3 font-medium w-28">Course Type</th>
                 <th className="py-2.5 px-3 font-medium w-36">Prerequisites</th>
                 <th className="py-2.5 px-3 font-medium w-48">Assigned Section</th>
-                <th className="py-2.5 px-3 font-medium">Schedule & Room</th>
+                <th className="py-2.5 px-3 font-medium">Instructor & Room</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#1c263c]">
@@ -480,9 +479,9 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
                       )}
                     </td>
 
-                    <td className="py-2.5 px-3 font-mono text-slate-400 text-[11px]">
-                      <div>{it.section.schedule.map(formatScheduleSlot).join(", ")}</div>
-                      <div className="text-slate-500 text-[10px]">Room: {it.section.room || "TBA"} • {it.section.instructor_name}</div>
+                    <td className="py-2.5 px-3 font-mono text-slate-300 text-xs">
+                      <div className="font-medium text-slate-200">{it.section.instructor_name || "Assigned Faculty"}</div>
+                      <div className="text-slate-500 text-[11px]">Room: {it.section.room || "TBA"}</div>
                     </td>
                   </tr>
                 );
@@ -607,7 +606,7 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
                 className="w-full text-xs font-mono bg-[#0b0f19] border border-[#1c263c] rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:ring-1 focus:ring-rose-500"
               >
                 <option value="PREREQUISITE_DEFICIENCY">Prerequisite Not Met</option>
-                <option value="SCHEDULE_CONFLICT">Class Timetable Clash</option>
+                <option value="SECTION_ADJUSTMENT">Section Reassignment Required</option>
                 <option value="SECTION_CAPACITY">Section Capacity Limit Exceeded</option>
                 <option value="CREDIT_OVERLOAD">Exceeds Maximum Permitted Credits</option>
                 <option value="TUITION_HOLD">Accounts Tuition Payment Incomplete</option>
