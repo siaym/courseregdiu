@@ -1711,3 +1711,211 @@ export const MOCK_ADVISEE_QUEUE: StudentRegistrationApplication[] = [
     isProbation: false,
   },
 ];
+
+// ---------------------------------------------------------------------------
+// 8. UNAPPLIED ADVISEES & ADVISOR ASSIGNMENTS (Authoritative Relations)
+// ---------------------------------------------------------------------------
+export type AdvisorAssignmentRow = Database["public"]["Tables"]["advisor_assignments"]["Row"];
+
+export const MOCK_ALL_SEMESTERS: SemesterRow[] = [
+  MOCK_CURRENT_SEMESTER,
+  ...MOCK_PAST_SEMESTERS,
+];
+
+export const MOCK_UNAPPLIED_STUDENTS: ProfileRow[] = [
+  {
+    id: "student-fahim-05",
+    diu_id: "221-15-460",
+    full_name: "Fahim Shahriar",
+    email: "fahim.221@diu.edu.bd",
+    role: "student",
+    department_code: "CSE",
+    cgpa: 3.45,
+    completed_credits: 68,
+    phone: "+8801719876543",
+    avatar_url: null,
+    onboarding_completed: true,
+    batch: "60th Batch",
+    created_at: "2024-01-15T00:00:00Z",
+    updated_at: "2027-04-14T00:00:00Z",
+  },
+  {
+    id: "student-sadia-06",
+    diu_id: "221-15-461",
+    full_name: "Sadia Afrin",
+    email: "sadia.221@diu.edu.bd",
+    role: "student",
+    department_code: "CSE",
+    cgpa: 3.78,
+    completed_credits: 72,
+    phone: "+8801819876543",
+    avatar_url: null,
+    onboarding_completed: true,
+    batch: "60th Batch",
+    created_at: "2024-01-15T00:00:00Z",
+    updated_at: "2027-04-14T00:00:00Z",
+  },
+  {
+    id: "student-mahfuz-07",
+    diu_id: "213-15-462",
+    full_name: "Mahfuzur Rahman",
+    email: "mahfuz.213@diu.edu.bd",
+    role: "student",
+    department_code: "CSE",
+    cgpa: 3.15,
+    completed_credits: 92,
+    phone: "+8801919876543",
+    avatar_url: null,
+    onboarding_completed: true,
+    batch: "59th Batch",
+    created_at: "2023-09-15T00:00:00Z",
+    updated_at: "2027-04-14T00:00:00Z",
+  },
+  {
+    id: "student-tasnim-08",
+    diu_id: "223-15-463",
+    full_name: "Tasnim Jannat",
+    email: "tasnim.223@diu.edu.bd",
+    role: "student",
+    department_code: "CSE",
+    cgpa: 3.52,
+    completed_credits: 45,
+    phone: "+8801619876543",
+    avatar_url: null,
+    onboarding_completed: true,
+    batch: "61st Batch",
+    created_at: "2024-09-15T00:00:00Z",
+    updated_at: "2027-04-14T00:00:00Z",
+  },
+];
+
+export const MOCK_OTHER_ADVISOR_STUDENT: ProfileRow = {
+  id: "student-other-advisor-99",
+  diu_id: "221-15-999",
+  full_name: "Kazi Tanvir (Other Advisee)",
+  email: "tanvir.other@diu.edu.bd",
+  role: "student",
+  department_code: "CSE",
+  cgpa: 3.2,
+  completed_credits: 60,
+  phone: "+8801519876543",
+  avatar_url: null,
+  onboarding_completed: true,
+  batch: "60th Batch",
+  created_at: "2024-01-15T00:00:00Z",
+  updated_at: "2027-04-14T00:00:00Z",
+};
+
+export const MOCK_ADVISOR_ASSIGNMENTS: AdvisorAssignmentRow[] = [
+  // Spring 2027 Assignments for Dr. Rahman Ahmed (MOCK_ADVISOR_PROFILE.id)
+  {
+    id: "assign-sp27-01",
+    advisor_id: MOCK_ADVISOR_PROFILE.id,
+    student_id: "student-atikur-01",
+    semester_id: "sem-spring-2027",
+    assigned_at: "2027-04-01T08:00:00Z",
+    created_at: "2027-04-01T08:00:00Z",
+  },
+  {
+    id: "assign-sp27-02",
+    advisor_id: MOCK_ADVISOR_PROFILE.id,
+    student_id: "student-mithila-02",
+    semester_id: "sem-spring-2027",
+    assigned_at: "2027-04-01T08:00:00Z",
+    created_at: "2027-04-01T08:00:00Z",
+  },
+  {
+    id: "assign-sp27-03",
+    advisor_id: MOCK_ADVISOR_PROFILE.id,
+    student_id: "student-sayedur-03",
+    semester_id: "sem-spring-2027",
+    assigned_at: "2027-04-01T08:00:00Z",
+    created_at: "2027-04-01T08:00:00Z",
+  },
+  {
+    id: "assign-sp27-04",
+    advisor_id: MOCK_ADVISOR_PROFILE.id,
+    student_id: "student-nusrat-04",
+    semester_id: "sem-spring-2027",
+    assigned_at: "2027-04-01T08:00:00Z",
+    created_at: "2027-04-01T08:00:00Z",
+  },
+  {
+    id: "assign-sp27-05",
+    advisor_id: MOCK_ADVISOR_PROFILE.id,
+    student_id: "student-siyam-01",
+    semester_id: "sem-spring-2027",
+    assigned_at: "2027-04-01T08:00:00Z",
+    created_at: "2027-04-01T08:00:00Z",
+  },
+  // Assigned scholars with NO registration application submitted for Spring 2027 (Not Applied)
+  {
+    id: "assign-sp27-06",
+    advisor_id: MOCK_ADVISOR_PROFILE.id,
+    student_id: "student-fahim-05",
+    semester_id: "sem-spring-2027",
+    assigned_at: "2027-04-01T08:00:00Z",
+    created_at: "2027-04-01T08:00:00Z",
+  },
+  {
+    id: "assign-sp27-07",
+    advisor_id: MOCK_ADVISOR_PROFILE.id,
+    student_id: "student-sadia-06",
+    semester_id: "sem-spring-2027",
+    assigned_at: "2027-04-01T08:00:00Z",
+    created_at: "2027-04-01T08:00:00Z",
+  },
+  {
+    id: "assign-sp27-08",
+    advisor_id: MOCK_ADVISOR_PROFILE.id,
+    student_id: "student-mahfuz-07",
+    semester_id: "sem-spring-2027",
+    assigned_at: "2027-04-01T08:00:00Z",
+    created_at: "2027-04-01T08:00:00Z",
+  },
+  {
+    id: "assign-sp27-09",
+    advisor_id: MOCK_ADVISOR_PROFILE.id,
+    student_id: "student-tasnim-08",
+    semester_id: "sem-spring-2027",
+    assigned_at: "2027-04-01T08:00:00Z",
+    created_at: "2027-04-01T08:00:00Z",
+  },
+
+  // Assignment for a DIFFERENT Advisor (Dr. Sheak Rashed Haider Noori)
+  // MUST NEVER appear in Dr. Rahman Ahmed's queue!
+  {
+    id: "assign-other-01",
+    advisor_id: "advisor-other-rashed",
+    student_id: "student-other-advisor-99",
+    semester_id: "sem-spring-2027",
+    assigned_at: "2027-04-01T08:00:00Z",
+    created_at: "2027-04-01T08:00:00Z",
+  },
+
+  // Historical Fall 2025 Assignments
+  {
+    id: "assign-fa25-01",
+    advisor_id: MOCK_ADVISOR_PROFILE.id,
+    student_id: "student-nusrat-04",
+    semester_id: "sem-fall-2025",
+    assigned_at: "2025-08-15T08:00:00Z",
+    created_at: "2025-08-15T08:00:00Z",
+  },
+  {
+    id: "assign-fa25-02",
+    advisor_id: MOCK_ADVISOR_PROFILE.id,
+    student_id: "student-atikur-01",
+    semester_id: "sem-fall-2025",
+    assigned_at: "2025-08-15T08:00:00Z",
+    created_at: "2025-08-15T08:00:00Z",
+  },
+  {
+    id: "assign-fa25-03",
+    advisor_id: MOCK_ADVISOR_PROFILE.id,
+    student_id: "student-mahfuz-07",
+    semester_id: "sem-fall-2025",
+    assigned_at: "2025-08-15T08:00:00Z",
+    created_at: "2025-08-15T08:00:00Z",
+  },
+];

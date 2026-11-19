@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   MOCK_ADVISEE_QUEUE,
   MOCK_ADVISOR_PROFILE,
+  MOCK_UNAPPLIED_STUDENTS,
   ACTIVE_MOCK_SEMESTER_LABEL,
 } from "@/lib/mock/data";
 import {
@@ -30,6 +31,16 @@ export function AdvisorDashboardView() {
   const [isRefreshing, setIsRefreshing] = React.useState(false);
 
   const rawQueue = MOCK_ADVISEE_QUEUE;
+  const pendingCount = React.useMemo(
+    () => rawQueue.filter((a) => a.registration.status === "pending_advisor").length,
+    [rawQueue]
+  );
+  const approvedCount = React.useMemo(
+    () => rawQueue.filter((a) => a.registration.status === "approved").length,
+    [rawQueue]
+  );
+  const notAppliedCount = MOCK_UNAPPLIED_STUDENTS.length;
+  const totalAssigned = pendingCount + approvedCount + notAppliedCount;
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -91,51 +102,63 @@ export function AdvisorDashboardView() {
         </p>
       </div>
 
-      {/* 4 Stat Cards in a Row (Exact match to Mockup 2) */}
+      {/* 4 Stat Cards in a Row: Linked to Application Center Categories */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Assigned Students */}
-        <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-5 flex items-center gap-4 shadow-sm">
+        {/* Card 1: Total Assigned Advisees */}
+        <Link
+          href="/advisor/students"
+          className="bg-[#121827] hover:bg-[#151c2d] border border-[#1c263c] rounded-2xl p-5 flex items-center gap-4 shadow-sm transition-colors group"
+        >
           <div className="w-12 h-12 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center shrink-0">
             <Users className="h-6 w-6 text-blue-400" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-white tracking-tight">245</div>
-            <div className="text-xs text-[#8e9db2] mt-0.5">Assigned Students</div>
+            <div className="text-2xl font-bold text-white tracking-tight">{totalAssigned}</div>
+            <div className="text-xs text-[#8e9db2] mt-0.5 group-hover:text-white transition-colors">Assigned Students</div>
           </div>
-        </div>
+        </Link>
 
         {/* Card 2: Pending Applications */}
-        <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-5 flex items-center gap-4 shadow-sm">
-          <div className="w-12 h-12 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center shrink-0">
-            <Clock className="h-6 w-6 text-slate-300" />
+        <Link
+          href="/advisor/queue"
+          className="bg-[#121827] hover:bg-[#151c2d] border border-[#1c263c] border-l-4 border-l-amber-500 rounded-2xl p-5 flex items-center gap-4 shadow-sm transition-colors group"
+        >
+          <div className="w-12 h-12 rounded-xl bg-amber-600/20 border border-amber-500/30 flex items-center justify-center shrink-0">
+            <Clock className="h-6 w-6 text-amber-400" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-white tracking-tight">12</div>
-            <div className="text-xs text-[#8e9db2] mt-0.5">Pending Applications</div>
+            <div className="text-2xl font-bold text-white tracking-tight">{pendingCount}</div>
+            <div className="text-xs text-[#8e9db2] mt-0.5 group-hover:text-white transition-colors">Pending Applications</div>
           </div>
-        </div>
+        </Link>
 
-        {/* Card 3: Under Review (with emerald accent border) */}
-        <div className="bg-[#121827] border border-[#1c263c] border-l-4 border-l-emerald-500 rounded-2xl p-5 flex items-center gap-4 shadow-sm">
+        {/* Card 3: Approved Applications */}
+        <Link
+          href="/advisor/queue"
+          className="bg-[#121827] hover:bg-[#151c2d] border border-[#1c263c] border-l-4 border-l-emerald-500 rounded-2xl p-5 flex items-center gap-4 shadow-sm transition-colors group"
+        >
           <div className="w-12 h-12 rounded-xl bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center shrink-0">
-            <Check className="h-6 w-6 text-emerald-400" />
+            <CheckCircle2 className="h-6 w-6 text-emerald-400" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-white tracking-tight">8</div>
-            <div className="text-xs text-[#8e9db2] mt-0.5">Under Review</div>
+            <div className="text-2xl font-bold text-white tracking-tight">{approvedCount}</div>
+            <div className="text-xs text-[#8e9db2] mt-0.5 group-hover:text-white transition-colors">Approved Applications</div>
           </div>
-        </div>
+        </Link>
 
-        {/* Card 4: Completed (with purple accent border) */}
-        <div className="bg-[#121827] border border-[#1c263c] border-l-4 border-l-purple-500 rounded-2xl p-5 flex items-center gap-4 shadow-sm">
-          <div className="w-12 h-12 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center shrink-0">
-            <CheckCircle2 className="h-6 w-6 text-purple-400" />
+        {/* Card 4: Not Applied */}
+        <Link
+          href="/advisor/queue"
+          className="bg-[#121827] hover:bg-[#151c2d] border border-[#1c263c] border-l-4 border-l-slate-500 rounded-2xl p-5 flex items-center gap-4 shadow-sm transition-colors group"
+        >
+          <div className="w-12 h-12 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center shrink-0">
+            <AlertCircle className="h-6 w-6 text-slate-300" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-white tracking-tight">210</div>
-            <div className="text-xs text-[#8e9db2] mt-0.5">Completed</div>
+            <div className="text-2xl font-bold text-white tracking-tight">{notAppliedCount}</div>
+            <div className="text-xs text-[#8e9db2] mt-0.5 group-hover:text-white transition-colors">Not Applied</div>
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* Main Table Card: Student Applications (Exact match to Mockup 2) */}

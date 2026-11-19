@@ -44,7 +44,7 @@ export function Sidebar({ role, isOpen, onClose }: SidebarProps) {
 
   const advisorLinks: NavItem[] = [
     { title: "Dashboard", href: "/advisor", icon: Home },
-    { title: "Applications", href: "/advisor/queue", icon: FileText, badge: 12 },
+    { title: "Applications", href: "/advisor/queue", icon: FileText },
     { title: "Students", href: "/advisor/students", icon: Users },
     { title: "History", href: "/advisor/history", icon: Clock },
     { title: "Profile", href: "/advisor/profile", icon: User },
