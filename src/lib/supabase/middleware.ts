@@ -55,7 +55,7 @@ export async function updateSession(request: NextRequest) {
 
   // Check development test session cookie if in dev environment
   const devSessionRole = request.cookies.get("diu_session_role")?.value;
-  const isAuthenticated = Boolean(user || devSessionRole);
+  const isAuthenticated = Boolean(user || (devSessionRole && devSessionRole !== "advisor_deactivated"));
   const pathname = request.nextUrl.pathname;
 
   const isProtectedPath =
@@ -64,18 +64,35 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/student") ||
     pathname.startsWith("/schedule") ||
     pathname.startsWith("/advisor") ||
+    pathname.startsWith("/admin") ||
     pathname.startsWith("/onboarding");
 
   // 1. Unauthenticated users cannot access protected routes
   if (isProtectedPath && !isAuthenticated) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
-    redirectUrl.searchParams.set("returnTo", pathname);
+    if (devSessionRole === "advisor_deactivated") {
+      redirectUrl.searchParams.set("error", "advisor_deactivated");
+    } else {
+      redirectUrl.searchParams.set("returnTo", pathname);
+    }
     return NextResponse.redirect(redirectUrl);
   }
 
-  // 2. Authenticated students are blocked from advisor routes
-  if (devSessionRole && (devSessionRole === "student" || devSessionRole === "student_new")) {
+  // 2. Only admins can access /admin
+  if (pathname.startsWith("/admin")) {
+    if (devSessionRole !== "admin") {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = "/unauthorized";
+      return NextResponse.redirect(redirectUrl);
+    }
+  }
+
+  // 3. Authenticated students are blocked from advisor routes
+  if (
+    devSessionRole &&
+    (devSessionRole === "student" || devSessionRole === "student_alt" || devSessionRole === "student_new")
+  ) {
     if (pathname.startsWith("/advisor")) {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = "/unauthorized";

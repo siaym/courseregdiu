@@ -1,9 +1,9 @@
 # IMPLEMENTATION STATUS — DIU Course Registration Platform
 
-> **Milestones**: Phase 0 Complete (100%) | Phase 1 Complete (100%) | Phase 1.5 Simplification (100%) | **P0 Security Remediation Complete (100%)**  
-> **Build Status**: Passing (`next build` & `eslint` exit code 0)  
-> **Test Status**: Passing (`npm test` — 8/8 test suites pass, 0 failures)  
-> **Total Routes**: 20 Routes Compiled (Static & Dynamic SSR)  
+> **Milestones**: Phase 0 Complete (100%) | Phase 1 Complete (100%) | Phase 1.5 Simplification (100%) | P0 Security Remediation Complete (100%) | **Final Authentication Policy & Multi-Email Identity Complete (100%)**  
+> **Build Status**: Passing (`next build` & `eslint` exit code 0, 0 errors, 0 warnings)  
+> **Test Status**: Passing (`npm test` — 18/18 test cases pass across 2 test suites, 0 failures)  
+> **Total Routes**: 22 Routes Compiled (Static & Dynamic SSR)  
 > **Active Mock Term**: Unified to **Spring 2027** (`Apr 14 – Apr 20, 2027`) Across All Views  
 > **Last Verification**: November 2026  
 
@@ -11,42 +11,32 @@
 
 ## 1. Executive Summary
 
-**P0 Security Remediation & Code Review Resolution** has been executed to completion following comprehensive external security audit. Critical architectural and authorization protections have been hardened and verified:
+**Final Authentication Policy & Multi-Email Identity Remediation** has been executed to completion following official DIU institutional directives:
 
-1. **Server-Side Route Authorization & Role Enforcement**:
-   - Every protected page route (`/dashboard`, `/courses`, `/schedule`, `/student/*`, `/advisor/*`) now executes server-side guards (`requireAuth`, `requireRole`, `requireOnboarded`, `requireAdvisor`, `requireAssignedRegistration`).
-   - Unauthenticated access returns HTTP 307 redirects to `/login`.
-   - Students attempting to reach advisor routes are redirected to `/unauthorized`.
-   - Incomplete student profiles are intercepted and routed to `/onboarding`.
-   - Advisors attempting to inspect unassigned student applications are intercepted and redirected to `/unauthorized`.
+1. **Student Dual-Email Identity Architecture**:
+   - Default eligibility requires Google OAuth with verified `@diu.edu.bd` account.
+   - Personal Google email addresses (`@gmail.com`) are rejected by default.
+   - Administrators can authorize an alternative personal Google email for an existing student profile.
+   - Both primary DIU email and authorized personal email map strictly to the *same* student profile with zero duplicate profile creation.
+   - Deactivating or removing an alternative email revokes login authorization immediately on subsequent requests.
+   - One email address cannot be assigned to two profiles simultaneously.
 
-2. **Persistent Student Onboarding Pipeline**:
-   - Replaced browser `localStorage` stub with authentic PostgreSQL persistence.
-   - Server Action `submitStudentOnboarding` validates DIU ID syntax (`^\d{3}-\d{2}-\d{4,6}$`), checks database-level uniqueness, and executes `complete_student_onboarding()` RPC.
-   - Removed unrequested extra fields (`departmentCode`), requiring strictly: Full Name, DIU Student ID, and Batch.
-   - Removed unverified "Verified" claims on student profiles until official DIU Registrar reconciliation.
+2. **Admin Email Management & Audit Subsystem (`/admin/emails`)**:
+   - Protected by server-side `requireAdmin()` guard.
+   - Interactive administrative console to view student directory, primary DIU emails, active/inactive alternative emails, and authorizer attribution.
+   - Modal to authorize alternative personal emails with mandatory justification.
+   - Active/Inactive toggle and permanent revocation dialogs requiring recorded audit reason.
+   - Append-only immutable audit log table (`public.email_authorization_audit`) tracking every authorization event.
 
-3. **Database RLS & Privilege Escalation Mitigation**:
-   - Versioned migration `20261119110000_security_remediation_p0.sql` applied.
-   - Added `check_profile_privilege_escalation()` trigger blocking unauthorized role, CGPA, or passed credits tampering.
-   - Created `advisor_assignments` table enforcing strict cohort isolation: advisors can only inspect and manage assigned students.
-   - Hardened `registrations` policies: students can insert only `draft` status; advisors can only update pending records assigned to them; `audit_logs` restricted to admin/service role.
+3. **Advisor & Administrator Authentication**:
+   - Advisors can use DIU or personal Google email under explicit administrative authorization.
+   - Deactivated advisors lose portal access immediately.
+   - Administrator accounts must be manually provisioned in the database; email domain alone never confers administrative privileges.
 
-4. **OAuth Callback Security & Open Redirect Prevention**:
-   - Implemented strict URL sanitizer `validateSafeRedirect()` rejecting protocol-relative URLs (`//`), backslashes (`/\`), and non-whitelisted paths.
-   - Enforced server-side domain verification ensuring Google email ends with `@diu.edu.bd`.
-
-5. **Automated Security Verification Test Suite (`tests/security-verification.test.mjs`)**:
-   - Covers all 8 Priority 0 security verification paths:
-     1. Unauthenticated route access (Redirects to `/login`)
-     2. Student accessing advisor routes (Redirects to `/unauthorized`)
-     3. Student attempting role escalation (Rejected via Zod & RLS constraints)
-     4. Advisor accessing unassigned student (Redirects to `/unauthorized`)
-     5. Incomplete onboarding bypass (Redirects to `/onboarding`)
-     6. Duplicate student ID submission (Rejected with registration conflict error)
-     7. Unauthorized application updates (Enforced state machine transitions)
-     8. Invalid OAuth redirect (Sanitized fallback to `/dashboard`)
-   - **Result**: 8 tests run, 8 passed, 0 failed.
+4. **18-Suite Verification Harness (`npm test`)**:
+   - `tests/security-verification.test.mjs` (8/8 P0 security tests pass).
+   - `tests/auth-policy-verification.test.mjs` (10/10 auth policy tests pass).
+   - All 18 tests execute cleanly with 0 failures.
 
 1. **Student Portal Dashboard (Image 1 Alignment)**:
    - Deep canvas background `#0b0f19` with ambient top-right contour lines (`ContourBackground`).

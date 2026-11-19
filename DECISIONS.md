@@ -295,3 +295,37 @@ External security and code review of the initial prototype identified critical v
 ### Consequences
 - **Positive**: Complete defense-in-depth security model; route spoofing and client state manipulation are rendered structurally ineffective; zero privilege escalation paths.
 - **Negative**: Unassigned students cannot be viewed by advisors unless an explicit assignment record exists in `advisor_assignments`.
+
+---
+
+## ADR-017: Multi-Email Identity Architecture & Admin Email Authorization Policy
+
+### Context
+The strict `@diu.edu.bd` universal domain restriction prevented students and faculty who legitimately operate via alternative personal Google emails from accessing the platform. Additionally, advisors and administrators required support for personal Google email authentication under explicit administrative authorization. A unified multi-email identity architecture was needed that enforces:
+1. Google OAuth as the exclusive authentication method.
+2. Default student eligibility via verified `@diu.edu.bd` domain.
+3. Personal Google emails rejected unless explicitly authorized by an Administrator.
+4. Zero profile duplication: an authorized personal email must map directly to the student's existing profile.
+5. Immediate session revocation when an alternative email is deactivated or removed.
+6. Admin-only email management with mandatory justification and immutable audit logging.
+
+### Decision
+1. **Multi-Email Identity Registry (`public.authorized_emails`)**:
+   - Provisioned `authorized_emails` table with foreign key to `profiles(id)`, normalized lowercase email check constraint, and `UNIQUE(email)`.
+   - Supports `email_type` classifications: `'primary_diu'`, `'alternative_personal'`, `'advisor_authorized'`, `'admin_authorized'`.
+   - One email cannot be assigned to two profiles simultaneously.
+2. **Immutable Audit Trail (`public.email_authorization_audit`)**:
+   - Stores action history (`AUTHORIZED`, `MODIFIED`, `DEACTIVATED`, `REACTIVATED`, `REVOKED`), authorizer ID, mandatory reason, diff snapshot, and timestamp.
+3. **Canonical Identity Resolution Engine (`resolveEmailAuthorization`)**:
+   - Evaluated on every protected request via `getCurrentUser()` and `getCurrentProfile()`, guaranteeing immediate session revocation upon deactivation without waiting for cookie expiration.
+   - Evaluated in OAuth callback (`/auth/callback/route.ts`).
+4. **Admin Email Management Portal (`/admin/emails`)**:
+   - Protected by server-side `requireAdmin()` guard.
+   - Interactive directory allowing Admins to search students, view primary DIU emails, link alternative personal emails with mandatory justification, toggle active/inactive status, and permanently revoke alternative emails.
+   - Real-time audit log viewer displaying historical changes.
+5. **Role Provisioning Isolation**:
+   - Admin and advisor roles are never granted by email domain alone; they require manual provisioning in the database.
+
+### Consequences
+- **Positive**: Seamless dual-email support for students with zero profile duplication; granular administrative auditability; instant revocation capability; 100% adherence to DIU final authentication policy.
+- **Negative**: Personal emails require administrator pre-authorization before login.

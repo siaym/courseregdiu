@@ -93,16 +93,29 @@ sequenceDiagram
     App-->>Browser: Renders role-specific AppShell
 ```
 
-### 3.1 Domain Enforcement Mechanism
-1. **Google OAuth Query Parameter**: Client initiates OAuth with `hd: "diu.edu.bd"`, prompting Google to pre-filter account lists to university accounts.
-2. **Callback Validation (`src/app/auth/callback/route.ts`)**: Server-side inspection immediately parses user email domain. If a non-DIU domain arrives, the session is purged with `supabase.auth.signOut()` and redirected to `/login?error=invalid_domain`.
-3. **Middleware Guard (`src/middleware.ts` & `src/lib/supabase/middleware.ts`)**: Every subsequent page request validates that the session is valid and institutional email criteria remain satisfied.
+### 3.1 Multi-Email Identity & Domain Enforcement Mechanism
+The authentication layer implements the DIU Final Authentication Policy:
+1. **Student Authentication**:
+   - Default eligibility requires a verified Google account ending in `@diu.edu.bd`.
+   - Personal emails (e.g., `@gmail.com`) are rejected by default unless explicitly authorized by an Administrator in `public.authorized_emails`.
+   - Admin-authorized personal emails resolve to the student's *existing* canonical profile via `resolve_profile_by_email` / `resolveEmailAuthorization`.
+   - Zero duplicate profile creation: primary DIU email and authorized personal email map to the same `profile_id`.
+   - Removing an alternative email terminates its login authorization immediately on subsequent requests.
+2. **Advisor Authentication**:
+   - Faculty can use DIU or personal Google email, but the account must be explicitly pre-authorized by an Administrator in `public.authorized_emails`.
+   - Active status is checked on every protected request. Deactivation immediately revokes advisor access.
+3. **Admin Authentication**:
+   - Administrator accounts must be manually provisioned in the database.
+   - DIU or personal Google email is permitted, but domain alone never grants administrative privileges.
+4. **OAuth Callback Enforcement (`src/app/auth/callback/route.ts`)**:
+   - Code exchange completes through Google OAuth.
+   - Evaluates `resolveEmailAuthorization(email)`. Unauthorized personal accounts or deactivated accounts are purged via `supabase.auth.signOut()` and redirected to `/login?error=unauthorized_email` or `/login?error=email_revoked`.
 
 ### 3.2 Open Redirect Mitigation (`validateSafeRedirect`)
 To defend against phishing and open redirection vulnerabilities in the OAuth callback lifecycle:
 1. All `returnTo` parameters pass through `validateSafeRedirect()`.
 2. Targets starting with `//`, containing backslashes (`\`), or specifying external protocols (`http:`, `https:`) are rejected.
-3. Destination paths must match an explicit whitelist of internal application prefixes: `/dashboard`, `/courses`, `/student`, `/advisor`, `/schedule`, or `/onboarding`.
+3. Destination paths must match an explicit whitelist of internal application prefixes: `/dashboard`, `/courses`, `/student`, `/advisor`, `/schedule`, `/onboarding`, or `/admin`.
 4. Invalid destinations cleanly fallback to `/dashboard`.
 
 ### 3.3 Server-Side Authorization & Onboarding Guards

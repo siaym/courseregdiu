@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { isDIUEmail } from "@/lib/auth/roles";
+import { resolveEmailAuthorization } from "@/lib/auth/email-authorization";
 
 /**
  * Validates that the requested redirect destination is a safe relative internal route.
@@ -30,6 +30,7 @@ export function validateSafeRedirect(target: string | null | undefined): string 
     "/student",
     "/schedule",
     "/advisor",
+    "/admin",
     "/onboarding",
   ];
 
@@ -51,31 +52,46 @@ export async function GET(request: Request) {
     const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!sessionError) {
-      // 1. Authoritative server-side domain verification
+      // 1. Authoritative multi-email identity & authorization verification
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!user || !user.email || !isDIUEmail(user.email)) {
-        // Immediately terminate unauthorized non-DIU session
+      if (!user || !user.email) {
         await supabase.auth.signOut();
         const unauthorizedRedirect = new URL("/login", requestUrl.origin);
-        unauthorizedRedirect.searchParams.set("error", "invalid_domain");
+        unauthorizedRedirect.searchParams.set("error", "oauth_failed");
         return NextResponse.redirect(unauthorizedRedirect);
       }
 
-      // 2. Check profile onboarding state to direct new students to /onboarding
+      const authResult = await resolveEmailAuthorization(user.email);
+      if (!authResult.authorized) {
+        // Immediately terminate unauthorized or deactivated session
+        await supabase.auth.signOut();
+        const unauthorizedRedirect = new URL("/login", requestUrl.origin);
+        const errParam = authResult.reason === "DEACTIVATED" ? "email_revoked" : "unauthorized_email";
+        unauthorizedRedirect.searchParams.set("error", errParam);
+        return NextResponse.redirect(unauthorizedRedirect);
+      }
+
+      // 2. Resolve canonical profile (both DIU and alternative emails resolve to the same profile)
+      const targetProfileId = authResult.profileId || user.id;
       const { data: profile } = await supabase
         .from("profiles")
         .select("*")
-        .eq("id", user.id)
+        .eq("id", targetProfileId)
         .maybeSingle();
 
       if (profile && (profile as { role?: string; onboarding_completed?: boolean }).role === "student" && !(profile as { onboarding_completed?: boolean }).onboarding_completed) {
         return NextResponse.redirect(new URL("/onboarding", requestUrl.origin));
       }
 
-      // 3. Safe internal redirect
+      // 3. Admin default landing route
+      if (profile && (profile as { role?: string }).role === "admin" && safeNext === "/dashboard") {
+        return NextResponse.redirect(new URL("/admin/emails", requestUrl.origin));
+      }
+
+      // 4. Safe internal redirect
       return NextResponse.redirect(new URL(safeNext, requestUrl.origin));
     }
   }

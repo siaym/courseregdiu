@@ -171,6 +171,35 @@ Authoritative mapping between faculty advisors and assigned student advisees.
 | `is_active` | BOOLEAN | NOT NULL, DEFAULT `true` | Active status flag |
 *Constraint*: `CONSTRAINT unique_active_advisor_student UNIQUE (advisor_id, student_id)`
 
+### 3.8 `public.authorized_emails`
+Admin-authorized multi-email identity registry connecting primary DIU emails and approved personal exceptions to existing student, advisor, or administrator profiles.
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | UUID | PK, DEFAULT `gen_random_uuid()` | Unique record identifier |
+| `profile_id` | UUID | FK `profiles(id)` ON DELETE CASCADE, NOT NULL | Canonical profile mapped to this email |
+| `email` | VARCHAR(255) | UNIQUE, NOT NULL | Normalized lowercase Google OAuth email |
+| `email_type` | VARCHAR(32) | NOT NULL, CHECK in enum | `'primary_diu'`, `'alternative_personal'`, `'advisor_authorized'`, `'admin_authorized'` |
+| `is_active` | BOOLEAN | NOT NULL, DEFAULT `true` | Login authorization toggle |
+| `authorized_by` | UUID | FK `profiles(id)` ON DELETE SET NULL | Admin profile who authorized this record |
+| `authorized_at` | TIMESTAMPTZ | NOT NULL, DEFAULT `now()` | Timestamp of authorization |
+| `reason` | TEXT | NULLABLE | Mandatory administrative justification |
+| `created_at` | TIMESTAMPTZ | NOT NULL, DEFAULT `now()` | Record creation timestamp |
+| `updated_at` | TIMESTAMPTZ | NOT NULL, DEFAULT `now()` | Record update timestamp |
+
+### 3.9 `public.email_authorization_audit`
+Append-only immutable audit trail recording every change to email authorization records.
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | UUID | PK, DEFAULT `gen_random_uuid()` | Audit log identifier |
+| `authorized_email_id` | UUID | FK `authorized_emails(id)` ON DELETE SET NULL | Referenced email record |
+| `profile_id` | UUID | FK `profiles(id)` ON DELETE CASCADE, NOT NULL | Student or faculty profile affected |
+| `email` | VARCHAR(255) | NOT NULL | Target email address |
+| `action` | VARCHAR(32) | NOT NULL | `'AUTHORIZED'`, `'MODIFIED'`, `'DEACTIVATED'`, `'REACTIVATED'`, `'REVOKED'` |
+| `actor_id` | UUID | FK `profiles(id)` ON DELETE SET NULL | Administrator executing the change |
+| `reason` | TEXT | NOT NULL | Reason provided for audit |
+| `metadata` | JSONB | NOT NULL, DEFAULT `'{}'::jsonb` | Contextual diff snapshot |
+| `created_at` | TIMESTAMPTZ | NOT NULL, DEFAULT `now()` | Immutable timestamp |
+
 ---
 
 ## 4. Triggers & Stored Procedures
@@ -193,6 +222,13 @@ Executes `BEFORE UPDATE` on `public.profiles`. Prevents non-administrative calle
 ### 4.3 Secure Student Onboarding RPC (`complete_student_onboarding`)
 A `SECURITY DEFINER` function that validates DIU Student ID syntax (`^\d{3}-\d{2}-\d{4,6}$`), checks for existing collisions, and updates `full_name`, `diu_id`, `batch`, and `onboarding_completed = true` in a single transaction.
 
+### 4.4 Canonical Multi-Email Resolution RPC (`resolve_profile_by_email`)
+A `SECURITY DEFINER` PostgreSQL function resolving an input email to its canonical profile, enforcing active status and role verification:
+- Normalizes email (`TRIM(LOWER(p_email))`).
+- Checks `authorized_emails` for active exception or primary mapping.
+- Defaults `@diu.edu.bd` addresses to `'student'` if not explicitly registered.
+- Rejects deactivated or revoked email records immediately.
+
 ---
 
 ## 5. Row-Level Security (RLS) Policy Architecture
@@ -201,6 +237,12 @@ All tables have `ROW LEVEL SECURITY` explicitly enabled:
 - **`profiles`**:
   - `SELECT`: Self, assigned advisors (via `advisor_assignments`), department heads, and admins.
   - `UPDATE`: Authenticated users can modify non-sensitive profile attributes (guarded by trigger).
+- **`authorized_emails`**:
+  - `SELECT`: Admins, or authenticated users viewing entries tied to their own `profile_id`.
+  - `INSERT/UPDATE/DELETE`: Admins only. Students cannot self-authorize.
+- **`email_authorization_audit`**:
+  - `SELECT`: Admins only.
+  - `INSERT`: Admins and system triggers only.
 - **`advisor_assignments`**:
   - `SELECT`: The assigned student, the assigned advisor, department heads, and admins.
   - `INSERT/UPDATE/DELETE`: Admins and department heads only.

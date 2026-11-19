@@ -324,6 +324,79 @@ export interface Database {
           created_at?: string;
         };
       };
+      authorized_emails: {
+        Row: {
+          id: string;
+          profile_id: string;
+          email: string;
+          email_type: "primary_diu" | "alternative_personal" | "advisor_authorized" | "admin_authorized";
+          is_active: boolean;
+          authorized_by: string | null;
+          authorized_at: string;
+          reason: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          email: string;
+          email_type?: "primary_diu" | "alternative_personal" | "advisor_authorized" | "admin_authorized";
+          is_active?: boolean;
+          authorized_by?: string | null;
+          authorized_at?: string;
+          reason?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          profile_id?: string;
+          email?: string;
+          email_type?: "primary_diu" | "alternative_personal" | "advisor_authorized" | "admin_authorized";
+          is_active?: boolean;
+          authorized_by?: string | null;
+          authorized_at?: string;
+          reason?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      email_authorization_audit: {
+        Row: {
+          id: string;
+          authorized_email_id: string | null;
+          profile_id: string;
+          email: string;
+          action: "AUTHORIZED" | "MODIFIED" | "DEACTIVATED" | "REACTIVATED" | "REVOKED";
+          actor_id: string | null;
+          reason: string;
+          metadata: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          authorized_email_id?: string | null;
+          profile_id: string;
+          email: string;
+          action: "AUTHORIZED" | "MODIFIED" | "DEACTIVATED" | "REACTIVATED" | "REVOKED";
+          actor_id?: string | null;
+          reason: string;
+          metadata?: Json;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          authorized_email_id?: string | null;
+          profile_id?: string;
+          email?: string;
+          action?: "AUTHORIZED" | "MODIFIED" | "DEACTIVATED" | "REACTIVATED" | "REVOKED";
+          actor_id?: string | null;
+          reason?: string;
+          metadata?: Json;
+          created_at?: string;
+        };
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -338,6 +411,20 @@ export interface Database {
           p_batch: string;
         };
         Returns: Json;
+      };
+      resolve_profile_by_email: {
+        Args: {
+          p_email: string;
+        };
+        Returns: {
+          profile_id: string | null;
+          full_name: string | null;
+          diu_id: string | null;
+          role: UserRole | null;
+          email_type: string;
+          is_authorized: boolean;
+          deactivation_reason: string | null;
+        }[];
       };
     };
     Enums: {

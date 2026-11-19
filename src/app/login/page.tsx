@@ -47,12 +47,26 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         </div>
 
         {/* Error Feedback */}
-        {error === "invalid_domain" && (
+        {(error === "invalid_domain" || error === "unauthorized_email") && (
           <Alert variant="destructive" className="border-rose-800 bg-rose-950/40 text-rose-200">
             <ShieldAlert className="h-4 w-4" />
-            <AlertTitle className="text-xs font-semibold">Institutional Access Restricted</AlertTitle>
+            <AlertTitle className="text-xs font-semibold">
+              {error === "unauthorized_email" ? "Personal Google Account Not Authorized" : "Institutional Access Restricted"}
+            </AlertTitle>
             <AlertDescription className="text-xs text-rose-300">
-              Only authentic institutional Google accounts (<span className="font-mono text-white">@diu.edu.bd</span>) are authorized. Personal Gmail or external accounts are strictly rejected.
+              {error === "unauthorized_email"
+                ? "This personal Google email has not been authorized by an Administrator. All scholars must use their @diu.edu.bd account unless an official exception has been registered by the Registrar."
+                : "Only verified institutional accounts (@diu.edu.bd) or Admin-authorized personal email exceptions may authenticate."}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {(error === "email_revoked" || error === "advisor_deactivated") && (
+          <Alert variant="destructive" className="border-amber-800 bg-amber-950/40 text-amber-200">
+            <AlertCircle className="h-4 w-4 text-amber-400" />
+            <AlertTitle className="text-xs font-semibold">Account Authorization Revoked</AlertTitle>
+            <AlertDescription className="text-xs text-amber-300">
+              The authorization for this email identity has been deactivated or revoked by an Administrator. Access is immediately suspended.
             </AlertDescription>
           </Alert>
         )}
@@ -95,7 +109,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               </CardDescription>
             </CardHeader>
             <CardContent className="p-4 pt-2 space-y-2.5">
-              {/* Test as Onboarded Student */}
+              {/* Test as Onboarded Student (DIU Email) */}
               <form action={setDevSession.bind(null, "student")}>
                 <button
                   type="submit"
@@ -103,9 +117,23 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 >
                   <span className="flex items-center gap-2">
                     <GraduationCap className="h-4 w-4 text-emerald-400" />
-                    <span>Test as Returning Student (Siyam Ahmed)</span>
+                    <span>Test as Student - DIU Email (siyam.cse@diu.edu.bd)</span>
                   </span>
                   <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
+                </button>
+              </form>
+
+              {/* Test as Student with Authorized Alternative Personal Email */}
+              <form action={setDevSession.bind(null, "student_alt")}>
+                <button
+                  type="submit"
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl border border-emerald-800/60 bg-emerald-950/20 hover:bg-emerald-950/40 text-emerald-200 text-xs font-medium transition-colors cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    <GraduationCap className="h-4 w-4 text-emerald-400" />
+                    <span>Test as Student - Authorized Personal Email (siyam.personal@gmail.com)</span>
+                  </span>
+                  <ArrowRight className="h-3.5 w-3.5 text-emerald-400" />
                 </button>
               </form>
 
@@ -123,7 +151,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 </button>
               </form>
 
-              {/* Test as Faculty Advisor */}
+              {/* Test as Faculty Advisor (DIU Email) */}
               <form action={setDevSession.bind(null, "advisor")}>
                 <button
                   type="submit"
@@ -134,6 +162,48 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                     <span>Test as Faculty Advisor (Dr. Rahman Ahmed)</span>
                   </span>
                   <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
+                </button>
+              </form>
+
+              {/* Test as Faculty Advisor (Authorized Personal Email) */}
+              <form action={setDevSession.bind(null, "advisor_personal")}>
+                <button
+                  type="submit"
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl border border-blue-800/60 bg-blue-950/20 hover:bg-blue-950/40 text-blue-200 text-xs font-medium transition-colors cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    <UserCheck className="h-4 w-4 text-blue-400" />
+                    <span>Test as Advisor - Authorized Personal Email (dr.rahman.ahmed@gmail.com)</span>
+                  </span>
+                  <ArrowRight className="h-3.5 w-3.5 text-blue-400" />
+                </button>
+              </form>
+
+              {/* Test as Admin */}
+              <form action={setDevSession.bind(null, "admin")}>
+                <button
+                  type="submit"
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl border border-purple-800/60 bg-purple-950/20 hover:bg-purple-950/40 text-purple-200 text-xs font-medium transition-colors cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    <ShieldAlert className="h-4 w-4 text-purple-400" />
+                    <span>Test as Administrator (Admin Email Console)</span>
+                  </span>
+                  <ArrowRight className="h-3.5 w-3.5 text-purple-400" />
+                </button>
+              </form>
+
+              {/* Test Deactivated Advisor */}
+              <form action={setDevSession.bind(null, "advisor_deactivated")}>
+                <button
+                  type="submit"
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl border border-rose-900/60 bg-rose-950/20 hover:bg-rose-950/40 text-rose-300 text-xs font-medium transition-colors cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    <ShieldAlert className="h-4 w-4 text-rose-400" />
+                    <span>Test Deactivated Advisor (Access Revoked)</span>
+                  </span>
+                  <ArrowRight className="h-3.5 w-3.5 text-rose-400" />
                 </button>
               </form>
             </CardContent>

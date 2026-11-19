@@ -12,6 +12,7 @@ import {
   Users,
   Clock,
   Headphones,
+  ShieldCheck,
 } from "lucide-react";
 import { DiuLogo } from "@/components/brand/diu-logo";
 import type { UserRole } from "@/types/database";
@@ -29,8 +30,9 @@ interface NavItem {
   badge?: string | number;
 }
 
-export function Sidebar({ isOpen, onClose }: SidebarProps) {
+export function Sidebar({ role, isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const isAdminRoute = pathname.startsWith("/admin");
   const isAdvisorRoute = pathname.startsWith("/advisor");
 
   const studentLinks: NavItem[] = [
@@ -48,7 +50,17 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     { title: "Profile", href: "/advisor/profile", icon: User },
   ];
 
-  const links = isAdvisorRoute ? advisorLinks : studentLinks;
+  const adminLinks: NavItem[] = [
+    { title: "Email Auth", href: "/admin/emails", icon: ShieldCheck },
+    { title: "Advisor Portal", href: "/advisor", icon: Home },
+    { title: "Students", href: "/advisor/students", icon: Users },
+  ];
+
+  const links = isAdminRoute || role === "admin"
+    ? adminLinks
+    : isAdvisorRoute
+    ? advisorLinks
+    : studentLinks;
 
   return (
     <>

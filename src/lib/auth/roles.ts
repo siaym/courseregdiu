@@ -6,8 +6,16 @@ import {
   MOCK_STUDENT_PROFILE,
   MOCK_FIRST_TIME_STUDENT_PROFILE,
   MOCK_ADVISOR_PROFILE,
+  MOCK_ADMIN_PROFILE,
   MOCK_ADVISEE_QUEUE,
 } from "@/lib/mock/data";
+import {
+  normalizeEmail,
+  isDIUEmail,
+  resolveEmailAuthorization,
+} from "@/lib/auth/email-authorization";
+
+export { normalizeEmail, isDIUEmail, resolveEmailAuthorization };
 
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 
@@ -24,15 +32,6 @@ export interface AuthSessionResult {
 }
 
 /**
- * Validates whether an email belongs to the official Daffodil International University domain.
- */
-export function isDIUEmail(email: string | null | undefined): boolean {
-  if (!email) return false;
-  const domain = process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN || "diu.edu.bd";
-  return email.toLowerCase().endsWith(`@${domain.toLowerCase()}`);
-}
-
-/**
  * Retrieves the currently authenticated user from Supabase or development session cookie.
  */
 export async function getCurrentUser() {
@@ -44,6 +43,11 @@ export async function getCurrentUser() {
     } = await supabase.auth.getUser();
 
     if (!error && user) {
+      // Enforce email authorization on every protected server request
+      const authCheck = await resolveEmailAuthorization(user.email);
+      if (!authCheck.authorized) {
+        return null;
+      }
       return user;
     }
   } catch {
@@ -60,10 +64,26 @@ export async function getCurrentUser() {
   }
 
   if (devSession) {
-    if (devSession === "advisor") {
+    if (devSession === "advisor_deactivated") {
+      return null;
+    }
+
+    if (devSession === "admin") {
+      return {
+        id: MOCK_ADMIN_PROFILE.id,
+        email: MOCK_ADMIN_PROFILE.email,
+        user_metadata: {
+          full_name: MOCK_ADMIN_PROFILE.full_name,
+          avatar_url: MOCK_ADMIN_PROFILE.avatar_url || undefined,
+        },
+      };
+    }
+
+    if (devSession === "advisor" || devSession === "advisor_personal") {
+      const email = devSession === "advisor_personal" ? "dr.rahman.ahmed@gmail.com" : MOCK_ADVISOR_PROFILE.email;
       return {
         id: MOCK_ADVISOR_PROFILE.id,
-        email: MOCK_ADVISOR_PROFILE.email,
+        email: email,
         user_metadata: {
           full_name: MOCK_ADVISOR_PROFILE.full_name,
           avatar_url: MOCK_ADVISOR_PROFILE.avatar_url || undefined,
@@ -81,10 +101,11 @@ export async function getCurrentUser() {
       };
     }
 
-    if (devSession === "student") {
+    if (devSession === "student" || devSession === "student_alt") {
+      const email = devSession === "student_alt" ? "siyam.personal@gmail.com" : MOCK_STUDENT_PROFILE.email;
       return {
         id: MOCK_STUDENT_PROFILE.id,
-        email: MOCK_STUDENT_PROFILE.email,
+        email: email,
         user_metadata: {
           full_name: MOCK_STUDENT_PROFILE.full_name,
           avatar_url: MOCK_STUDENT_PROFILE.avatar_url || undefined,
@@ -99,16 +120,24 @@ export async function getCurrentUser() {
 /**
  * Retrieves the user profile from Supabase profiles table, or development session.
  */
-export async function getCurrentProfile(userParam?: { id: string } | null): Promise<Profile | null> {
+export async function getCurrentProfile(userParam?: { id: string; email?: string } | null): Promise<Profile | null> {
   const user = userParam || (await getCurrentUser());
   if (!user) return null;
 
   try {
     const supabase = await getSupabaseServerClient();
+    // Resolve canonical profile ID via multi-email identity lookup
+    const authCheck = await resolveEmailAuthorization(user.email);
+    if (!authCheck.authorized) {
+      return null;
+    }
+
+    const targetProfileId = authCheck.profileId || user.id;
+
     const { data: profile } = await supabase
       .from("profiles")
       .select("*")
-      .eq("id", user.id)
+      .eq("id", targetProfileId)
       .maybeSingle();
 
     if (profile) return profile;
@@ -126,7 +155,15 @@ export async function getCurrentProfile(userParam?: { id: string } | null): Prom
     // Outside request context
   }
 
-  if (devSession === "advisor") {
+  if (devSession === "advisor_deactivated") {
+    return null;
+  }
+
+  if (devSession === "admin") {
+    return MOCK_ADMIN_PROFILE;
+  }
+
+  if (devSession === "advisor" || devSession === "advisor_personal") {
     return MOCK_ADVISOR_PROFILE;
   }
 
@@ -147,7 +184,7 @@ export async function getCurrentProfile(userParam?: { id: string } | null): Prom
     return MOCK_FIRST_TIME_STUDENT_PROFILE;
   }
 
-  if (devSession === "student") {
+  if (devSession === "student" || devSession === "student_alt") {
     return MOCK_STUDENT_PROFILE;
   }
 
@@ -223,6 +260,18 @@ export async function requireAdvisor(returnTo?: string): Promise<{
   profile: Profile;
 }> {
   return await requireRole(["advisor", "department_head", "admin"], returnTo);
+}
+
+/**
+ * Server-side Administrator Guard.
+ * Strictly verifies that the authenticated user possesses the 'admin' role.
+ * Institutional email domain alone NEVER grants administrative privileges.
+ */
+export async function requireAdmin(returnTo?: string): Promise<{
+  user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
+  profile: Profile;
+}> {
+  return await requireRole(["admin"], returnTo);
 }
 
 /**

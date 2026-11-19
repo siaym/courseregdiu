@@ -8,7 +8,11 @@ export default async function HomePage() {
   }
 
   const profile = await getCurrentProfile(user);
-  if (profile?.role === "advisor" || profile?.role === "department_head" || profile?.role === "admin") {
+  if (profile?.role === "admin") {
+    redirect("/admin/emails");
+  }
+
+  if (profile?.role === "advisor" || profile?.role === "department_head") {
     redirect("/advisor");
   }
 

@@ -9,7 +9,9 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
  * and onboarding enforcement without requiring external Google OAuth in local offline testing.
  * Disabled in production environments.
  */
-export async function setDevSession(role: "student" | "student_new" | "advisor") {
+export async function setDevSession(
+  role: "student" | "student_alt" | "student_new" | "advisor" | "advisor_personal" | "advisor_deactivated" | "admin"
+) {
   if (process.env.NODE_ENV === "production") {
     throw new Error("Development authentication is prohibited in production.");
   }
@@ -27,8 +29,16 @@ export async function setDevSession(role: "student" | "student_new" | "advisor")
     redirect("/onboarding");
   }
 
-  if (role === "advisor") {
+  if (role === "advisor" || role === "advisor_personal") {
     redirect("/advisor");
+  }
+
+  if (role === "advisor_deactivated") {
+    redirect("/login?error=advisor_deactivated");
+  }
+
+  if (role === "admin") {
+    redirect("/admin/emails");
   }
 
   redirect("/dashboard");

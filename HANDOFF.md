@@ -1,38 +1,40 @@
-# HANDOFF — Phase 1.5 to Phase 2 Engineering Transition
+# HANDOFF — Phase 1.5 & Auth Policy to Phase 2 Transition
 
 > **From**: Lead Software Architect & Founding Engineer  
 > **To**: Incoming Engineering Agent / Phase 2 Full-Stack Team  
-> **Repository**: `courseregdiu`  
+> **Repository**: `courseregdiu` (`https://github.com/siaym/courseregdiu`)  
 > **Handover Date**: November 2026  
-> **Milestone Status**: Phase 1.5 Reference Mockup Alignment & Simplification Complete (100%) | Ready for Phase 2 Implementation Sprint  
+> **Milestone Status**: Phase 1.5 Complete (100%) | P0 Security Remediation Complete (100%) | **Final Authentication Policy & Multi-Email Identity Complete (100%)** | Ready for Phase 2 Implementation Sprint  
 
 ---
 
 ## 1. Handover Summary
 
-The **Phase 1.5 Simplification & Reference Mockup Alignment** cycle has been completed. The visual interface now matches the user's uploaded reference mockups (`media_1795032747646_e982f32d.jpg` and `media_1795032748485_aeda674a.jpg`) with exact precision across both Student and Advisor portals:
+The **Final Authentication Policy & Multi-Email Identity Remediation** and **Phase 1.5 Simplification & Reference Mockup Alignment** cycles have been completed with full automated test coverage and zero build warnings:
 
-1. **Student Portal Dashboard (Image 1 Alignment)**:
-   - Implemented in [`StudentHomeView`](file:///f:/antigravity/courseregdiu/src/components/student/student-home-view.tsx).
-   - Surfaces active semester (`Spring 2027`), registration window (`Apr 14 – Apr 20, 2027`), **Course Registration** hero card with open book icon, `● Registration Open` emerald pill, and pure white `Continue Registration →` button.
-   - Dual middle cards for `Registration Status` (yellow warning circle `(!)` with bold `Not Submitted`) and `Your Advisor` (`Dr. Rahman Ahmed`, Dept. of CSE, with `Contact` button).
-   - Bottom `Important Information` banner with `View Details →` dialog.
+1. **Student Dual-Email Identity Architecture**:
+   - Google OAuth default eligibility for `@diu.edu.bd`.
+   - Administrators can authorize an alternative personal Google email for an existing student profile.
+   - Both primary DIU email and authorized personal email resolve to the *same* student profile; zero profile duplication.
+   - Revoking or deactivating an alternative email terminates access immediately on subsequent requests.
+   - One email cannot be assigned to two profiles simultaneously.
 
-2. **Advisor Portal Dashboard (Image 2 Alignment)**:
-   - Implemented in [`AdvisorDashboardView`](file:///f:/antigravity/courseregdiu/src/components/advisor/advisor-dashboard-view.tsx).
-   - Top greeting: `Welcome, Dr. Rahman Ahmed` with subtitle.
-   - 4 Stat Cards in a row: `245 Assigned Students` (Blue), `12 Pending Applications` (Slate), `8 Under Review` (Green with emerald left border accent), and `210 Completed` (Purple with purple left border accent).
-   - Main `Student Applications` table card with `Spring 2027` dropdown, search filter, `All Status`, `All Batches`, `All Payment` selectors, and blue `#2563eb` `Refresh` button.
-   - Table displaying the 4 mock advisee records (`Atikur Rahman`, `Mithila Binte Hasan`, `Sayedur Rahman`, `Nusrat Ahmed`) with authentic student IDs (`211-15-456` through `211-15-459`), batch `61`, payment pills (`Paid` / `Unpaid`), and action buttons (`Review →` / `View →`).
-   - Results count `Showing 1-4 of 4 results` and pagination controls (`< [1] >`).
+2. **Admin Email Management Console (`/admin/emails`)**:
+   - Implemented in [`AdminEmailManagementView`](file:///f:/antigravity/courseregdiu/src/components/admin/admin-email-management-view.tsx).
+   - Server-gated via `requireAdmin()`.
+   - Searchable student directory, primary DIU email inspection, active/inactive toggle, modal to authorize alternative personal emails with mandatory justification, confirmation dialog to permanently revoke authorization with recorded audit reason, and live audit trail log.
 
-3. **Unified Navigation & Brand Shell**:
-   - Fixed dark sidebar in [`Sidebar`](file:///f:/antigravity/courseregdiu/src/components/shell/sidebar.tsx) with authentic DIU emblem crest [`DiuLogo`](file:///f:/antigravity/courseregdiu/src/components/brand/diu-logo.tsx), active destination pills (`#172136`), red badge `12` on Advisor Applications, and bottom support contact.
-   - Top header with ambient topographic contour lines [`ContourBackground`](file:///f:/antigravity/courseregdiu/src/components/brand/contour-background.tsx), portal indicator tag, role switcher, notification bell with red dot, and user avatar.
+3. **Advisor & Administrator Authentication**:
+   - Advisors can use DIU or personal Google email under explicit administrative authorization. Deactivation immediately revokes advisor access.
+   - Administrator accounts must be manually provisioned; email domain alone never confers administrative privileges.
 
-4. **Performance & Build Verification**:
+4. **18/18 Automated Test Suite Pass (`npm test`)**:
+   - `tests/security-verification.test.mjs` (8/8 P0 security tests pass).
+   - `tests/auth-policy-verification.test.mjs` (10/10 auth policy tests pass).
+
+5. **Performance & Build Verification**:
    - `npm run lint` -> **0 problems, 0 errors, 0 warnings**.
-   - `npm run build` -> **Compiled successfully, exit code 0 (20/20 routes)**.
+   - `npm run build` -> **Compiled successfully, exit code 0 (22/22 routes)**.
    - Live development server operational on `http://localhost:3000`.
 
 ---
@@ -76,6 +78,8 @@ Incoming agents **MUST** read the following architectural specifications in the 
 | `/advisor/profile` | `src/app/advisor/profile/page.tsx` | [`advisor-profile-view.tsx`](file:///f:/antigravity/courseregdiu/src/components/advisor/advisor-profile-view.tsx) | Faculty profile, room location, consultation routine hours, contact channels. |
 | `/auth/callback` | `src/app/auth/callback/route.ts` | Server Route | Exchanging OAuth authorization code for Supabase session. |
 | `/unauthorized` | `src/app/unauthorized/page.tsx` | Server Page | Security rejection screen for non-`@diu.edu.bd` accounts. |
+| `/admin` | `src/app/admin/page.tsx` | Server Redirect | Redirects to `/admin/emails`. |
+| `/admin/emails` | `src/app/admin/emails/page.tsx` | [`admin-email-management-view.tsx`](file:///f:/antigravity/courseregdiu/src/components/admin/admin-email-management-view.tsx) | Admin Email Management: Student dual-email directory, alternative personal email authorization, active/inactive toggle, revocation, and immutable audit trail. |
 | `/_not-found` | Built-in Next.js | Server Page | 404 page styled with dark theme. |
 
 ---

@@ -21,6 +21,8 @@ export type CourseRow = Database["public"]["Tables"]["courses"]["Row"];
 export type SectionRow = Database["public"]["Tables"]["sections"]["Row"];
 export type RegistrationRow = Database["public"]["Tables"]["registrations"]["Row"];
 export type RegistrationItemRow = Database["public"]["Tables"]["registration_items"]["Row"];
+export type AuthorizedEmailRow = Database["public"]["Tables"]["authorized_emails"]["Row"];
+export type EmailAuthorizationAuditRow = Database["public"]["Tables"]["email_authorization_audit"]["Row"];
 
 export interface ExtendedCourse extends CourseRow {
   department_name?: string;
@@ -666,6 +668,173 @@ export const MOCK_ADVISOR_PROFILE: ProfileRow = {
   created_at: "2020-01-01T00:00:00Z",
   updated_at: "2027-04-14T00:00:00Z",
 };
+
+export const MOCK_ADMIN_PROFILE: ProfileRow = {
+  id: "admin-registrar-01",
+  diu_id: "EMP-REG-0001",
+  full_name: "Registrar Operations Admin",
+  email: "admin.registrar@diu.edu.bd",
+  role: "admin",
+  department_code: "CSE",
+  cgpa: null,
+  completed_credits: null,
+  phone: "+8801700000001",
+  avatar_url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
+  onboarding_completed: true,
+  batch: null,
+  created_at: "2020-01-01T00:00:00Z",
+  updated_at: "2027-04-14T00:00:00Z",
+};
+
+// ---------------------------------------------------------------------------
+// 5.1 AUTHORIZED EMAIL IDENTITIES (Multi-Email Model & Exception Registry)
+// ---------------------------------------------------------------------------
+export const MOCK_AUTHORIZED_EMAILS: AuthorizedEmailRow[] = [
+  {
+    id: "auth-email-siyam-diu",
+    profile_id: "student-siyam-01",
+    email: "siyam.cse@diu.edu.bd",
+    email_type: "primary_diu",
+    is_active: true,
+    authorized_by: "admin-registrar-01",
+    authorized_at: "2024-01-15T00:00:00Z",
+    reason: "Standard DIU institutional admission enrollment",
+    created_at: "2024-01-15T00:00:00Z",
+    updated_at: "2024-01-15T00:00:00Z",
+  },
+  {
+    id: "auth-email-siyam-alt",
+    profile_id: "student-siyam-01",
+    email: "siyam.personal@gmail.com",
+    email_type: "alternative_personal",
+    is_active: true,
+    authorized_by: "admin-registrar-01",
+    authorized_at: "2026-11-19T08:00:00Z",
+    reason: "Official DIU Workspace temporary lockout exception authorized by Dept Head",
+    created_at: "2026-11-19T08:00:00Z",
+    updated_at: "2026-11-19T08:00:00Z",
+  },
+  {
+    id: "auth-email-atikur-diu",
+    profile_id: "prof-student-01",
+    email: "atikur.rahman@diu.edu.bd",
+    email_type: "primary_diu",
+    is_active: true,
+    authorized_by: "admin-registrar-01",
+    authorized_at: "2024-01-15T00:00:00Z",
+    reason: "Standard DIU institutional admission enrollment",
+    created_at: "2024-01-15T00:00:00Z",
+    updated_at: "2024-01-15T00:00:00Z",
+  },
+  {
+    id: "auth-email-atikur-alt",
+    profile_id: "prof-student-01",
+    email: "atikur.personal@gmail.com",
+    email_type: "alternative_personal",
+    is_active: true,
+    authorized_by: "admin-registrar-01",
+    authorized_at: "2026-11-19T09:30:00Z",
+    reason: "Off-campus advising access waiver approved by Registrar",
+    created_at: "2026-11-19T09:30:00Z",
+    updated_at: "2026-11-19T09:30:00Z",
+  },
+  {
+    id: "auth-email-advisor-diu",
+    profile_id: "advisor-prof-rahman",
+    email: "rahman.cse@diu.edu.bd",
+    email_type: "advisor_authorized",
+    is_active: true,
+    authorized_by: "admin-registrar-01",
+    authorized_at: "2020-01-01T00:00:00Z",
+    reason: "Faculty academic appointment - CSE Department",
+    created_at: "2020-01-01T00:00:00Z",
+    updated_at: "2020-01-01T00:00:00Z",
+  },
+  {
+    id: "auth-email-advisor-alt",
+    profile_id: "advisor-prof-rahman",
+    email: "dr.rahman.ahmed@gmail.com",
+    email_type: "advisor_authorized",
+    is_active: true,
+    authorized_by: "admin-registrar-01",
+    authorized_at: "2026-11-19T09:00:00Z",
+    reason: "Authorized faculty personal Google SSO exception",
+    created_at: "2026-11-19T09:00:00Z",
+    updated_at: "2026-11-19T09:00:00Z",
+  },
+  {
+    id: "auth-email-advisor-deactivated",
+    profile_id: "advisor-prof-rahman",
+    email: "deactivated.advisor@gmail.com",
+    email_type: "advisor_authorized",
+    is_active: false,
+    authorized_by: "admin-registrar-01",
+    authorized_at: "2025-06-01T00:00:00Z",
+    reason: "Sabbatical leave access suspension - Revoked by Admin",
+    created_at: "2025-06-01T00:00:00Z",
+    updated_at: "2026-11-19T10:00:00Z",
+  },
+  {
+    id: "auth-email-admin-diu",
+    profile_id: "admin-registrar-01",
+    email: "admin.registrar@diu.edu.bd",
+    email_type: "admin_authorized",
+    is_active: true,
+    authorized_by: "admin-registrar-01",
+    authorized_at: "2020-01-01T00:00:00Z",
+    reason: "Registrar enterprise administrator authorization",
+    created_at: "2020-01-01T00:00:00Z",
+    updated_at: "2020-01-01T00:00:00Z",
+  },
+  {
+    id: "auth-email-admin-alt",
+    profile_id: "admin-registrar-01",
+    email: "admin.personal@gmail.com",
+    email_type: "admin_authorized",
+    is_active: true,
+    authorized_by: "admin-registrar-01",
+    authorized_at: "2026-11-19T07:30:00Z",
+    reason: "Emergency off-campus administrative console access",
+    created_at: "2026-11-19T07:30:00Z",
+    updated_at: "2026-11-19T07:30:00Z",
+  },
+];
+
+export const MOCK_EMAIL_AUDIT_LOG: EmailAuthorizationAuditRow[] = [
+  {
+    id: "audit-auth-001",
+    authorized_email_id: "auth-email-siyam-alt",
+    profile_id: "student-siyam-01",
+    email: "siyam.personal@gmail.com",
+    action: "AUTHORIZED",
+    actor_id: "admin-registrar-01",
+    reason: "Official DIU Workspace temporary lockout exception authorized by Dept Head",
+    metadata: { assignedRole: "student", diuId: "221-15-12345" },
+    created_at: "2026-11-19T08:00:00Z",
+  },
+  {
+    id: "audit-auth-002",
+    authorized_email_id: "auth-email-advisor-alt",
+    profile_id: "advisor-prof-rahman",
+    email: "dr.rahman.ahmed@gmail.com",
+    action: "AUTHORIZED",
+    actor_id: "admin-registrar-01",
+    reason: "Authorized faculty personal Google SSO exception",
+    metadata: { assignedRole: "advisor", employeeId: "EMP-CSE-0042" },
+    created_at: "2026-11-19T09:00:00Z",
+  },
+  {
+    id: "audit-auth-003",
+    authorized_email_id: "auth-email-advisor-deactivated",
+    profile_id: "advisor-prof-rahman",
+    email: "deactivated.advisor@gmail.com",
+    action: "DEACTIVATED",
+    actor_id: "admin-registrar-01",
+    reason: "Sabbatical leave access suspension - Revoked by Admin",
+    metadata: { assignedRole: "advisor", previousState: "active" },
+    created_at: "2026-11-19T10:00:00Z",
+  },
+];
 
 // ---------------------------------------------------------------------------
 // 6. COMPLETED COURSES RECORD (For Prerequisite Checking)
