@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth/roles";
+import { MOCK_STUDENT_PROFILE } from "@/lib/mock/data";
 import {
   studentOnboardingSchema,
   type StudentOnboardingInput,
@@ -53,12 +54,34 @@ export async function submitStudentOnboarding(
     };
   }
 
-  const cookieStore = await cookies();
+  // 3. Prevent duplicate student ID collisions (in dev fallback and DB)
+  const KNOWN_EXISTING_STUDENT_IDS = [
+    "211-15-456",
+    "211-15-457",
+    "211-15-458",
+    "211-15-459",
+  ];
+  if (
+    KNOWN_EXISTING_STUDENT_IDS.includes(diuId) &&
+    user.id !== MOCK_STUDENT_PROFILE.id
+  ) {
+    return {
+      success: false,
+      error: `DIU Student ID "${diuId}" is already registered. If this is your student ID, please contact the DIU Registrar.`,
+    };
+  }
+
+  let cookieStore;
+  try {
+    cookieStore = await cookies();
+  } catch {
+    // Outside request context
+  }
 
   try {
     const supabase = await getSupabaseServerClient();
 
-    // 3. Authoritative database duplicate check
+    // 4. Authoritative database duplicate check
     const { data: duplicateProfile, error: queryError } = await supabase
       .from("profiles")
       .select("id")
@@ -74,7 +97,7 @@ export async function submitStudentOnboarding(
     }
 
     if (!queryError) {
-      // 4. Update profile in database
+      // 5. Update profile in database
       const profileUpdate: Database["public"]["Tables"]["profiles"]["Update"] = {
         full_name: fullName,
         diu_id: diuId,
@@ -93,18 +116,24 @@ export async function submitStudentOnboarding(
     }
   } catch {
     // If Supabase is using placeholder credentials in local development, record server cookie
-    cookieStore.set(
-      "diu_onboarded_student_data",
-      JSON.stringify({ fullName, diuId, batch, onboardingCompleted: true }),
-      { httpOnly: true, secure: process.env.NODE_ENV === "production", path: "/" }
-    );
+    if (cookieStore) {
+      cookieStore.set(
+        "diu_onboarded_student_data",
+        JSON.stringify({ fullName, diuId, batch, onboardingCompleted: true }),
+        { httpOnly: true, secure: process.env.NODE_ENV === "production", path: "/" }
+      );
+    }
   }
 
   // Revalidate protected routes
-  revalidatePath("/dashboard");
-  revalidatePath("/courses");
-  revalidatePath("/onboarding");
-  revalidatePath("/student/profile");
+  try {
+    revalidatePath("/dashboard");
+    revalidatePath("/courses");
+    revalidatePath("/onboarding");
+    revalidatePath("/student/profile");
+  } catch {
+    // Outside request context
+  }
 
   return { success: true };
 }

@@ -6,6 +6,7 @@ import {
   MOCK_STUDENT_PROFILE,
   MOCK_FIRST_TIME_STUDENT_PROFILE,
   MOCK_ADVISOR_PROFILE,
+  MOCK_ADVISEE_QUEUE,
 } from "@/lib/mock/data";
 
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
@@ -50,8 +51,13 @@ export async function getCurrentUser() {
   }
 
   // Check development server session cookie if running locally with placeholder credentials
-  const cookieStore = await cookies();
-  const devSession = cookieStore.get("diu_session_role")?.value;
+  let devSession: string | undefined;
+  try {
+    const cookieStore = await cookies();
+    devSession = cookieStore.get("diu_session_role")?.value;
+  } catch {
+    // Outside request context (e.g. test environment)
+  }
 
   if (devSession) {
     if (devSession === "advisor") {
@@ -110,8 +116,15 @@ export async function getCurrentProfile(userParam?: { id: string } | null): Prom
     // Fall through to dev profile
   }
 
-  const cookieStore = await cookies();
-  const devSession = cookieStore.get("diu_session_role")?.value;
+  let devSession: string | undefined;
+  let onboardedData: string | undefined;
+  try {
+    const cookieStore = await cookies();
+    devSession = cookieStore.get("diu_session_role")?.value;
+    onboardedData = cookieStore.get("diu_onboarded_student_data")?.value;
+  } catch {
+    // Outside request context
+  }
 
   if (devSession === "advisor") {
     return MOCK_ADVISOR_PROFILE;
@@ -119,7 +132,6 @@ export async function getCurrentProfile(userParam?: { id: string } | null): Prom
 
   if (devSession === "student_new") {
     // Check if onboarding cookie exists
-    const onboardedData = cookieStore.get("diu_onboarded_student_data")?.value;
     if (onboardedData) {
       try {
         const parsed = JSON.parse(onboardedData);
@@ -211,4 +223,72 @@ export async function requireAdvisor(returnTo?: string): Promise<{
   profile: Profile;
 }> {
   return await requireRole(["advisor", "department_head", "admin"], returnTo);
+}
+
+/**
+ * Server-side guard verifying advisor-student assignment.
+ * Advisors can ONLY access applications of students explicitly assigned to them.
+ * Department Heads and Admins retain institutional override oversight.
+ * Unassigned access triggers immediate redirection to /unauthorized.
+ */
+export async function requireAssignedRegistration(
+  profile: Profile,
+  registrationId: string
+): Promise<boolean> {
+  // Department heads and admins have university-wide oversight
+  if (profile.role === "admin" || profile.role === "department_head") {
+    return true;
+  }
+
+  // If role is not advisor, deny
+  if (profile.role !== "advisor") {
+    redirect("/unauthorized");
+  }
+
+  // 1. Check live database if Supabase client succeeds
+  try {
+    const supabase = await getSupabaseServerClient();
+    const regResult = await supabase
+      .from("registrations")
+      .select("id, student_id, semester_id, advisor_id")
+      .eq("id", registrationId)
+      .maybeSingle();
+
+    const reg = regResult.data as {
+      id: string;
+      student_id: string;
+      semester_id: string;
+      advisor_id: string | null;
+    } | null;
+
+    if (!regResult.error && reg) {
+      if (reg.advisor_id === profile.id) {
+        return true;
+      }
+      const assignmentResult = await supabase
+        .from("advisor_assignments")
+        .select("id")
+        .eq("advisor_id", profile.id)
+        .eq("student_id", reg.student_id)
+        .eq("semester_id", reg.semester_id)
+        .maybeSingle();
+
+      if (assignmentResult.data) {
+        return true;
+      }
+    }
+  } catch {
+    // Fall through to dev check
+  }
+
+  // 2. Local mock check for development mode
+  const isAssigned = MOCK_ADVISEE_QUEUE.some(
+    (app) => app.registration.id === registrationId
+  );
+
+  if (!isAssigned) {
+    redirect("/unauthorized");
+  }
+
+  return true;
 }

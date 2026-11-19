@@ -32,12 +32,12 @@ export function StudentProfileView() {
               <User className="h-6 w-6 text-emerald-400" />
               Student Academic Profile
             </h1>
-            <Badge variant="diu" className="text-[10px] uppercase font-mono py-0.5 px-2">
-              Verified
+            <Badge variant="outline" className="border-slate-700 bg-slate-800 text-slate-300 text-[10px] uppercase font-mono py-0.5 px-2">
+              Onboarded Profile
             </Badge>
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            Official institutional academic record • Daffodil International University
+            Student-submitted record subject to Registrar reconciliation • Daffodil International University
           </p>
         </div>
 

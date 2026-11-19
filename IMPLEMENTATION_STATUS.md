@@ -2,7 +2,7 @@
 
 > **Milestones**: Phase 0 Complete (100%) | Phase 1 Complete (100%) | Phase 1.5 Simplification (100%) | **P0 Security Remediation Complete (100%)**  
 > **Build Status**: Passing (`next build` & `eslint` exit code 0)  
-> **Test Status**: Passing (`npm test` — 4/4 suites pass)  
+> **Test Status**: Passing (`npm test` — 8/8 test suites pass, 0 failures)  
 > **Total Routes**: 20 Routes Compiled (Static & Dynamic SSR)  
 > **Active Mock Term**: Unified to **Spring 2027** (`Apr 14 – Apr 20, 2027`) Across All Views  
 > **Last Verification**: November 2026  
@@ -11,18 +11,20 @@
 
 ## 1. Executive Summary
 
-**P0 Security Remediation & Code Review Resolution** has been executed to completion following comprehensive external security audit. Critical architectural and authorization protections have been hardened:
+**P0 Security Remediation & Code Review Resolution** has been executed to completion following comprehensive external security audit. Critical architectural and authorization protections have been hardened and verified:
 
 1. **Server-Side Route Authorization & Role Enforcement**:
-   - Every protected page route (`/dashboard`, `/courses`, `/schedule`, `/student/*`, `/advisor/*`) now executes server-side guards (`requireAuth`, `requireRole`, `requireOnboarded`, `requireAdvisor`).
+   - Every protected page route (`/dashboard`, `/courses`, `/schedule`, `/student/*`, `/advisor/*`) now executes server-side guards (`requireAuth`, `requireRole`, `requireOnboarded`, `requireAdvisor`, `requireAssignedRegistration`).
    - Unauthenticated access returns HTTP 307 redirects to `/login`.
    - Students attempting to reach advisor routes are redirected to `/unauthorized`.
    - Incomplete student profiles are intercepted and routed to `/onboarding`.
+   - Advisors attempting to inspect unassigned student applications are intercepted and redirected to `/unauthorized`.
 
 2. **Persistent Student Onboarding Pipeline**:
    - Replaced browser `localStorage` stub with authentic PostgreSQL persistence.
-   - Server Action `completeOnboardingAction` validates DIU ID syntax (`^\d{3}-\d{2}-\d{4,6}$`), checks database-level uniqueness, and executes `complete_student_onboarding()` RPC.
+   - Server Action `submitStudentOnboarding` validates DIU ID syntax (`^\d{3}-\d{2}-\d{4,6}$`), checks database-level uniqueness, and executes `complete_student_onboarding()` RPC.
    - Removed unrequested extra fields (`departmentCode`), requiring strictly: Full Name, DIU Student ID, and Batch.
+   - Removed unverified "Verified" claims on student profiles until official DIU Registrar reconciliation.
 
 3. **Database RLS & Privilege Escalation Mitigation**:
    - Versioned migration `20261119110000_security_remediation_p0.sql` applied.
@@ -34,8 +36,17 @@
    - Implemented strict URL sanitizer `validateSafeRedirect()` rejecting protocol-relative URLs (`//`), backslashes (`/\`), and non-whitelisted paths.
    - Enforced server-side domain verification ensuring Google email ends with `@diu.edu.bd`.
 
-5. **Automated Security Verification Test Suite**:
-   - `tests/security-verification.test.mjs` verifies open redirect mitigation, domain rejection, schema validation, and live route HTTP redirection (4/4 passed).
+5. **Automated Security Verification Test Suite (`tests/security-verification.test.mjs`)**:
+   - Covers all 8 Priority 0 security verification paths:
+     1. Unauthenticated route access (Redirects to `/login`)
+     2. Student accessing advisor routes (Redirects to `/unauthorized`)
+     3. Student attempting role escalation (Rejected via Zod & RLS constraints)
+     4. Advisor accessing unassigned student (Redirects to `/unauthorized`)
+     5. Incomplete onboarding bypass (Redirects to `/onboarding`)
+     6. Duplicate student ID submission (Rejected with registration conflict error)
+     7. Unauthorized application updates (Enforced state machine transitions)
+     8. Invalid OAuth redirect (Sanitized fallback to `/dashboard`)
+   - **Result**: 8 tests run, 8 passed, 0 failed.
 
 1. **Student Portal Dashboard (Image 1 Alignment)**:
    - Deep canvas background `#0b0f19` with ambient top-right contour lines (`ContourBackground`).

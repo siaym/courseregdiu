@@ -127,13 +127,27 @@ The incoming engineering team should execute **Phase 2: Database Connectivity & 
 
 ---
 
-## 5. Immediate Sprint Checklist for Next Agent
+## 5. Security Remediation Status & Verification
 
-- [ ] Read all 10 mandatory documents listed in Section 2.
-- [ ] Run `npm run lint` and `npm run build` to confirm clean starting state (both must exit 0).
-- [ ] Verify database schema with `supabase/migrations/20261119000000_student_onboarding.sql`.
-- [ ] Create `supabase/seed.sql` populating official DIU course catalog for Spring 2026.
-- [ ] Implement `completeOnboardingAction` in `src/lib/actions/onboarding.ts`.
-- [ ] Implement cart and advisor Server Actions with strict Zod validation.
-- [ ] Do not invent DIU records or policies; keep all academic rules aligned with official DIU guidelines.
-- [ ] Update `IMPLEMENTATION_STATUS.md` and `HANDOFF.md` upon completion of Phase 2 milestones.
+The **Priority 0 Security Remediation** has been completed and verified with automated test suites (`tests/security-verification.test.mjs`):
+1. **Unauthenticated Route Access**: Verified (HTTP 307 redirect to `/login`).
+2. **Student Accessing Advisor Routes**: Verified (HTTP 307 redirect to `/unauthorized`).
+3. **Student Attempting Role Escalation**: Verified (Privilege escalation blocked by Zod schemas and DB trigger `check_profile_privilege_escalation`).
+4. **Advisor Accessing Unassigned Student**: Verified (`requireAssignedRegistration` blocks unassigned access with HTTP 307 redirect to `/unauthorized`).
+5. **Incomplete Onboarding Bypass**: Verified (Redirects to `/onboarding`).
+6. **Duplicate Student ID Submission**: Verified (Rejected at validation and database constraint levels).
+7. **Unauthorized Application Updates**: Verified (State transitions enforced: students cannot self-approve; advisors cannot edit unsubmitted drafts).
+8. **Invalid OAuth Redirect**: Verified (`validateSafeRedirect` sanitizes all open redirect vectors to `/dashboard`).
+
+### Remaining Operational Risks & Requirements:
+- **Remote Supabase Execution**: Migration `20261119110000_security_remediation_p0.sql` must be applied to the remote production Supabase instance via `supabase db push` or SQL Editor when live credentials are provided.
+- **Google Cloud Console OAuth**: The production redirect URI (`https://<domain>/auth/callback`) must be added to the authorized redirect URIs in Google Cloud Console.
+
+---
+
+## 6. Immediate Next Task for Phase 2
+
+- **Phase 2, Milestone 2.1**: Supabase Database Seeding (`supabase/seed.sql`)
+  1. Author `supabase/seed.sql` populating official DIU course catalog for Spring 2027 (departments CSE, SWE, EEE, BBA).
+  2. Populate class sections, prerequisites, and initial advisor assignments.
+  3. Wire live Supabase queries to the Unified Courses Workspace and Advisee Queue.

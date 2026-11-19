@@ -39,20 +39,20 @@ export interface AdvisorReviewViewProps {
 export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
   const router = useRouter();
 
-  // Find application in mock queue or fallback to first
-  const initialApp =
-    MOCK_ADVISEE_QUEUE.find((a) => a.registration.id === registrationId) ||
-    MOCK_ADVISEE_QUEUE[0];
+  // Find application in mock queue
+  const initialApp = MOCK_ADVISEE_QUEUE.find((a) => a.registration.id === registrationId);
 
-  const application = initialApp;
-  const [items, setItems] = React.useState(initialApp.items);
-  const [advisorNotes, setAdvisorNotes] = React.useState(initialApp.registration.advisor_notes || "");
-  const [currentStatus, setCurrentStatus] = React.useState(initialApp.registration.status);
+  const application = initialApp || MOCK_ADVISEE_QUEUE[0];
+  const [items, setItems] = React.useState(application ? application.items : []);
+  const [advisorNotes, setAdvisorNotes] = React.useState(application?.registration.advisor_notes || "");
+  const [currentStatus, setCurrentStatus] = React.useState(application?.registration.status || "pending_advisor");
 
   // Queue paging navigation
-  const currentIndex = MOCK_ADVISEE_QUEUE.findIndex((a) => a.registration.id === application.registration.id);
+  const currentIndex = initialApp
+    ? MOCK_ADVISEE_QUEUE.findIndex((a) => a.registration.id === application.registration.id)
+    : -1;
   const prevApp = currentIndex > 0 ? MOCK_ADVISEE_QUEUE[currentIndex - 1] : null;
-  const nextApp = currentIndex < MOCK_ADVISEE_QUEUE.length - 1 ? MOCK_ADVISEE_QUEUE[currentIndex + 1] : null;
+  const nextApp = currentIndex >= 0 && currentIndex < MOCK_ADVISEE_QUEUE.length - 1 ? MOCK_ADVISEE_QUEUE[currentIndex + 1] : null;
 
   // Dialog states
   const [isApproveOpen, setIsApproveOpen] = React.useState(false);
@@ -77,6 +77,25 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [prevApp, nextApp, router]);
+
+  if (!initialApp) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center bg-[#121827] border border-[#1c263c] rounded-2xl max-w-lg mx-auto mt-12">
+        <AlertTriangle className="h-10 w-10 text-amber-400 mb-3" />
+        <h2 className="text-base font-semibold text-white">Application Unassigned or Not Found</h2>
+        <p className="text-xs text-[#8e9db2] mt-1.5 max-w-sm">
+          The requested student registration ({registrationId}) is not assigned to your advising cohort.
+        </p>
+        <Link
+          href="/advisor"
+          className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white transition-colors"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          <span>Return to Advisee Queue</span>
+        </Link>
+      </div>
+    );
+  }
 
   // Section Reassignment handler
   const handleReassignSection = (courseId: string, currentSectionId: string, newSectionId: string) => {

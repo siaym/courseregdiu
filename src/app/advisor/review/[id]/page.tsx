@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/shell/app-shell";
-import { requireAdvisor } from "@/lib/auth/roles";
+import { requireAdvisor, requireAssignedRegistration } from "@/lib/auth/roles";
 import { AdvisorReviewView } from "@/components/advisor/advisor-review-view";
 
 interface AdvisorReviewPageProps {
@@ -11,6 +11,7 @@ export default async function AdvisorReviewPage({
 }: AdvisorReviewPageProps) {
   const { id } = await params;
   const { user, profile } = await requireAdvisor(`/advisor/review/${id}`);
+  await requireAssignedRegistration(profile, id);
 
   return (
     <AppShell user={user} profile={profile}>
