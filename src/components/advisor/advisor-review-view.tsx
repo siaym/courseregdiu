@@ -400,8 +400,7 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
                 <th className="py-2.5 px-3 font-medium w-16 text-center">Cr</th>
                 <th className="py-2.5 px-3 font-medium w-28">Course Type</th>
                 <th className="py-2.5 px-3 font-medium w-36">Prerequisites</th>
-                <th className="py-2.5 px-3 font-medium w-48">Assigned Section</th>
-                <th className="py-2.5 px-3 font-medium">Instructor & Room</th>
+                <th className="py-2.5 px-3 font-medium text-right">Assigned Section</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#1c263c]">
@@ -456,12 +455,12 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
                     </td>
 
                     {/* Reassign Section dropdown */}
-                    <td className="py-2.5 px-3">
+                    <td className="py-2.5 px-3 text-right">
                       {availableSections.length > 1 ? (
                         <select
                           value={it.section.id}
                           onChange={(e) => handleReassignSection(it.course.id, it.section.id, e.target.value)}
-                          className="w-full text-xs font-mono bg-[#0b0f19] border border-[#1c263c] rounded px-2 py-1 text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="max-w-[240px] ml-auto text-xs font-mono bg-[#0b0f19] border border-[#1c263c] rounded px-2 py-1 text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         >
                           {availableSections.map((s) => {
                             const isFull = s.enrolled_count >= s.capacity;
@@ -477,11 +476,6 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
                           Sec {it.section.section_name} (Only Section)
                         </span>
                       )}
-                    </td>
-
-                    <td className="py-2.5 px-3 font-mono text-slate-300 text-xs">
-                      <div className="font-medium text-slate-200">{it.section.instructor_name || "Assigned Faculty"}</div>
-                      <div className="text-slate-500 text-[11px]">Room: {it.section.room || "TBA"}</div>
                     </td>
                   </tr>
                 );

@@ -847,12 +847,6 @@ export function UnifiedCoursesWorkspace({
                               </div>
                             )}
                           </div>
-
-                          {selectedItem && (
-                            <span className="text-[11px] font-mono text-slate-400">
-                              Room: {selectedItem.section.room || "TBA"} • {selectedItem.section.instructor_name}
-                            </span>
-                          )}
                         </div>
                       )}
                     </div>
@@ -1095,9 +1089,8 @@ export function UnifiedCoursesWorkspace({
                     <tr>
                       <th className="py-2.5 px-3 font-medium">Course Code & Title</th>
                       <th className="py-2.5 px-3 font-medium w-16 text-center">Credits</th>
-                      <th className="py-2.5 px-3 font-medium w-28">Classification</th>
-                      <th className="py-2.5 px-3 font-medium w-28">Section</th>
-                      <th className="py-2.5 px-3 font-medium">Room & Instructor</th>
+                      <th className="py-2.5 px-3 font-medium w-32">Classification</th>
+                      <th className="py-2.5 px-3 font-medium w-32 text-right">Assigned Section</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#1c263c]">
@@ -1125,11 +1118,8 @@ export function UnifiedCoursesWorkspace({
                             </span>
                           )}
                         </td>
-                        <td className="py-2.5 px-3 font-mono text-slate-300">
+                        <td className="py-2.5 px-3 font-mono text-slate-300 text-right">
                           Sec {item.section.section_name}
-                        </td>
-                        <td className="py-2.5 px-3 font-mono text-[11px] text-slate-400">
-                          Room: {item.section.room || "TBA"} • {item.section.instructor_name}
                         </td>
                       </tr>
                     ))}

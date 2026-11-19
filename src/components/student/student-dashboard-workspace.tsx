@@ -446,8 +446,6 @@ export function StudentDashboardWorkspace() {
                     <TableHead className="text-slate-400 text-xs font-semibold py-3 px-4">Course</TableHead>
                     <TableHead className="text-slate-400 text-xs font-semibold py-3 px-4">Type</TableHead>
                     <TableHead className="text-slate-400 text-xs font-semibold py-3 px-4">Section</TableHead>
-                    <TableHead className="text-slate-400 text-xs font-semibold py-3 px-4">Schedule Routine</TableHead>
-                    <TableHead className="text-slate-400 text-xs font-semibold py-3 px-4">Room</TableHead>
                     <TableHead className="text-slate-400 text-xs font-semibold py-3 px-4 text-center">Credits</TableHead>
                     <TableHead className="text-slate-400 text-xs font-semibold py-3 px-4 text-right">Actions</TableHead>
                   </TableRow>
@@ -489,18 +487,6 @@ export function StudentDashboardWorkspace() {
                           <Badge variant="outline" className="border-slate-700 bg-slate-950 text-slate-200 font-mono text-[11px]">
                             {sec.section_name}
                           </Badge>
-                        </TableCell>
-
-                        <TableCell className="px-4 py-3 text-xs text-slate-300">
-                          {sec.schedule.map((slot, idx) => (
-                            <div key={idx} className="text-[11px] font-mono">
-                              {slot.day.slice(0, 3)}: {slot.start_time}–{slot.end_time}
-                            </div>
-                          ))}
-                        </TableCell>
-
-                        <TableCell className="px-4 py-3 text-xs text-slate-300 font-mono">
-                          {sec.room || "TBA"}
                         </TableCell>
 
                         <TableCell className="px-4 py-3 text-xs text-center font-mono font-bold text-emerald-400">
