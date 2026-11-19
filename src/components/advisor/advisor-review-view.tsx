@@ -30,6 +30,13 @@ import {
   ShieldCheck,
   Check,
   UserCheck,
+  User,
+  Layers,
+  BookOpen,
+  CreditCard,
+  FileCheck2,
+  Mail,
+  Phone,
 } from "lucide-react";
 import {
   finalizeAdvisorReviewAction,
@@ -88,15 +95,15 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
       <div className="flex flex-col items-center justify-center p-12 text-center bg-[#121827] border border-[#1c263c] rounded-2xl max-w-lg mx-auto mt-12">
         <AlertTriangle className="h-10 w-10 text-amber-400 mb-3" />
         <h2 className="text-base font-semibold text-white">Application Unassigned or Not Found</h2>
-        <p className="text-xs text-[#8e9db2] mt-1.5 max-w-sm">
+        <p className="text-xs text-slate-400 mt-1.5 max-w-sm">
           The requested student registration ({registrationId}) is not assigned to your advising cohort.
         </p>
         <Link
-          href="/advisor"
+          href="/advisor/queue"
           className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white transition-colors"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          <span>Return to Advisee Queue</span>
+          <span>Return to Application Center</span>
         </Link>
       </div>
     );
@@ -140,12 +147,12 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
       if (res.success) {
         setCurrentStatus("approved");
         setToastMessage({
-          text: `Application for ${application.student.full_name} (${application.student.diu_id}) approved and officially enrolled.`,
+          text: `Application for ${application.student.full_name} has been approved and finalized.`,
           type: "success",
         });
       } else {
         setToastMessage({
-          text: res.error || "Failed to finalize approval.",
+          text: res.error || "Failed to finalize application approval.",
           type: "destructive",
         });
       }
@@ -153,18 +160,26 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
       setIsProcessing(false);
       setIsApproveOpen(false);
       setCurrentStatus("approved");
+      setToastMessage({
+        text: `Application for ${application.student.full_name} finalized in session.`,
+        type: "success",
+      });
     }
   };
 
   // Finalize Rejection / Revision Request
   const handleConfirmRejection = async () => {
+    if (!advisorNotes.trim()) {
+      alert("Faculty advising remarks are required when returning an application for revisions.");
+      return;
+    }
+
     setIsProcessing(true);
     try {
-      const formattedNotes = `[${rejectionReason}] ${advisorNotes}`;
       const res = await finalizeAdvisorReviewAction({
         registrationId: application.registration.id,
         action: "reject",
-        notes: formattedNotes,
+        notes: `[${rejectionReason}] ${advisorNotes}`,
       });
 
       setIsProcessing(false);
@@ -173,8 +188,8 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
       if (res.success) {
         setCurrentStatus("rejected");
         setToastMessage({
-          text: `Advising slip returned to ${application.student.full_name} with requested adjustments.`,
-          type: "destructive",
+          text: `Application returned to ${application.student.full_name} for adjustments.`,
+          type: "success",
         });
       } else {
         setToastMessage({
@@ -197,55 +212,57 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
   const retakeCount = items.filter((it) => it.course_type === "retake").length;
 
   return (
-    <div className="space-y-4 text-slate-100 max-w-6xl mx-auto py-2">
-      {/* Top Bar: Queue Navigation & Keyboard Hints */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 pb-3 border-b border-[#1c263c]">
+    <div className="space-y-6 text-slate-100 max-w-6xl mx-auto py-2">
+      {/* ========================================================================= */}
+      {/* TOP BAR: Navigation, Paging & Status                                      */}
+      {/* ========================================================================= */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-[#1c263c]">
         <div className="flex items-center gap-2">
-          <Button asChild variant="ghost" size="sm" className="text-xs text-slate-400 hover:text-white h-7 px-2">
-            <Link href="/advisor">
-              <ArrowLeft className="h-3.5 w-3.5 mr-1" />
-              Queue
+          <Button asChild variant="ghost" size="sm" className="text-xs text-slate-400 hover:text-white h-8 px-2.5 rounded-lg">
+            <Link href="/advisor/queue">
+              <ArrowLeft className="h-4 w-4 mr-1.5" />
+              <span>Application Center</span>
             </Link>
           </Button>
-          <span className="text-slate-700">/</span>
+          <span className="text-slate-600">/</span>
           <span className="text-xs font-mono text-slate-300">
             Advisee <strong className="text-emerald-400">{currentIndex + 1} of {MOCK_ADVISEE_QUEUE.length}</strong>
           </span>
-          <span className="hidden md:inline text-[10px] text-slate-500 font-mono">
+          <span className="hidden md:inline text-xs text-slate-500 font-mono ml-1">
             (Shortcuts: [J] Prev • [K] Next)
           </span>
         </div>
 
         {/* Paging Actions */}
-        <div className="flex items-center gap-1.5 self-end sm:self-center">
+        <div className="flex items-center gap-2 self-start sm:self-center">
           {prevApp && (
-            <Button asChild size="sm" variant="outline" className="border-[#1c263c] text-xs text-slate-300 bg-[#121827] hover:bg-[#1a233a] h-7 px-2.5">
+            <Button asChild size="sm" variant="outline" className="border-[#1c263c] text-xs text-slate-300 bg-[#121827] hover:bg-[#1a233a] h-8 px-3 rounded-lg">
               <Link href={`/advisor/review/${prevApp.registration.id}`}>
                 &larr; Prev
               </Link>
             </Button>
           )}
           {nextApp && (
-            <Button asChild size="sm" variant="outline" className="border-[#1c263c] text-xs text-slate-300 bg-[#121827] hover:bg-[#1a233a] h-7 px-2.5">
+            <Button asChild size="sm" variant="outline" className="border-[#1c263c] text-xs text-slate-300 bg-[#121827] hover:bg-[#1a233a] h-8 px-3 rounded-lg">
               <Link href={`/advisor/review/${nextApp.registration.id}`}>
                 Next &rarr;
               </Link>
             </Button>
           )}
-          <StatusBadge status={currentStatus} className="text-[10px] ml-1" />
+          <StatusBadge status={currentStatus} className="text-xs ml-1" />
         </div>
       </div>
 
       {/* Floating feedback alert */}
       {toastMessage && (
         <div
-          className={`flex items-center justify-between p-3 rounded-xl border text-xs animate-in fade-in duration-100 ${
+          className={`flex items-center justify-between p-3.5 rounded-xl border text-xs animate-in fade-in duration-100 ${
             toastMessage.type === "success"
               ? "bg-[#121827] border-emerald-800 text-emerald-300"
               : "bg-[#121827] border-rose-800 text-rose-300"
           }`}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             {toastMessage.type === "success" ? (
               <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
             ) : (
@@ -253,7 +270,7 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
             )}
             <span>{toastMessage.text}</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             {nextApp && (
               <Link
                 href={`/advisor/review/${nextApp.registration.id}`}
@@ -272,252 +289,321 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
         </div>
       )}
 
-      {/* 1. Student Metadata Bar (High information density, zero fluff) */}
-      <div className="p-4 rounded-xl border border-[#1c263c] bg-[#121827] space-y-3">
-        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-          <div className="space-y-1.5">
+      {/* ========================================================================= */}
+      {/* 1. STUDENT INFORMATION                                                    */}
+      {/* ========================================================================= */}
+      <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-5 sm:p-6 space-y-4 shadow-sm">
+        <div className="flex items-center gap-2.5 border-b border-[#1c263c] pb-3">
+          <User className="h-5 w-5 text-[#008764]" />
+          <h2 className="text-base font-bold text-white tracking-tight">
+            1. Student Information
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+          {/* Identity & Contact Details */}
+          <div className="md:col-span-7 space-y-2.5 text-xs">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-base font-bold text-white">
+              <span className="text-lg font-bold text-white">
                 {application.student.full_name}
-              </h2>
+              </span>
               <span className="font-mono text-xs font-bold text-emerald-400 px-2 py-0.5 rounded bg-[#0b0f19] border border-[#1c263c]">
                 {application.student.diu_id}
               </span>
-              <span className="text-xs text-slate-400">
-                Dept. of {application.student.department_code} • {application.student.batch || "61st Batch"}
+              <span className="text-xs text-slate-300">
+                Dept. of {application.student.department_code} • {application.student.batch || "60th Batch"}
               </span>
             </div>
 
-            {/* Email and Identity details */}
-            <div className="text-xs text-[#8e9db2] font-mono space-y-0.5">
-              <div>
-                Primary Email: <span className="text-slate-200">{application.student.email}</span>
-                {application.student.phone && ` • Mobile: ${application.student.phone}`}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 font-mono text-xs">
+              <div className="flex items-center gap-2 text-slate-300">
+                <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                <span className="truncate">{application.student.email}</span>
               </div>
-              {application.student.authorized_alternative_email && (
-                <div className="text-emerald-400 flex items-center gap-1">
-                  <UserCheck className="h-3 w-3" />
-                  <span>Authorized Alt Personal Email: <strong>{application.student.authorized_alternative_email}</strong> (Admin Authorized)</span>
+              {application.student.phone && (
+                <div className="flex items-center gap-2 text-slate-300">
+                  <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  <span>{application.student.phone}</span>
                 </div>
               )}
             </div>
 
-            {/* Section Information: Previous Section and Desired Section */}
-            <div className="flex items-center gap-3 pt-1 text-xs font-mono">
-              <span className="text-[#8e9db2]">Section Cohort:</span>
-              <span className="px-2 py-0.5 rounded bg-[#0b0f19] border border-[#1c263c] text-white">
-                Previous: <strong className="text-slate-200">{application.registration.previous_section || "69_K"}</strong>
-              </span>
-              <span className="text-slate-600">&rarr;</span>
-              <span className="px-2 py-0.5 rounded bg-[#0b0f19] border border-[#1c263c] text-emerald-400">
-                Desired: <strong className="text-emerald-400">{application.registration.desired_section || "69_D"}</strong>
-              </span>
-            </div>
+            {application.student.authorized_alternative_email && (
+              <div className="p-2 rounded-lg bg-emerald-950/40 border border-emerald-800/80 text-emerald-300 text-xs font-mono flex items-center gap-2">
+                <UserCheck className="h-4 w-4 text-emerald-400 shrink-0" />
+                <span>
+                  Authorized Alternative Email: <strong>{application.student.authorized_alternative_email}</strong> (Admin Authorized)
+                </span>
+              </div>
+            )}
           </div>
 
-          {/* Academic & Accounts Standing */}
-          <div className="flex flex-wrap items-center gap-3 text-xs font-mono bg-[#0b0f19] p-3 rounded-xl border border-[#1c263c] shrink-0">
-            <div>
-              <span className="text-slate-500 text-[10px] block">CGPA:</span>
-              <strong className={application.isProbation ? "text-rose-400 font-bold" : "text-white"}>
-                {application.student.cgpa?.toFixed(2)} / 4.00
+          {/* Academic Standing Cards */}
+          <div className="md:col-span-5 grid grid-cols-3 gap-2 bg-[#0b0f19] p-3.5 rounded-xl border border-[#1c263c] text-xs font-mono">
+            <div className="space-y-1">
+              <span className="text-slate-400 text-xs block">CGPA:</span>
+              <strong className={`text-base block ${application.isProbation ? "text-rose-400 font-bold" : "text-white"}`}>
+                {application.student.cgpa?.toFixed(2)}
               </strong>
+              <span className="text-slate-500 text-[11px]">Scale: 4.00</span>
             </div>
-            <div className="h-6 w-px bg-[#1c263c]" />
-            <div>
-              <span className="text-slate-500 text-[10px] block">Passed:</span>
-              <span className="text-slate-300">{application.student.completed_credits} Cr</span>
+
+            <div className="space-y-1 border-l border-[#1c263c] pl-3">
+              <span className="text-slate-400 text-xs block">Passed:</span>
+              <strong className="text-base text-slate-200 block">
+                {application.student.completed_credits}
+              </strong>
+              <span className="text-slate-500 text-[11px]">Total Cr</span>
             </div>
-            <div className="h-6 w-px bg-[#1c263c]" />
-            <div>
-              <span className="text-slate-500 text-[10px] block">Proposed:</span>
-              <span className={isOverloaded ? "text-rose-400 font-bold" : "text-emerald-400"}>
-                {totalCredits.toFixed(1)} / {creditRules.maxCredits.toFixed(1)} Cr
+
+            <div className="space-y-1 border-l border-[#1c263c] pl-3">
+              <span className="text-slate-400 text-xs block">Proposed:</span>
+              <strong className={`text-base block ${isOverloaded ? "text-rose-400 font-bold" : "text-emerald-400"}`}>
+                {totalCredits.toFixed(1)}
+              </strong>
+              <span className="text-slate-500 text-[11px]">Max: {creditRules.maxCredits.toFixed(1)} Cr</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Academic Warning Alerts if probation or prerequisite issues */}
+        {application.isProbation && (
+          <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-800 text-rose-300 text-xs flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>Academic Probation Warning: CGPA is below 2.00. Term registration load is restricted to 9.0 credits.</span>
+          </div>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 2. SECTION INFORMATION                                                    */}
+      {/* ========================================================================= */}
+      <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-5 sm:p-6 space-y-4 shadow-sm">
+        <div className="flex items-center gap-2.5 border-b border-[#1c263c] pb-3">
+          <Layers className="h-5 w-5 text-[#008764]" />
+          <h2 className="text-base font-bold text-white tracking-tight">
+            2. Section Information
+          </h2>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c]">
+          <div className="space-y-1">
+            <div className="text-xs font-semibold text-slate-300">
+              Assigned Cohort Section Preference:
+            </div>
+            <p className="text-xs text-slate-400">
+              The student attended <strong>{application.registration.previous_section || "69_K"}</strong> in the preceding term and requested transfer to <strong>{application.registration.desired_section || "69_D"}</strong> for {ACTIVE_MOCK_SEMESTER_LABEL}.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 font-mono text-xs shrink-0">
+            <div className="px-3 py-1.5 rounded-lg bg-[#121827] border border-[#1c263c] text-center">
+              <div className="text-slate-500 text-[10px] uppercase font-semibold">Previous</div>
+              <strong className="text-white text-sm">{application.registration.previous_section || "69_K"}</strong>
+            </div>
+            <span className="text-slate-500 text-lg">&rarr;</span>
+            <div className="px-3 py-1.5 rounded-lg bg-[#121827] border border-emerald-800/80 text-center">
+              <div className="text-emerald-400/80 text-[10px] uppercase font-semibold">Desired</div>
+              <strong className="text-emerald-400 text-sm">{application.registration.desired_section || "69_D"}</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 3. COURSE SELECTION                                                       */}
+      {/* ========================================================================= */}
+      <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-5 sm:p-6 space-y-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#1c263c] pb-3">
+          <div className="flex items-center gap-2.5">
+            <BookOpen className="h-5 w-5 text-[#008764]" />
+            <h2 className="text-base font-bold text-white tracking-tight">
+              3. Course Selection
+            </h2>
+          </div>
+          <div className="text-xs font-mono text-slate-300">
+            Total Load: <strong className="text-white">{items.length} Courses</strong> • <strong className="text-emerald-400">{totalCredits.toFixed(1)} Credits</strong> ({generalCount} General, {retakeCount} Retake)
+          </div>
+        </div>
+
+        {/* Table of Selected Courses */}
+        <div className="border border-[#1c263c] rounded-xl overflow-hidden bg-[#0b0f19]">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#121827] border-b border-[#1c263c] text-xs font-semibold uppercase tracking-wider text-slate-400">
+                <tr>
+                  <th className="py-3 px-4 font-semibold">Course Code & Title</th>
+                  <th className="py-3 px-3 font-semibold text-center w-16">Credits</th>
+                  <th className="py-3 px-3 font-semibold w-28">Classification</th>
+                  <th className="py-3 px-3 font-semibold w-36">Prerequisites</th>
+                  <th className="py-3 px-4 font-semibold text-right">Assigned Section</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#1c263c]">
+                {items.map((it) => {
+                  const { isEligible, missingCodes } = getPrerequisiteStatus(
+                    it.course.prerequisite_codes,
+                    MOCK_COMPLETED_COURSE_CODES
+                  );
+                  const availableSections = MOCK_SECTIONS.filter((s) => s.course_id === it.course.id);
+                  const isRetake = it.course_type === "retake";
+
+                  return (
+                    <tr key={it.item.id} className="hover:bg-[#121827]/70 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="font-mono font-bold text-emerald-400 text-xs">
+                          {it.course.code}
+                        </div>
+                        <div className="text-white font-medium text-xs mt-0.5">
+                          {it.course.title}
+                        </div>
+                      </td>
+
+                      <td className="py-3 px-3 text-center font-mono text-slate-200">
+                        {(it.section.credits || it.course.credits).toFixed(1)}
+                      </td>
+
+                      {/* Course Classification */}
+                      <td className="py-3 px-3">
+                        {isRetake ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold bg-amber-950/70 border border-amber-800 text-amber-300">
+                            Retake
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold bg-blue-950/70 border border-blue-800 text-blue-300">
+                            General
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Prerequisites */}
+                      <td className="py-3 px-3">
+                        {isEligible ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-emerald-400 font-mono font-medium">
+                            <Check className="h-3.5 w-3.5" />
+                            <span>Satisfied</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs text-rose-400 font-mono font-medium">
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                            <span>Missing: {missingCodes.join(", ")}</span>
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Assigned Section Dropdown */}
+                      <td className="py-3 px-4 text-right">
+                        {availableSections.length > 1 ? (
+                          <select
+                            value={it.section.id}
+                            onChange={(e) => handleReassignSection(it.course.id, it.section.id, e.target.value)}
+                            className="max-w-[240px] ml-auto text-xs font-mono bg-[#121827] border border-[#1c263c] rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500 cursor-pointer"
+                          >
+                            {availableSections.map((s) => {
+                              const isFull = s.enrolled_count >= s.capacity;
+                              return (
+                                <option key={s.id} value={s.id}>
+                                  Sec {s.section_name} ({s.enrolled_count}/{s.capacity} seats){isFull ? " [FULL]" : ""}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        ) : (
+                          <span className="font-mono text-xs text-slate-300 px-2 py-1 rounded bg-[#121827] border border-[#1c263c]">
+                            Sec {it.section.section_name} (Fixed)
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 4. PAYMENT INFORMATION                                                    */}
+      {/* ========================================================================= */}
+      <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-5 sm:p-6 space-y-4 shadow-sm">
+        <div className="flex items-center gap-2.5 border-b border-[#1c263c] pb-3">
+          <CreditCard className="h-5 w-5 text-[#008764]" />
+          <h2 className="text-base font-bold text-white tracking-tight">
+            4. Payment Information
+          </h2>
+        </div>
+
+        <div className="p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="space-y-1">
+            <div className="text-slate-300 font-semibold">
+              Tuition Accounts Clearance Status:
+            </div>
+            <div className="text-slate-400">
+              Institutional accounts audit code: <strong className="font-mono text-slate-200">{application.registration.payment_reference || "DIU-AC-2027-4561"}</strong>
+            </div>
+          </div>
+
+          <div className="shrink-0">
+            {application.registration.payment_cleared ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-950/80 border border-emerald-800 text-emerald-300">
+                <ShieldCheck className="h-4 w-4" />
+                <span>Tuition Accounts Cleared</span>
               </span>
-            </div>
-            <div className="h-6 w-px bg-[#1c263c]" />
-            <div>
-              <span className="text-slate-500 text-[10px] block">Accounts Status:</span>
-              {application.registration.payment_cleared ? (
-                <span className="text-emerald-400 font-medium">Cleared</span>
-              ) : (
-                <span className="text-rose-400 font-medium">Payment Hold</span>
-              )}
-            </div>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-rose-950/80 border border-rose-800 text-rose-300">
+                <AlertTriangle className="h-4 w-4" />
+                <span>Financial Clearance Hold</span>
+              </span>
+            )}
           </div>
-        </div>
-
-        {/* Warning Flags Strip */}
-        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[#1c263c] text-xs">
-          {application.isProbation && (
-            <span className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-rose-400 bg-rose-950/40 px-2 py-0.5 rounded border border-rose-800/60">
-              <AlertTriangle className="h-3 w-3" />
-              Academic Probation Warning (Capped at 9.0 Cr)
-            </span>
-          )}
-          {application.hasPrerequisiteConflict && (
-            <span className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-rose-400 bg-rose-950/40 px-2 py-0.5 rounded border border-rose-800/60">
-              <AlertTriangle className="h-3 w-3" />
-              Missing Prerequisite Course
-            </span>
-          )}
-          {application.registration.payment_cleared ? (
-            <span className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-800/60">
-              <ShieldCheck className="h-3 w-3" />
-              Accounts Clearance: {application.registration.payment_reference || "DIU-AC-2027-4561"}
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-rose-400 bg-rose-950/40 px-2 py-0.5 rounded border border-rose-800/60">
-              <AlertTriangle className="h-3 w-3" />
-              Tuition Clearance Hold
-            </span>
-          )}
-          <span className="text-slate-500 font-mono text-[11px] ml-auto">
-            Submitted: {application.formattedApplicationDate || "Apr 14, 2027 • 2:30 PM"}
-          </span>
         </div>
       </div>
 
-      {/* 2. Advising Slip Audit Table (Complete Course List with General/Retake classification) */}
-      <div className="rounded-xl border border-[#1c263c] bg-[#121827] overflow-hidden shadow-sm">
-        <div className="p-3.5 border-b border-[#1c263c] flex flex-wrap items-center justify-between gap-2">
-          <div className="text-xs font-semibold text-white flex items-center gap-2">
-            <span>Requested Course Offerings</span>
-            <span className="text-[11px] font-mono text-[#8e9db2]">
-              ({items.length} Courses • {totalCredits.toFixed(1)} Credits • {generalCount} General, {retakeCount} Retake)
-            </span>
-          </div>
-          <span className="font-mono text-[11px] text-emerald-400">
-            {ACTIVE_MOCK_SEMESTER_LABEL} Advising Session
-          </span>
+      {/* ========================================================================= */}
+      {/* 5. ADVISOR DECISION                                                       */}
+      {/* ========================================================================= */}
+      <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-5 sm:p-6 space-y-4 shadow-sm">
+        <div className="flex items-center gap-2.5 border-b border-[#1c263c] pb-3">
+          <FileCheck2 className="h-5 w-5 text-[#008764]" />
+          <h2 className="text-base font-bold text-white tracking-tight">
+            5. Advisor Decision
+          </h2>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-[#0b0f19] border-b border-[#1c263c] font-mono text-[11px] text-[#8e9db2]">
-              <tr>
-                <th className="py-2.5 px-3 font-medium">Course Code & Title</th>
-                <th className="py-2.5 px-3 font-medium w-16 text-center">Cr</th>
-                <th className="py-2.5 px-3 font-medium w-28">Course Type</th>
-                <th className="py-2.5 px-3 font-medium w-36">Prerequisites</th>
-                <th className="py-2.5 px-3 font-medium text-right">Assigned Section</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#1c263c]">
-              {items.map((it) => {
-                const { isEligible, missingCodes } = getPrerequisiteStatus(
-                  it.course.prerequisite_codes,
-                  MOCK_COMPLETED_COURSE_CODES
-                );
-                const availableSections = MOCK_SECTIONS.filter((s) => s.course_id === it.course.id);
-                const isRetake = it.course_type === "retake";
-
-                return (
-                  <tr key={it.item.id} className="hover:bg-[#172136]/50 transition-colors">
-                    <td className="py-2.5 px-3">
-                      <div className="font-mono font-bold text-emerald-400">
-                        {it.course.code}
-                      </div>
-                      <div className="text-slate-200 font-medium">
-                        {it.course.title}
-                      </div>
-                    </td>
-
-                    <td className="py-2.5 px-3 text-center font-mono text-slate-300">
-                      {(it.section.credits || it.course.credits).toFixed(1)}
-                    </td>
-
-                    {/* General vs Retake Classification */}
-                    <td className="py-2.5 px-3">
-                      {isRetake ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-amber-950/70 border border-amber-800 text-amber-300">
-                          Retake
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-blue-950/70 border border-blue-800 text-blue-300">
-                          General
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="py-2.5 px-3">
-                      {isEligible ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-emerald-400 font-mono">
-                          <Check className="h-3 w-3" />
-                          Satisfied
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-rose-400 font-mono font-medium">
-                          <AlertTriangle className="h-3 w-3" />
-                          Missing: {missingCodes.join(", ")}
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Reassign Section dropdown */}
-                    <td className="py-2.5 px-3 text-right">
-                      {availableSections.length > 1 ? (
-                        <select
-                          value={it.section.id}
-                          onChange={(e) => handleReassignSection(it.course.id, it.section.id, e.target.value)}
-                          className="max-w-[240px] ml-auto text-xs font-mono bg-[#0b0f19] border border-[#1c263c] rounded px-2 py-1 text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        >
-                          {availableSections.map((s) => {
-                            const isFull = s.enrolled_count >= s.capacity;
-                            return (
-                              <option key={s.id} value={s.id}>
-                                Sec {s.section_name} ({s.enrolled_count}/{s.capacity} seats){isFull ? " [FULL]" : ""}
-                              </option>
-                            );
-                          })}
-                        </select>
-                      ) : (
-                        <span className="font-mono text-xs text-slate-300">
-                          Sec {it.section.section_name} (Only Section)
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* 3. Determination Actions & Advisor Remarks */}
-      <div className="p-4 rounded-xl border border-[#1c263c] bg-[#121827] space-y-3">
-        <div>
-          <label className="block text-xs font-mono uppercase tracking-wider text-slate-400 font-medium mb-1">
+        <div className="space-y-2">
+          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
             Faculty Advising Remarks / Student Instructions:
           </label>
           <textarea
             value={advisorNotes}
             onChange={(e) => setAdvisorNotes(e.target.value)}
             placeholder="Enter academic feedback, section override rationale, or specific revision directives for this advisee..."
-            rows={2}
-            className="w-full p-2.5 text-xs bg-[#0b0f19] border border-[#1c263c] rounded-lg text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono resize-none"
+            rows={3}
+            className="w-full p-3 text-xs bg-[#0b0f19] border border-[#1c263c] rounded-xl text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 font-mono resize-none leading-relaxed"
           />
         </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-[#1c263c]">
-          <div className="text-xs text-[#8e9db2] font-mono">
-            Status: <strong className="text-white">{currentStatus}</strong> • Finalizing updates university enrollment records.
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-3 border-t border-[#1c263c]">
+          <div className="text-xs text-slate-400 font-mono">
+            Application Status: <strong className="text-white">{currentStatus}</strong>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Button
+              type="button"
               variant="outline"
               size="sm"
               onClick={() => setIsRejectOpen(true)}
-              className="border-rose-900/60 text-rose-300 hover:bg-rose-950/40 text-xs h-8 px-3 rounded-lg"
+              className="border-rose-900/60 text-rose-300 hover:bg-rose-950/40 text-xs h-9 px-4 rounded-xl"
             >
               Request Revisions
             </Button>
             <Button
+              type="button"
               size="sm"
               onClick={() => setIsApproveOpen(true)}
-              className="bg-[#008764] hover:bg-[#007053] text-white text-xs font-medium h-8 px-4 rounded-lg shadow-sm"
+              className="bg-[#008764] hover:bg-[#007053] text-white text-xs font-semibold h-9 px-5 rounded-xl shadow-xs"
             >
               Approve Registration
             </Button>
@@ -527,30 +613,46 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
 
       {/* Confirmation Dialog: Approve Registration */}
       <Dialog open={isApproveOpen} onClose={() => setIsApproveOpen(false)}>
-        <DialogContent className="border-[#1c263c] bg-[#121827] text-slate-100 max-w-md">
+        <DialogContent className="border-[#1c263c] bg-[#121827] text-slate-100 max-w-md p-6">
           <DialogHeader className="border-b border-[#1c263c] pb-3">
             <DialogTitle className="text-base font-semibold text-white flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-              Authorize Course Registration
+              <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+              <span>Authorize Course Registration</span>
             </DialogTitle>
-            <DialogDescription className="text-xs text-[#8e9db2]">
+            <DialogDescription className="text-xs text-slate-400">
               Confirm official enrollment authorization for {ACTIVE_MOCK_SEMESTER_LABEL}.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-2.5 py-3 text-xs">
-            <div className="p-3 bg-[#0b0f19] rounded-lg border border-[#1c263c] space-y-1 font-mono text-[11px]">
-              <div>Student: <strong className="text-white">{application.student.full_name}</strong></div>
-              <div>ID: <strong className="text-emerald-400">{application.student.diu_id}</strong></div>
-              <div>Cohort: <strong className="text-white">{application.registration.previous_section || "69_K"} &rarr; {application.registration.desired_section || "69_D"}</strong></div>
-              <div>Authorized Credits: <strong className="text-white">{totalCredits.toFixed(1)} Credit Hours ({items.length} Courses)</strong></div>
-              <div>Classification: <strong className="text-slate-300">{generalCount} General • {retakeCount} Retake</strong></div>
-              <div>Accounts Clearance: <strong className="text-emerald-400">{application.registration.payment_cleared ? "Verified" : "Pending Hold"}</strong></div>
+          <div className="space-y-3 py-3 text-xs">
+            <div className="p-3.5 bg-[#0b0f19] rounded-xl border border-[#1c263c] space-y-1.5 font-mono text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Student:</span>
+                <strong className="text-white">{application.student.full_name}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">ID:</span>
+                <strong className="text-emerald-400">{application.student.diu_id}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Cohort:</span>
+                <strong className="text-white">{application.registration.previous_section || "69_K"} &rarr; {application.registration.desired_section || "69_D"}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Total Load:</span>
+                <strong className="text-white">{totalCredits.toFixed(1)} Credits ({items.length} Courses)</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Accounts Clearance:</span>
+                <strong className={application.registration.payment_cleared ? "text-emerald-400" : "text-amber-400"}>
+                  {application.registration.payment_cleared ? "Verified" : "Pending Hold"}
+                </strong>
+              </div>
             </div>
 
             {!application.registration.payment_cleared && (
-              <div className="p-2.5 rounded-lg bg-rose-950/40 border border-rose-800 text-rose-300 text-xs">
-                ⚠️ Caution: This student has not cleared tuition accounts dues. Authorizing will bypass the financial hold.
+              <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-800 text-rose-300 text-xs">
+                ⚠️ Caution: This student has an active accounts hold. Finalizing will grant prerequisite and enrollment clearance.
               </div>
             )}
           </div>
@@ -560,7 +662,7 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
               variant="outline"
               size="sm"
               onClick={() => setIsApproveOpen(false)}
-              className="text-xs border-[#1c263c] text-slate-300 hover:bg-[#1a233a] h-8 rounded-lg"
+              className="text-xs border-[#1c263c] text-slate-300 hover:bg-[#1a233a] h-9 rounded-xl"
             >
               Cancel
             </Button>
@@ -568,7 +670,7 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
               size="sm"
               disabled={isProcessing}
               onClick={handleConfirmApproval}
-              className="bg-[#008764] hover:bg-[#007053] text-white text-xs font-medium h-8 px-4 rounded-lg"
+              className="bg-[#008764] hover:bg-[#007053] text-white text-xs font-semibold h-9 px-4 rounded-xl"
             >
               {isProcessing ? "Authorizing..." : "Authorize & Confirm"}
             </Button>
@@ -578,26 +680,26 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
 
       {/* Dialog: Request Revisions */}
       <Dialog open={isRejectOpen} onClose={() => setIsRejectOpen(false)}>
-        <DialogContent className="border-[#1c263c] bg-[#121827] text-slate-100 max-w-md">
+        <DialogContent className="border-[#1c263c] bg-[#121827] text-slate-100 max-w-md p-6">
           <DialogHeader className="border-b border-[#1c263c] pb-3">
             <DialogTitle className="text-base font-semibold text-white flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-rose-400" />
-              Return Advising Slip for Revisions
+              <AlertTriangle className="h-5 w-5 text-rose-400" />
+              <span>Return Application for Revisions</span>
             </DialogTitle>
-            <DialogDescription className="text-xs text-[#8e9db2]">
-              The student will be notified to adjust course sections based on your remarks.
+            <DialogDescription className="text-xs text-slate-400">
+              The student will receive your revision directives and be required to re-submit.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-3 text-xs">
             <div>
-              <label className="block text-slate-400 mb-1 text-[11px] font-mono">
+              <label className="block text-slate-300 mb-1 text-xs font-semibold">
                 Primary Reason for Revision:
               </label>
               <select
                 value={rejectionReason}
                 onChange={(e) => setRejectionReason(e.target.value)}
-                className="w-full text-xs font-mono bg-[#0b0f19] border border-[#1c263c] rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                className="w-full text-xs font-mono bg-[#0b0f19] border border-[#1c263c] rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-rose-500 cursor-pointer"
               >
                 <option value="PREREQUISITE_DEFICIENCY">Prerequisite Not Met</option>
                 <option value="SECTION_ADJUSTMENT">Section Reassignment Required</option>
@@ -608,15 +710,15 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
             </div>
 
             <div>
-              <label className="block text-slate-400 mb-1 text-[11px] font-mono">
+              <label className="block text-slate-300 mb-1 text-xs font-semibold">
                 Mandatory Feedback to Student:
               </label>
               <textarea
                 value={advisorNotes}
                 onChange={(e) => setAdvisorNotes(e.target.value)}
                 placeholder="Explain the required course/section changes..."
-                rows={2}
-                className="w-full p-2.5 text-xs bg-[#0b0f19] border border-[#1c263c] rounded-lg text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-rose-500 font-mono resize-none"
+                rows={3}
+                className="w-full p-3 text-xs bg-[#0b0f19] border border-[#1c263c] rounded-xl text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-rose-500 font-mono resize-none leading-relaxed"
               />
             </div>
           </div>
@@ -626,7 +728,7 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
               variant="outline"
               size="sm"
               onClick={() => setIsRejectOpen(false)}
-              className="text-xs border-[#1c263c] text-slate-300 hover:bg-[#1a233a] h-8 rounded-lg"
+              className="text-xs border-[#1c263c] text-slate-300 hover:bg-[#1a233a] h-9 rounded-xl"
             >
               Cancel
             </Button>
@@ -634,9 +736,9 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
               size="sm"
               disabled={isProcessing}
               onClick={handleConfirmRejection}
-              className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium h-8 rounded-lg"
+              className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold h-9 px-4 rounded-xl"
             >
-              {isProcessing ? "Returning..." : "Return Slip to Student"}
+              {isProcessing ? "Returning..." : "Return to Student"}
             </Button>
           </DialogFooter>
         </DialogContent>

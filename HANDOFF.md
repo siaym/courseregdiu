@@ -4,41 +4,44 @@
 > **To**: Incoming Engineering Agent / Phase 2 Full-Stack Team  
 > **Repository**: `courseregdiu` (`https://github.com/siaym/courseregdiu`)  
 > **Handover Date**: November 2026  
-> **Milestone Status**: Phase 1.5 Complete (100%) | P0 Security Remediation Complete (100%) | Final Auth Policy Complete (100%) | P0 Security Hardening Complete (100%) | **Advisor Application Center & Student Registration Complete (100%)** | Ready for Phase 2 Implementation Sprint  
+> **Milestone Status**: Phase 1.5 Complete (100%) | P0 Security Remediation Complete (100%) | Final Auth Policy Complete (100%) | P0 Security Hardening Complete (100%) | **Advisor Portal UI/UX Overhaul & 3-Category Application Center Complete (100%)** | Ready for Phase 2 Implementation Sprint  
 
 ---
 
 ## 1. Handover Summary
 
-The **P0 Security Hardening, Identity Linking & Concurrency Control** cycle has been completed with full automated test coverage and zero build warnings:
+The **Advisor Portal UI/UX and Content Design Overhaul** cycle has been completed with full automated test coverage and zero build warnings:
 
-1. **Personal Google Email Authentication in Middleware**:
-   - `src/lib/supabase/middleware.ts` realigned to verify against `public.authorized_emails`.
-   - Allows active admin-authorized personal Google accounts and active advisors.
-   - Deactivated accounts and unauthorized personal emails are immediately intercepted with error redirects (`email_revoked`, `unauthorized_email`).
+1. **Advisor Dashboard (`/advisor`)**:
+   - Replaced redundant/decorative data with an actionable overview.
+   - 4 live metric cards linking to Application Center categories: **Pending** (`4`), **In Progress** (`1`), **Approved** (`1`), and **Not Applied** (`4`).
+   - Actionable **Pending Applications Requiring Action** section displaying students awaiting review with quick-action triggers.
 
-2. **Profile Privacy Protection**:
-   - Removed all public profile viewing policies.
-   - Profiles are accessible strictly to: self (`get_current_profile_id()`), assigned advisors viewing advisees, students viewing assigned advisor, department heads, and admins.
+2. **Application Center (`/advisor/queue`)**:
+   - Segmented navigation with 3 mutually exclusive categories: **Pending**, **Approved**, and **Not Applied**.
+   - Prominent search and compact batch/sub-status filters.
+   - High-contrast, readable typography scale (minimum 12px / `text-xs`).
+   - Advising Details modal for Not Applied students with direct email reminder action.
 
-3. **Database-Level Identity Linking**:
-   - Added `auth_user_id` to `public.authorized_emails`.
-   - `handle_new_user()` trigger links secondary Google accounts to existing profile without inserting duplicate profiles.
-   - Canonical resolver `public.get_current_profile_id()` ensures all RLS policies operate on the student's canonical profile.
+3. **Application Review Studio (`/advisor/review/[id]`)**:
+   - Established strict 5-part institutional information hierarchy:
+     1. **Student Information**: Standing, CGPA, completed credits, institutional email, authorized alternative personal email badge.
+     2. **Section Information**: Cohort progression (`Previous: 69_K` &rarr; `Desired: 69_D`).
+     3. **Course Selection**: Table with credits, classification (`General` vs `Retake`), prerequisite check, and in-place section reassignment with fixed capacities (50 theory / 25 lab).
+     4. **Payment Information**: Accounts clearance audit (`DIU-AC-2027-4561`) and hold warnings.
+     5. **Advisor Decision**: Faculty remarks textarea, revision rationale selector, and atomic confirmation dialogs.
+   - Advisee queue keyboard navigation (`[J]` Prev • `[K]` Next).
 
-4. **Concurrency Control & Atomic Seat Allocation**:
-   - Database functions `enroll_section_atomic`, `drop_section_atomic`, `switch_section_atomic` with `SELECT ... FOR UPDATE` row locks.
-   - Guarantees capacity compliance and eliminates race conditions under heavy concurrent advising loads (200–300 simultaneous registrations).
+4. **Navigation & Terminology Alignment**:
+   - Unified terminology across navigation, headings, badges, and buttons: `Application Center`, `My Assigned Students`, `Review History`, `Pending`, `In Progress`, `Approved`, `Not Applied`, `Review Application`.
 
-5. **23/23 Automated Test Suite Pass (`npm test`)**:
+5. **32/32 Automated Test Suite Pass (`npm test`)**:
+   - `tests/advisor-queue-verification.test.mjs` (9/9 three-category queue verification tests pass).
    - `tests/security-verification.test.mjs` (8/8 P0 security tests pass).
    - `tests/auth-policy-verification.test.mjs` (10/10 auth policy tests pass).
    - `tests/concurrency-and-privacy.test.mjs` (5/5 privacy, identity linking & capacity tests pass).
 
 6. **Performance & Build Verification**:
-   - `npm run lint` -> **0 problems, 0 errors, 0 warnings**.
-   - `npm run build` -> **Compiled successfully, exit code 0 (22/22 routes)**.
-   - Live development server operational on `http://localhost:3000`.
    - `npm run lint` -> **0 problems, 0 errors, 0 warnings**.
    - `npm run build` -> **Compiled successfully, exit code 0 (22/22 routes)**.
    - Live development server operational on `http://localhost:3000`.

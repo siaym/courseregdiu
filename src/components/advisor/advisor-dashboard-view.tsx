@@ -11,353 +11,340 @@ import {
 import {
   Users,
   Clock,
-  Check,
   CheckCircle2,
-  FileText,
+  FileCheck2,
   Search,
-  RefreshCw,
   ArrowRight,
-  ChevronLeft,
-  ChevronRight,
   AlertCircle,
   RotateCw,
+  Calendar,
+  History,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export function AdvisorDashboardView() {
   const [searchInput, setSearchInput] = React.useState("");
-  const [statusFilter, setStatusFilter] = React.useState("ALL");
   const [batchFilter, setBatchFilter] = React.useState("ALL");
-  const [paymentFilter, setPaymentFilter] = React.useState("ALL");
-  const [isRefreshing, setIsRefreshing] = React.useState(false);
 
   const rawQueue = MOCK_ADVISEE_QUEUE;
-  const pendingCount = React.useMemo(
-    () => rawQueue.filter((a) => a.registration.status === "pending_advisor").length,
+  
+  // Real-time counts computed from actual advisee queue and assignments
+  const pendingApps = React.useMemo(
+    () => rawQueue.filter((a) => a.registration.status === "pending_advisor"),
     [rawQueue]
   );
-  const approvedCount = React.useMemo(
-    () => rawQueue.filter((a) => a.registration.status === "approved").length,
+  const inProgressApps = React.useMemo(
+    () => rawQueue.filter((a) => a.registration.status === "pending_advisor" && Boolean(a.isUnderReview)),
+    [rawQueue]
+  );
+  const approvedApps = React.useMemo(
+    () => rawQueue.filter((a) => a.registration.status === "approved"),
     [rawQueue]
   );
   const notAppliedCount = MOCK_UNAPPLIED_STUDENTS.length;
-  const totalAssigned = pendingCount + approvedCount + notAppliedCount;
+  const totalAssigned = pendingApps.length + approvedApps.length + notAppliedCount;
 
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    setTimeout(() => setIsRefreshing(false), 300);
-  };
-
-  // Filter applications based on controls
-  const filteredQueue = React.useMemo(() => {
-    return rawQueue.filter((app) => {
+  // Filter pending applications requiring review
+  const filteredPriorityApps = React.useMemo(() => {
+    return pendingApps.filter((app) => {
       const q = searchInput.trim().toLowerCase();
       const matchesSearch =
         q === "" ||
         app.student.full_name.toLowerCase().includes(q) ||
         (app.student.diu_id && app.student.diu_id.toLowerCase().includes(q));
 
-      let matchesStatus = true;
-      if (statusFilter === "PENDING") {
-        matchesStatus = app.registration.status === "pending_advisor" && !app.isUnderReview;
-      } else if (statusFilter === "UNDER_REVIEW") {
-        matchesStatus = Boolean(app.isUnderReview);
-      } else if (statusFilter === "COMPLETED") {
-        matchesStatus = app.registration.status === "approved";
-      }
-
       let matchesBatch = true;
       if (batchFilter !== "ALL") {
         matchesBatch = app.student.batch === batchFilter;
       }
 
-      let matchesPayment = true;
-      if (paymentFilter === "PAID") {
-        matchesPayment = app.registration.payment_cleared;
-      } else if (paymentFilter === "UNPAID") {
-        matchesPayment = !app.registration.payment_cleared;
-      }
-
-      return matchesSearch && matchesStatus && matchesBatch && matchesPayment;
+      return matchesSearch && matchesBatch;
     });
-  }, [rawQueue, searchInput, statusFilter, batchFilter, paymentFilter]);
-
-  // Helper for initials
-  const getInitials = (name: string) => {
-    const parts = name.trim().split(" ");
-    if (parts.length >= 2) {
-      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
-  };
+  }, [pendingApps, searchInput, batchFilter]);
 
   return (
     <div className="space-y-6 text-slate-100 max-w-7xl mx-auto py-2">
-      {/* Greeting Header (Exact match to Mockup 2) */}
-      <div className="space-y-1">
-        <h1 className="text-3xl font-bold tracking-tight text-white">
-          Welcome, {MOCK_ADVISOR_PROFILE.full_name}
-        </h1>
-        <p className="text-sm text-[#8e9db2]">
-          Here&apos;s what&apos;s happening with your assigned students.
-        </p>
+      {/* 1. Header with Faculty Identity and Active Term */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#1c263c] pb-4">
+        <div className="space-y-1">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+            Welcome, {MOCK_ADVISOR_PROFILE.full_name}
+          </h1>
+          <p className="text-sm text-slate-300">
+            Faculty Academic Advisor • Department of Computer Science & Engineering
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 self-start sm:self-center">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#121827] border border-[#1c263c] text-xs font-mono text-slate-200">
+            <Calendar className="h-4 w-4 text-[#008764]" />
+            <span>Academic Term:</span>
+            <strong className="text-white font-semibold">{ACTIVE_MOCK_SEMESTER_LABEL} (Active)</strong>
+          </div>
+        </div>
       </div>
 
-      {/* 4 Stat Cards in a Row: Linked to Application Center Categories */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Total Assigned Advisees */}
+      {/* 2. Four Actionable Stat Cards linking to Application Center Categories */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Pending Applications */}
         <Link
-          href="/advisor/students"
-          className="bg-[#121827] hover:bg-[#151c2d] border border-[#1c263c] rounded-2xl p-5 flex items-center gap-4 shadow-sm transition-colors group"
+          href="/advisor/queue"
+          className="bg-[#121827] hover:bg-[#151c2d] border border-[#1c263c] border-l-4 border-l-amber-500 rounded-2xl p-5 flex items-center justify-between shadow-sm transition-all group"
         >
-          <div className="w-12 h-12 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center shrink-0">
-            <Users className="h-6 w-6 text-blue-400" />
+          <div className="space-y-1">
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 group-hover:text-amber-400 transition-colors">
+              Pending
+            </div>
+            <div className="text-3xl font-bold text-white tracking-tight">
+              {pendingApps.length}
+            </div>
+            <div className="text-xs text-amber-400/90 font-medium">
+              Awaiting faculty review
+            </div>
           </div>
-          <div>
-            <div className="text-2xl font-bold text-white tracking-tight">{totalAssigned}</div>
-            <div className="text-xs text-[#8e9db2] mt-0.5 group-hover:text-white transition-colors">Assigned Students</div>
+          <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
+            <Clock className="h-6 w-6 text-amber-400" />
           </div>
         </Link>
 
-        {/* Card 2: Pending Applications */}
+        {/* Card 2: In Progress Applications */}
         <Link
           href="/advisor/queue"
-          className="bg-[#121827] hover:bg-[#151c2d] border border-[#1c263c] border-l-4 border-l-amber-500 rounded-2xl p-5 flex items-center gap-4 shadow-sm transition-colors group"
+          className="bg-[#121827] hover:bg-[#151c2d] border border-[#1c263c] border-l-4 border-l-sky-500 rounded-2xl p-5 flex items-center justify-between shadow-sm transition-all group"
         >
-          <div className="w-12 h-12 rounded-xl bg-amber-600/20 border border-amber-500/30 flex items-center justify-center shrink-0">
-            <Clock className="h-6 w-6 text-amber-400" />
+          <div className="space-y-1">
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 group-hover:text-sky-400 transition-colors">
+              In Progress
+            </div>
+            <div className="text-3xl font-bold text-white tracking-tight">
+              {inProgressApps.length}
+            </div>
+            <div className="text-xs text-sky-400/90 font-medium">
+              Actively under audit
+            </div>
           </div>
-          <div>
-            <div className="text-2xl font-bold text-white tracking-tight">{pendingCount}</div>
-            <div className="text-xs text-[#8e9db2] mt-0.5 group-hover:text-white transition-colors">Pending Applications</div>
+          <div className="w-12 h-12 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center shrink-0">
+            <RotateCw className="h-6 w-6 text-sky-400" />
           </div>
         </Link>
 
         {/* Card 3: Approved Applications */}
         <Link
           href="/advisor/queue"
-          className="bg-[#121827] hover:bg-[#151c2d] border border-[#1c263c] border-l-4 border-l-emerald-500 rounded-2xl p-5 flex items-center gap-4 shadow-sm transition-colors group"
+          className="bg-[#121827] hover:bg-[#151c2d] border border-[#1c263c] border-l-4 border-l-emerald-500 rounded-2xl p-5 flex items-center justify-between shadow-sm transition-all group"
         >
-          <div className="w-12 h-12 rounded-xl bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center shrink-0">
-            <CheckCircle2 className="h-6 w-6 text-emerald-400" />
+          <div className="space-y-1">
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 group-hover:text-emerald-400 transition-colors">
+              Approved
+            </div>
+            <div className="text-3xl font-bold text-white tracking-tight">
+              {approvedApps.length}
+            </div>
+            <div className="text-xs text-emerald-400/90 font-medium">
+              Officially finalized
+            </div>
           </div>
-          <div>
-            <div className="text-2xl font-bold text-white tracking-tight">{approvedCount}</div>
-            <div className="text-xs text-[#8e9db2] mt-0.5 group-hover:text-white transition-colors">Approved Applications</div>
+          <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+            <CheckCircle2 className="h-6 w-6 text-emerald-400" />
           </div>
         </Link>
 
         {/* Card 4: Not Applied */}
         <Link
           href="/advisor/queue"
-          className="bg-[#121827] hover:bg-[#151c2d] border border-[#1c263c] border-l-4 border-l-slate-500 rounded-2xl p-5 flex items-center gap-4 shadow-sm transition-colors group"
+          className="bg-[#121827] hover:bg-[#151c2d] border border-[#1c263c] border-l-4 border-l-slate-600 rounded-2xl p-5 flex items-center justify-between shadow-sm transition-all group"
         >
+          <div className="space-y-1">
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 group-hover:text-slate-200 transition-colors">
+              Not Applied
+            </div>
+            <div className="text-3xl font-bold text-white tracking-tight">
+              {notAppliedCount}
+            </div>
+            <div className="text-xs text-slate-400 font-medium">
+              Assigned advisees ({totalAssigned} total)
+            </div>
+          </div>
           <div className="w-12 h-12 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center shrink-0">
             <AlertCircle className="h-6 w-6 text-slate-300" />
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-white tracking-tight">{notAppliedCount}</div>
-            <div className="text-xs text-[#8e9db2] mt-0.5 group-hover:text-white transition-colors">Not Applied</div>
           </div>
         </Link>
       </div>
 
-      {/* Main Table Card: Student Applications (Exact match to Mockup 2) */}
+      {/* 3. Actionable Priority Section: Pending Applications Requiring Action */}
       <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-6 space-y-5 shadow-sm">
-        {/* Card Header: Title + Subtitle + Semester Dropdown */}
+        {/* Section Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-[#1a233a] border border-[#25324d] flex items-center justify-center shrink-0">
-              <FileText className="h-5 w-5 text-sky-400" />
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#172136] border border-[#25324d] flex items-center justify-center shrink-0">
+              <Clock className="h-5 w-5 text-amber-400" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-white tracking-tight">
-                Student Applications
+                Pending Applications Requiring Action
               </h2>
-              <p className="text-xs text-[#8e9db2]">
-                Review and finalize student course selections
+              <p className="text-xs text-slate-300">
+                Course registration requests submitted by your assigned students awaiting departmental determination.
               </p>
             </div>
           </div>
 
-          <div className="shrink-0">
-            <select
-              defaultValue={ACTIVE_MOCK_SEMESTER_LABEL}
-              className="bg-[#0b0f19] border border-[#1e293b] text-slate-200 text-xs rounded-xl px-3 py-2 font-medium focus:outline-none focus:border-blue-500 cursor-pointer"
-            >
-              <option value={ACTIVE_MOCK_SEMESTER_LABEL}>{ACTIVE_MOCK_SEMESTER_LABEL}</option>
-              <option value="Fall 2026">Fall 2026</option>
-              <option value="Summer 2026">Summer 2026</option>
-            </select>
-          </div>
+          <Button asChild size="sm" variant="outline" className="border-[#1c263c] bg-[#0b0f19] hover:bg-[#151c2d] text-slate-200 text-xs self-start sm:self-center">
+            <Link href="/advisor/queue" className="flex items-center gap-1.5">
+              <FileCheck2 className="h-4 w-4 text-[#008764]" />
+              <span>Open Application Center</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </Button>
         </div>
 
-        {/* Filter Ribbon: Search + Status Dropdown + Batch Dropdown + Payment Dropdown + Blue Refresh */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-1">
+        {/* Filter Bar */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
           {/* Search Input */}
           <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500 pointer-events-none" />
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400 pointer-events-none" />
             <input
               type="text"
-              placeholder="Search by name or student ID..."
+              placeholder="Search pending applications by student name or DIU ID..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-xs bg-[#0b0f19] border border-[#1e293b] rounded-xl text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 font-normal transition-colors"
+              className="w-full pl-9 pr-3 py-2 text-xs bg-[#0b0f19] border border-[#1c263c] rounded-xl text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
             />
           </div>
 
-          {/* Filter Dropdowns + Blue Refresh */}
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            {/* Status Filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-[#0b0f19] border border-[#1e293b] text-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500 cursor-pointer"
-            >
-              <option value="ALL">All Status</option>
-              <option value="PENDING">Pending Review</option>
-              <option value="UNDER_REVIEW">Under Review</option>
-              <option value="COMPLETED">Completed</option>
-            </select>
-
-            {/* Batch Filter */}
+          {/* Batch Selector */}
+          <div className="w-full sm:w-48">
             <select
               value={batchFilter}
               onChange={(e) => setBatchFilter(e.target.value)}
-              className="bg-[#0b0f19] border border-[#1e293b] text-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500 cursor-pointer"
+              className="w-full bg-[#0b0f19] border border-[#1c263c] text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500 cursor-pointer"
             >
-              <option value="ALL">All Batches</option>
-              <option value="61">Batch 61</option>
+              <option value="ALL">All Enrolled Batches</option>
               <option value="60">Batch 60</option>
+              <option value="61">Batch 61</option>
               <option value="59">Batch 59</option>
             </select>
-
-            {/* Payment Filter */}
-            <select
-              value={paymentFilter}
-              onChange={(e) => setPaymentFilter(e.target.value)}
-              className="bg-[#0b0f19] border border-[#1e293b] text-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500 cursor-pointer"
-            >
-              <option value="ALL">All Payment</option>
-              <option value="PAID">Paid</option>
-              <option value="UNPAID">Unpaid</option>
-            </select>
-
-            {/* Blue Refresh Button (Matches Mockup 2: #2563eb) */}
-            <button
-              type="button"
-              onClick={handleRefresh}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#2563eb] hover:bg-blue-600 text-white font-semibold text-xs shadow-sm cursor-pointer transition-all active:scale-[0.98]"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
-              <span>Refresh</span>
-            </button>
           </div>
         </div>
 
-        {/* Data Table (Exact match to Mockup 2 columns and rows) */}
-        <div className="overflow-x-auto rounded-xl border border-[#1c263c]/60">
+        {/* High-density Priority Table */}
+        <div className="overflow-x-auto rounded-xl border border-[#1c263c] bg-[#0b0f19]">
           <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-[#1c263c] bg-[#0d1320]/60 text-[#8e9db2] text-[11px] font-semibold tracking-wider uppercase">
-                <th scope="col" className="py-3 px-4">Student</th>
-                <th scope="col" className="py-3 px-4">ID</th>
-                <th scope="col" className="py-3 px-4">Batch</th>
-                <th scope="col" className="py-3 px-4">Payment</th>
-                <th scope="col" className="py-3 px-4">Application Date</th>
-                <th scope="col" className="py-3 px-4">Status</th>
-                <th scope="col" className="py-3 px-4 text-right">Actions</th>
+            <thead className="bg-[#121827] border-b border-[#1c263c] text-slate-400 font-semibold tracking-wider uppercase text-xs">
+              <tr>
+                <th scope="col" className="py-3 px-4">Student Information</th>
+                <th scope="col" className="py-3 px-3">Batch & Dept</th>
+                <th scope="col" className="py-3 px-3 text-center">CGPA & Credits</th>
+                <th scope="col" className="py-3 px-3 text-center">Section Cohort</th>
+                <th scope="col" className="py-3 px-3 text-center">Proposed Load</th>
+                <th scope="col" className="py-3 px-3 text-center">Status</th>
+                <th scope="col" className="py-3 px-4 text-right">Primary Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#1c263c]/60">
-              {filteredQueue.map((app) => {
-                const initials = getInitials(app.student.full_name);
-                const isPaid = app.registration.payment_cleared;
+            <tbody className="divide-y divide-[#1c263c]">
+              {filteredPriorityApps.map((app) => {
                 const isUnderReview = Boolean(app.isUnderReview);
-                const isApproved = app.registration.status === "approved";
+                const prevSec = app.registration.previous_section || "69_K";
+                const desiredSec = app.registration.desired_section || "69_D";
 
                 return (
                   <tr
                     key={app.registration.id}
-                    className="hover:bg-[#162035]/50 transition-colors"
+                    className="hover:bg-[#121827]/70 transition-colors"
                   >
-                    {/* Student Column with Avatar */}
-                    <td className="py-3.5 px-4 font-medium text-white">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#1e293b] border border-[#334155] text-slate-200 font-semibold text-xs flex items-center justify-center shrink-0">
-                          {initials}
-                        </div>
-                        <span className="font-medium text-white">{app.student.full_name}</span>
+                    {/* Student Info */}
+                    <td className="py-3.5 px-4">
+                      <div className="font-semibold text-white text-sm">
+                        {app.student.full_name}
+                      </div>
+                      <div className="font-mono text-emerald-400 text-xs font-medium">
+                        {app.student.diu_id}
+                      </div>
+                      <div className="text-slate-400 text-xs truncate max-w-[220px]">
+                        {app.student.email}
                       </div>
                     </td>
 
-                    {/* ID */}
-                    <td className="py-3.5 px-4 font-mono text-slate-300">
-                      {app.student.diu_id}
+                    {/* Batch & Dept */}
+                    <td className="py-3.5 px-3">
+                      <div className="font-medium text-slate-200">
+                        {app.student.batch || "60th Batch"}
+                      </div>
+                      <div className="text-xs font-mono text-slate-400">
+                        {app.student.department_code || "CSE"}
+                      </div>
                     </td>
 
-                    {/* Batch */}
-                    <td className="py-3.5 px-4 text-slate-300">
-                      {app.student.batch || "61"}
+                    {/* CGPA & Passed Credits */}
+                    <td className="py-3.5 px-3 text-center font-mono">
+                      <div className="font-bold text-white text-sm">
+                        {app.student.cgpa?.toFixed(2) || "3.50"}
+                      </div>
+                      <div className="text-xs text-slate-400">
+                        {app.student.completed_credits || 0} Cr Passed
+                      </div>
                     </td>
 
-                    {/* Payment Status Badge */}
-                    <td className="py-3.5 px-4">
-                      {isPaid ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#062822] border border-[#064e3b] text-[#10b981] text-[11px] font-medium">
-                          <Check className="h-3 w-3" />
-                          <span>Paid</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#2e1014] border border-[#881337] text-[#ef4444] text-[11px] font-medium">
-                          <AlertCircle className="h-3 w-3" />
-                          <span>Unpaid</span>
-                        </span>
-                      )}
+                    {/* Section Cohort */}
+                    <td className="py-3.5 px-3 text-center font-mono">
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#121827] border border-[#1c263c]">
+                        <span className="text-slate-300">{prevSec}</span>
+                        <span className="text-slate-500">&rarr;</span>
+                        <strong className="text-emerald-400 font-bold">{desiredSec}</strong>
+                      </div>
                     </td>
 
-                    {/* Application Date */}
-                    <td className="py-3.5 px-4 text-slate-300">
-                      {app.formattedApplicationDate || "Apr 14, 2027 • 2:30 PM"}
+                    {/* Proposed Load */}
+                    <td className="py-3.5 px-3 text-center font-mono">
+                      <div className="font-bold text-white">
+                        {app.totalCourses} Courses
+                      </div>
+                      <div className="text-xs text-emerald-400">
+                        {app.totalCredits.toFixed(1)} Cr
+                      </div>
+                      <div className="text-xs text-slate-400">
+                        {app.generalCourseCount || 3} Gen • {app.retakeCourseCount || 1} Ret
+                      </div>
                     </td>
 
-                    {/* Application Status Badge */}
-                    <td className="py-3.5 px-4">
-                      {isApproved ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#062822] border border-[#064e3b] text-[#10b981] text-[11px] font-medium">
-                          <Check className="h-3 w-3" />
-                          <span>Completed</span>
-                        </span>
-                      ) : isUnderReview ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#0c223d] border border-[#0369a1] text-[#38bdf8] text-[11px] font-medium">
+                    {/* Status Badge */}
+                    <td className="py-3.5 px-3 text-center">
+                      {isUnderReview ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-sky-950/80 border border-sky-800 text-sky-300">
                           <RotateCw className="h-3 w-3" />
-                          <span>Under Review</span>
+                          <span>In Progress</span>
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#2b200b] border border-[#78350f] text-[#f59e0b] text-[11px] font-medium">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-950/80 border border-amber-800 text-amber-300">
                           <Clock className="h-3 w-3" />
-                          <span>Pending Review</span>
+                          <span>Pending</span>
                         </span>
                       )}
                     </td>
 
-                    {/* Actions Button */}
+                    {/* Action Button */}
                     <td className="py-3.5 px-4 text-right">
-                      <Link
-                        href={`/advisor/review/${app.registration.id}`}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#1e293b] bg-[#0f172a] hover:bg-[#1e293b] text-white text-xs font-medium transition-colors shadow-xs"
+                      <Button
+                        asChild
+                        size="sm"
+                        className="h-8 px-3.5 bg-[#008764] hover:bg-[#007053] text-white text-xs font-semibold rounded-lg shadow-xs"
                       >
-                        <span>{isApproved ? "View" : "Review"}</span>
-                        <ArrowRight className="h-3.5 w-3.5" />
-                      </Link>
+                        <Link href={`/advisor/review/${app.registration.id}`}>
+                          <span>{isUnderReview ? "Continue Review" : "Review Application"}</span>
+                          <ArrowRight className="h-3.5 w-3.5 ml-1 text-white" />
+                        </Link>
+                      </Button>
                     </td>
                   </tr>
                 );
               })}
 
-              {filteredQueue.length === 0 && (
+              {filteredPriorityApps.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-xs text-[#8e9db2]">
-                    No student applications match the specified criteria.
+                  <td colSpan={7} className="py-10 text-center text-xs text-slate-400">
+                    <CheckCircle2 className="h-8 w-8 text-emerald-400 mx-auto mb-2 opacity-80" />
+                    <p className="font-semibold text-white text-sm">No Pending Applications Requiring Action</p>
+                    <p className="text-slate-400 mt-1">All submitted applications for this term have been reviewed.</p>
                   </td>
                 </tr>
               )}
@@ -365,40 +352,79 @@ export function AdvisorDashboardView() {
           </table>
         </div>
 
-        {/* Table Footer: Results Count + Pagination (Exact match to Mockup 2) */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
-          <div className="text-xs text-[#8e9db2]">
-            Showing 1-{filteredQueue.length} of {filteredQueue.length} results
+        {/* Section Footer */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 text-xs text-slate-400">
+          <div>
+            Showing <strong className="text-white">{filteredPriorityApps.length}</strong> of {pendingApps.length} pending applications
           </div>
-
-          <div className="flex items-center gap-1.5 self-end sm:self-auto">
-            {/* Previous Page */}
-            <button
-              disabled
-              className="w-8 h-8 rounded-lg border border-[#1e293b] bg-[#0f172a] text-slate-500 flex items-center justify-center disabled:opacity-40 cursor-not-allowed"
-              aria-label="Previous page"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-
-            {/* Page 1 (Active) */}
-            <button
-              className="w-8 h-8 rounded-lg bg-[#2563eb] text-white font-semibold text-xs flex items-center justify-center shadow-xs"
-              aria-label="Page 1"
-            >
-              1
-            </button>
-
-            {/* Next Page */}
-            <button
-              disabled
-              className="w-8 h-8 rounded-lg border border-[#1e293b] bg-[#0f172a] text-slate-500 flex items-center justify-center disabled:opacity-40 cursor-not-allowed"
-              aria-label="Next page"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
+          <Link
+            href="/advisor/queue"
+            className="text-emerald-400 hover:text-emerald-300 font-semibold inline-flex items-center gap-1 transition-colors"
+          >
+            <span>View All Three Categories in Application Center</span>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
         </div>
+      </div>
+
+      {/* 4. Quick Navigation Modules */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Module 1: Application Center */}
+        <Link
+          href="/advisor/queue"
+          className="bg-[#121827] hover:bg-[#151c2d] border border-[#1c263c] rounded-2xl p-5 space-y-2 transition-all group"
+        >
+          <div className="flex items-center justify-between">
+            <div className="w-10 h-10 rounded-xl bg-[#172136] border border-[#25324d] flex items-center justify-center text-[#008764]">
+              <FileCheck2 className="h-5 w-5" />
+            </div>
+            <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-white transition-colors" />
+          </div>
+          <h3 className="text-base font-bold text-white group-hover:text-emerald-400 transition-colors">
+            Application Center
+          </h3>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            Manage your full advisee queue partitioned into three categories: Pending, Approved, and Not Applied.
+          </p>
+        </Link>
+
+        {/* Module 2: My Assigned Students */}
+        <Link
+          href="/advisor/students"
+          className="bg-[#121827] hover:bg-[#151c2d] border border-[#1c263c] rounded-2xl p-5 space-y-2 transition-all group"
+        >
+          <div className="flex items-center justify-between">
+            <div className="w-10 h-10 rounded-xl bg-[#172136] border border-[#25324d] flex items-center justify-center text-blue-400">
+              <Users className="h-5 w-5" />
+            </div>
+            <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-white transition-colors" />
+          </div>
+          <h3 className="text-base font-bold text-white group-hover:text-blue-400 transition-colors">
+            My Assigned Students
+          </h3>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            Inspect all assigned students, completed credits, CGPA standings, and direct communication channels.
+          </p>
+        </Link>
+
+        {/* Module 3: Review History */}
+        <Link
+          href="/advisor/history"
+          className="bg-[#121827] hover:bg-[#151c2d] border border-[#1c263c] rounded-2xl p-5 space-y-2 transition-all group"
+        >
+          <div className="flex items-center justify-between">
+            <div className="w-10 h-10 rounded-xl bg-[#172136] border border-[#25324d] flex items-center justify-center text-purple-400">
+              <History className="h-5 w-5" />
+            </div>
+            <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-white transition-colors" />
+          </div>
+          <h3 className="text-base font-bold text-white group-hover:text-purple-400 transition-colors">
+            Review History
+          </h3>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            Audit permanent records of all signed advising determinations, timestamped actions, and student directives.
+          </p>
+        </Link>
       </div>
     </div>
   );

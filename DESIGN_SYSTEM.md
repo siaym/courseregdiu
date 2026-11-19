@@ -50,33 +50,62 @@ This application is engineered as a mature, production-grade university informat
 
 ---
 
-## 3. Typography & Monospace Formatting
+## 3. Typography Scale & Readability Standards
 
-- **Font Family**: Geist Sans (Prose & Interface) & Geist Mono (Codes, IDs, Timetables).
-- **Headings**:
-  - Page Title: `text-xl font-semibold tracking-tight text-white`
-  - Section Title: `text-sm font-semibold text-white`
-  - Table Header: `text-[11px] font-mono text-slate-400 font-medium`
+- **Font Family**: Inter or Geist Sans for prose and interface; Geist Mono for IDs, codes, vouchers, and credit metrics.
+- **Scale (Zero Unreadable Tiny Text)**:
+  - Page Titles: `text-2xl sm:text-3xl font-bold tracking-tight text-white`
+  - Section Headings: `text-base sm:text-lg font-bold text-white tracking-tight`
+  - Body Text / Student Names: `text-sm font-semibold text-white`
+  - Table Column Headers: `text-xs font-semibold uppercase tracking-wider text-slate-400`
+  - Secondary Metadata / Batches / Departments: `text-xs font-medium text-slate-300`
+  - Helper & Supporting Details: `text-xs text-slate-400` (Strictly avoided `10px` or `11px` unreadable text)
 - **Monospace Elements (Zero Ambiguity)**:
   - DIU Student ID: `font-mono text-xs font-bold text-emerald-400`
   - Course Codes: `font-mono text-xs font-bold text-emerald-400`
-  - Timetable Slots: `font-mono text-[11px] text-slate-400`
-  - Payment Vouchers: `font-mono text-[11px] text-slate-200`
+  - Section Indicators: `font-mono text-xs font-semibold px-2 py-0.5 rounded bg-[#121827] border border-[#1c263c]`
+  - Payment Vouchers: `font-mono text-xs text-slate-200`
+- **Readability & Contrast**:
+  - Full contrast maintained at 100% browser zoom without horizontal overflow.
+  - High-contrast text colors (`text-white`, `text-slate-200`, `text-slate-300`, `text-slate-400`) ensuring WCAG AA conformance.
 
 ---
 
-## 4. Component Interaction Quality (The Two Core Experiences)
+## 4. Content Design & Terminology Standards
+
+To maintain institutional consistency across faculty advising workflows, UI text strictly follows this terminology matrix:
+
+| Canonical Term | Usage Scope | Strictly Prohibited Variations |
+| :--- | :--- | :--- |
+| **Application Center** | The segmented advising queue (`/advisor/queue`) | "Advising Applications", "Queue", "Submissions" |
+| **Pending** | Applications submitted by assigned students awaiting faculty review | "To Do", "Unapproved" |
+| **In Progress** | Applications actively under faculty review (`isUnderReview: true`) | "Ongoing", "Processing" |
+| **Approved** | Finalized registrations authorized by the faculty advisor | "Completed" (reserved for degree audits), "Done" |
+| **Not Applied** | Assigned advisees who have not submitted for the active semester | "Unapplied", "Missing Students" |
+| **My Assigned Students** | Roster of students assigned to the advisor (`/advisor/students`) | "Advisee Roster", "Students List" |
+| **Review Application** | Primary faculty action on pending registrations | "View", "Check", "Inspect" |
+| **Review History** | Permanent audit log of signed determinations (`/advisor/history`) | "Advising History", "Decision History" |
+| **Student Information** | Advisee profile, standing, and contact info in review | "Student Profile", "Metadata" |
+| **Section Information** | Cohort progression (`69_K → 69_D`) in review | "Cohort", "Routine Sections" |
+| **Course Selection** | Course offerings audit table in review | "Advising Slip", "Cart" |
+| **Advisor Decision** | Faculty determination remarks and approval/revision actions | "Determination", "Review Actions" |
+
+---
+
+## 5. Component Interaction Quality (The Core Experiences)
 
 ### A. Course Registration Workspace (`/courses`) — Linear Quality Benchmark
 - High-density course list with direct expandable sections.
-- Inline seat availability counters (`32/40 enrolled`, `8 seats open`).
+- Inline seat availability counters (`50` seats for theory, `25` seats for lab).
 - Real-time client-side schedule collision detection with precise conflict explanation.
-- Sticky right-rail registration slip inspector with live credit meter (`12.0 / 15.0 Cr`).
+- Sticky right-rail registration slip inspector with live credit meter (`10.5 / 15.0 Cr`).
 - One-click confirmation modal with 4-point verification checklist.
 
 ### B. Advisor Review Studio (`/advisor/review/[id]`) — Stripe Quality Benchmark
-- Single high-density student academic standing bar (CGPA, completed credits, proposed load, accounts clearance).
+- Strict 5-part institutional information hierarchy:
+  1. **Student Information**: Academic standing, CGPA, completed credits, institutional email, authorized personal email exception badge.
+  2. **Section Information**: Clear cohort progression (`69_K → 69_D`) with DIU cohort context.
+  3. **Course Selection**: High-density table with course code, title, credits, classification (`General` vs `Retake`), prerequisite verification, and in-place section reassignment with live seat availability.
+  4. **Payment Information**: Tuition accounts clearance audit (`DIU-AC-2027-4561`) and hold status.
+  5. **Advisor Decision**: Faculty remarks textarea, revision rationale selector, and atomic confirmation dialogs.
 - Advisee queue paging (`← Prev [J]` and `Next [K] →` keyboard shortcuts) enabling sequential review of entire cohorts without returning to the queue.
-- Tabular advising slip audit with in-place section reassignment dropdowns displaying live seat capacity.
-- Immediate tuition clearance hold warnings.
-- Atomic determination dialogs with mandatory remarks for revision requests.
