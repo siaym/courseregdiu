@@ -1036,16 +1036,16 @@ export function UnifiedCoursesWorkspace({
                     <FlaskConical className="h-4 w-4" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <label className="text-xs font-semibold text-white">
                         Laboratory Subgroup Selection for Section {desiredSection || "69_D"}
                       </label>
-                      <span className="text-[10px] font-mono text-purple-300 bg-purple-950/80 border border-purple-800 px-2 py-0.2 rounded-full">
-                        Fixed 25 Cap per Lab
+                      <span className="text-[10px] font-mono text-purple-300 bg-purple-950/80 border border-purple-800 px-2 py-0.2 rounded-full font-semibold">
+                        D1: 25 Seats + D2: 25 Seats = 50 Total
                       </span>
                     </div>
                     <p className="text-[11px] text-[#8e9db2]">
-                      In DIU, theory sections (50 cap) split into two 25-capacity lab cohorts: <strong>Lab {cohortLetter}1</strong> and <strong>Lab {cohortLetter}2</strong>
+                      For the same course, <strong>Lab {cohortLetter}1 contains 25 students</strong> and <strong>Lab {cohortLetter}2 contains 25 students</strong> (together accommodating all 50 theory students).
                     </p>
                   </div>
                 </div>
@@ -1088,7 +1088,7 @@ export function UnifiedCoursesWorkspace({
                     </span>
                   </div>
                   <div className="mt-2 text-xs text-[#8e9db2] flex items-center justify-between">
-                    <span>Lab Cohort 1 • 25 Seat Limit</span>
+                    <span>Contains 25 Students • 1st Subgroup</span>
                     <span className="font-mono text-slate-300">
                       {desiredSectionStats?.lab1?.enrolled ?? 12} / 25 Enrolled
                     </span>
@@ -1128,7 +1128,7 @@ export function UnifiedCoursesWorkspace({
                     </span>
                   </div>
                   <div className="mt-2 text-xs text-[#8e9db2] flex items-center justify-between">
-                    <span>Lab Cohort 2 • 25 Seat Limit</span>
+                    <span>Contains 25 Students • 2nd Subgroup</span>
                     <span className="font-mono text-slate-300">
                       {desiredSectionStats?.lab2?.enrolled ?? 8} / 25 Enrolled
                     </span>
@@ -1182,7 +1182,7 @@ export function UnifiedCoursesWorkspace({
                   </div>
                 </div>
 
-                {/* Triple Seat Metric Cards: Theory (50 Cap), Lab 1 (25 Cap), Lab 2 (25 Cap) */}
+                {/* Triple Seat Metric Cards: Theory (50 Cap), Lab 1 (Contains 25), Lab 2 (Contains 25) */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                   {/* Metric 1: Theory Lectures (50 Fixed Cap) */}
                   <div className="p-4 rounded-xl bg-[#0f172a]/60 border border-[#1e293b] space-y-2.5">
@@ -1222,7 +1222,7 @@ export function UnifiedCoursesWorkspace({
                     </p>
                   </div>
 
-                  {/* Metric 2: Lab Subgroup 1 (25 Fixed Cap) */}
+                  {/* Metric 2: Lab Subgroup 1 (Contains 25 Students) */}
                   <div className={`p-4 rounded-xl border space-y-2.5 transition-all ${
                     preferredLabSubgroup === "1"
                       ? "bg-[#131b2e] border-purple-500/70 ring-1 ring-purple-500/40"
@@ -1231,7 +1231,7 @@ export function UnifiedCoursesWorkspace({
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-1.5 text-slate-300 font-semibold">
                         <FlaskConical className="h-3.5 w-3.5 text-purple-400" />
-                        <span>Lab {desiredSectionStats.cohortLetter}1 Subgroup (25 Cap)</span>
+                        <span>Lab {desiredSectionStats.cohortLetter}1 (Contains 25)</span>
                       </div>
                       <span className="text-[11px] font-mono text-emerald-400 font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/80">
                         {desiredSectionStats.lab1.free} Seats Free
@@ -1260,7 +1260,7 @@ export function UnifiedCoursesWorkspace({
                     />
 
                     <div className="flex items-center justify-between text-[10px] pt-0.5">
-                      <span className="text-[#8e9db2]">Section {desiredSectionStats.sectionName}1</span>
+                      <span className="text-[#8e9db2]">Section {desiredSectionStats.sectionName}1 (25 Cap)</span>
                       {preferredLabSubgroup === "1" ? (
                         <span className="font-mono font-semibold text-purple-300">✓ Active Selection</span>
                       ) : (
@@ -1275,7 +1275,7 @@ export function UnifiedCoursesWorkspace({
                     </div>
                   </div>
 
-                  {/* Metric 3: Lab Subgroup 2 (25 Fixed Cap) */}
+                  {/* Metric 3: Lab Subgroup 2 (Contains 25 Students) */}
                   <div className={`p-4 rounded-xl border space-y-2.5 transition-all ${
                     preferredLabSubgroup === "2"
                       ? "bg-[#131b2e] border-purple-500/70 ring-1 ring-purple-500/40"
@@ -1284,7 +1284,7 @@ export function UnifiedCoursesWorkspace({
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-1.5 text-slate-300 font-semibold">
                         <FlaskConical className="h-3.5 w-3.5 text-purple-400" />
-                        <span>Lab {desiredSectionStats.cohortLetter}2 Subgroup (25 Cap)</span>
+                        <span>Lab {desiredSectionStats.cohortLetter}2 (Contains 25)</span>
                       </div>
                       <span className="text-[11px] font-mono text-emerald-400 font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/80">
                         {desiredSectionStats.lab2.free} Seats Free
@@ -1313,7 +1313,7 @@ export function UnifiedCoursesWorkspace({
                     />
 
                     <div className="flex items-center justify-between text-[10px] pt-0.5">
-                      <span className="text-[#8e9db2]">Section {desiredSectionStats.sectionName}2</span>
+                      <span className="text-[#8e9db2]">Section {desiredSectionStats.sectionName}2 (25 Cap)</span>
                       {preferredLabSubgroup === "2" ? (
                         <span className="font-mono font-semibold text-purple-300">✓ Active Selection</span>
                       ) : (
@@ -1326,6 +1326,29 @@ export function UnifiedCoursesWorkspace({
                         </button>
                       )}
                     </div>
+                  </div>
+                </div>
+
+                {/* Explanatory Banner: Same Course Lab Subgroups (25 + 25 = 50) */}
+                <div className="p-3 rounded-lg bg-[#0f172a]/70 border border-[#1e293b] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-slate-300">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-purple-400 shrink-0" />
+                    <span>
+                      <strong className="text-white">Same Course Allocation:</strong> For each lab course, <strong>Lab {desiredSectionStats.cohortLetter}1 contains 25 students</strong> and <strong>Lab {desiredSectionStats.cohortLetter}2 contains 25 students</strong>.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 font-mono text-[11px] shrink-0 self-start sm:self-auto">
+                    <span className="px-2 py-0.5 rounded bg-purple-950/80 text-purple-300 border border-purple-800">
+                      D1: 25 Seats
+                    </span>
+                    <span className="text-slate-500">+</span>
+                    <span className="px-2 py-0.5 rounded bg-purple-950/80 text-purple-300 border border-purple-800">
+                      D2: 25 Seats
+                    </span>
+                    <span className="text-slate-500">=</span>
+                    <span className="px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-800 font-bold">
+                      50 Total Seats
+                    </span>
                   </div>
                 </div>
 
@@ -1368,11 +1391,7 @@ export function UnifiedCoursesWorkspace({
                           <tbody className="divide-y divide-[#1c263c]">
                             {desiredSectionStats.courses.map((c) => {
                               const activeLab = preferredLabSubgroup === "1" ? c.lab1Section : c.lab2Section;
-                              const enrolledCount = c.isLab
-                                ? activeLab?.enrolled ?? 12
-                                : c.theorySection?.enrolled ?? 42;
-                              const capacityCount = c.isLab ? 25 : 50;
-                              const freeCount = c.isLab
+                                                            const freeCount = c.isLab
                                 ? activeLab?.free ?? 13
                                 : c.theorySection?.free ?? 8;
 
@@ -1381,78 +1400,150 @@ export function UnifiedCoursesWorkspace({
                                   <td className="py-2.5 px-3">
                                     <div className="flex items-center gap-1.5">
                                       <span className="font-mono font-bold text-white">{c.code}</span>
-                                      <span className="text-[11px] text-[#8e9db2] truncate max-w-[180px] sm:max-w-xs">
+                                      <span className="text-[11px] text-[#8e9db2] truncate max-w-[170px] sm:max-w-xs">
                                         {c.title}
                                       </span>
                                     </div>
                                   </td>
                                   <td className="py-2.5 px-3">
-                                    <span
-                                      className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-medium ${
-                                        c.isLab
-                                          ? "bg-purple-950 text-purple-300 border border-purple-800"
-                                          : "bg-blue-950 text-blue-300 border border-blue-800"
-                                      }`}
-                                    >
-                                      {c.isLab ? "Lab (25 Cap)" : "Theory (50 Cap)"}
-                                    </span>
+                                    {c.isLab ? (
+                                      <div className="space-y-0.5">
+                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-950 text-purple-300 border border-purple-800 inline-block">
+                                          Lab (50 Cap)
+                                        </span>
+                                        <span className="text-[10px] font-mono text-slate-400 block">
+                                          D1: 25 • D2: 25
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-blue-950 text-blue-300 border border-blue-800 inline-block">
+                                        Theory (50 Cap)
+                                      </span>
+                                    )}
                                   </td>
                                   <td className="py-2.5 px-3">
                                     {c.isLab ? (
-                                      <div className="inline-flex items-center gap-1.5">
-                                        <button
-                                          type="button"
-                                          onClick={() => handleSelectLabSubgroup("1")}
-                                          className={`px-2 py-0.5 rounded text-[11px] font-mono font-semibold transition-all cursor-pointer border ${
-                                            preferredLabSubgroup === "1"
-                                              ? "bg-purple-900/80 text-purple-200 border-purple-500 shadow-xs ring-1 ring-purple-500/40"
-                                              : "bg-[#121827] text-slate-400 border-[#1c263c] hover:text-slate-200"
-                                          }`}
-                                          title={`Select Lab ${desiredSectionStats.cohortLetter}1 (${c.lab1Section?.free ?? 13} seats free)`}
-                                        >
-                                          {preferredLabSubgroup === "1" ? "✓ " : ""}Lab {desiredSectionStats.cohortLetter}1
-                                          <span className="text-[10px] ml-1 opacity-75">({c.lab1Section?.free ?? 13} free)</span>
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleSelectLabSubgroup("2")}
-                                          className={`px-2 py-0.5 rounded text-[11px] font-mono font-semibold transition-all cursor-pointer border ${
-                                            preferredLabSubgroup === "2"
-                                              ? "bg-purple-900/80 text-purple-200 border-purple-500 shadow-xs ring-1 ring-purple-500/40"
-                                              : "bg-[#121827] text-slate-400 border-[#1c263c] hover:text-slate-200"
-                                          }`}
-                                          title={`Select Lab ${desiredSectionStats.cohortLetter}2 (${c.lab2Section?.free ?? 17} seats free)`}
-                                        >
-                                          {preferredLabSubgroup === "2" ? "✓ " : ""}Lab {desiredSectionStats.cohortLetter}2
-                                          <span className="text-[10px] ml-1 opacity-75">({c.lab2Section?.free ?? 17} free)</span>
-                                        </button>
+                                      <div className="space-y-1">
+                                        <div className="inline-flex items-center gap-1.5">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleSelectLabSubgroup("1")}
+                                            className={`px-2.5 py-1 rounded text-[11px] font-mono font-semibold transition-all cursor-pointer border ${
+                                              preferredLabSubgroup === "1"
+                                                ? "bg-purple-900/90 text-purple-200 border-purple-500 shadow-xs ring-1 ring-purple-500/50"
+                                                : "bg-[#121827] text-slate-400 border-[#1c263c] hover:text-slate-200"
+                                            }`}
+                                            title={`Select Lab ${desiredSectionStats.cohortLetter}1 (Contains 25 students, ${c.lab1Section?.free ?? 13} seats free)`}
+                                          >
+                                            {preferredLabSubgroup === "1" ? "✓ " : ""}Lab {desiredSectionStats.cohortLetter}1
+                                            <span className="text-[10px] ml-1 opacity-80">(25 seats)</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleSelectLabSubgroup("2")}
+                                            className={`px-2.5 py-1 rounded text-[11px] font-mono font-semibold transition-all cursor-pointer border ${
+                                              preferredLabSubgroup === "2"
+                                                ? "bg-purple-900/90 text-purple-200 border-purple-500 shadow-xs ring-1 ring-purple-500/50"
+                                                : "bg-[#121827] text-slate-400 border-[#1c263c] hover:text-slate-200"
+                                            }`}
+                                            title={`Select Lab ${desiredSectionStats.cohortLetter}2 (Contains 25 students, ${c.lab2Section?.free ?? 17} seats free)`}
+                                          >
+                                            {preferredLabSubgroup === "2" ? "✓ " : ""}Lab {desiredSectionStats.cohortLetter}2
+                                            <span className="text-[10px] ml-1 opacity-80">(25 seats)</span>
+                                          </button>
+                                        </div>
+                                        <span className="text-[10px] text-[#8e9db2] block">
+                                          Same course • 25 in D1 + 25 in D2
+                                        </span>
                                       </div>
                                     ) : (
-                                      <span className="font-mono text-slate-300 text-xs px-2 py-0.5 rounded bg-[#121827] border border-[#1c263c]">
+                                      <span className="font-mono text-slate-300 text-xs px-2.5 py-1 rounded bg-[#121827] border border-[#1c263c] inline-block">
                                         Section {desiredSectionStats.sectionName}
                                       </span>
                                     )}
                                   </td>
                                   <td className="py-2.5 px-3 font-mono text-slate-200">
-                                    {enrolledCount} / {capacityCount}
-                                    {c.isLab && (
-                                      <span className="text-[10px] text-purple-400 ml-1.5 font-normal">
-                                        (Lab {desiredSectionStats.cohortLetter}{preferredLabSubgroup})
-                                      </span>
+                                    {c.isLab ? (
+                                      <div className="text-xs space-y-1">
+                                        <div
+                                          className={`flex items-center justify-between gap-2 px-1.5 py-0.5 rounded ${
+                                            preferredLabSubgroup === "1"
+                                              ? "bg-purple-950/70 text-purple-200 font-bold border border-purple-800/80"
+                                              : "text-slate-400"
+                                          }`}
+                                        >
+                                          <span>D1:</span>
+                                          <span>
+                                            {c.lab1Section?.enrolled ?? 12} / 25
+                                            {preferredLabSubgroup === "1" && " ●"}
+                                          </span>
+                                        </div>
+                                        <div
+                                          className={`flex items-center justify-between gap-2 px-1.5 py-0.5 rounded ${
+                                            preferredLabSubgroup === "2"
+                                              ? "bg-purple-950/70 text-purple-200 font-bold border border-purple-800/80"
+                                              : "text-slate-400"
+                                          }`}
+                                        >
+                                          <span>D2:</span>
+                                          <span>
+                                            {c.lab2Section?.enrolled ?? 8} / 25
+                                            {preferredLabSubgroup === "2" && " ●"}
+                                          </span>
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 pt-0.5 flex justify-between border-t border-[#1c263c]/60">
+                                          <span>Combined:</span>
+                                          <span className="text-slate-200 font-semibold">
+                                            {(c.lab1Section?.enrolled ?? 12) + (c.lab2Section?.enrolled ?? 8)} / 50
+                                          </span>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs">{c.theorySection?.enrolled ?? 42} / 50</span>
                                     )}
                                   </td>
                                   <td className="py-2.5 px-3 text-right">
-                                    <span
-                                      className={`font-mono text-xs font-semibold px-2 py-0.5 rounded ${
-                                        freeCount > 5
-                                          ? "text-emerald-400 bg-emerald-950/60"
-                                          : freeCount > 0
-                                          ? "text-amber-400 bg-amber-950/60"
-                                          : "text-rose-400 bg-rose-950/60"
-                                      }`}
-                                    >
-                                      {freeCount > 0 ? `${freeCount} free` : "Full"}
-                                    </span>
+                                    {c.isLab ? (
+                                      <div className="font-mono text-xs space-y-1">
+                                        <div
+                                          className={`flex items-center justify-end gap-1.5 ${
+                                            preferredLabSubgroup === "1" ? "text-emerald-300 font-bold" : "text-slate-400"
+                                          }`}
+                                        >
+                                          <span className="text-[10px]">D1:</span>
+                                          <span className="px-1.5 py-0.2 rounded bg-emerald-950/60 border border-emerald-800/60">
+                                            {c.lab1Section?.free ?? 13} free
+                                          </span>
+                                        </div>
+                                        <div
+                                          className={`flex items-center justify-end gap-1.5 ${
+                                            preferredLabSubgroup === "2" ? "text-emerald-300 font-bold" : "text-slate-400"
+                                          }`}
+                                        >
+                                          <span className="text-[10px]">D2:</span>
+                                          <span className="px-1.5 py-0.2 rounded bg-emerald-950/60 border border-emerald-800/60">
+                                            {c.lab2Section?.free ?? 17} free
+                                          </span>
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 pt-0.5 border-t border-[#1c263c]/60">
+                                          <span className="text-emerald-400 font-semibold">
+                                            {(c.lab1Section?.free ?? 13) + (c.lab2Section?.free ?? 17)} free total
+                                          </span>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <span
+                                        className={`font-mono text-xs font-semibold px-2 py-0.5 rounded ${
+                                          freeCount > 5
+                                            ? "text-emerald-400 bg-emerald-950/60"
+                                            : freeCount > 0
+                                            ? "text-amber-400 bg-amber-950/60"
+                                            : "text-rose-400 bg-rose-950/60"
+                                        }`}
+                                      >
+                                        {freeCount > 0 ? `${freeCount} free` : "Full"}
+                                      </span>
+                                    )}
                                   </td>
                                 </tr>
                               );
@@ -1634,12 +1725,18 @@ export function UnifiedCoursesWorkspace({
                             </span>
                           </div>
 
-                          <div className="text-[11px] text-[#8e9db2] flex items-center gap-2">
-                            <span>
-                              {availableSections.length > 0
-                                ? `${availableSections.length} Sections Available (${capacityCap} seats/section)`
-                                : "1 Section Scheduled"}
-                            </span>
+                          <div className="text-[11px] text-[#8e9db2] flex flex-wrap items-center gap-2">
+                            {isLab ? (
+                              <span className="font-mono text-purple-300 bg-purple-950/60 border border-purple-800/80 px-2 py-0.5 rounded text-[10px] font-semibold">
+                                Same Course Lab: D1 contains 25 & D2 contains 25 students (50 Total)
+                              </span>
+                            ) : (
+                              <span>
+                                {availableSections.length > 0
+                                  ? `${availableSections.length} Sections Available (${capacityCap} seats/section)`
+                                  : "1 Section Scheduled"}
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -1692,7 +1789,7 @@ export function UnifiedCoursesWorkspace({
                                       : "text-[#8e9db2] hover:text-white"
                                   }`}
                                 >
-                                  Lab {cohortLetter}1
+                                  Lab {cohortLetter}1 (25 seats)
                                 </button>
                                 <button
                                   type="button"
@@ -1706,7 +1803,7 @@ export function UnifiedCoursesWorkspace({
                                       : "text-[#8e9db2] hover:text-white"
                                   }`}
                                 >
-                                  Lab {cohortLetter}2
+                                  Lab {cohortLetter}2 (25 seats)
                                 </button>
                               </div>
                             )}
@@ -1718,9 +1815,9 @@ export function UnifiedCoursesWorkspace({
                               >
                                 {availableSections.map((s) => {
                                   const labBadge = s.section_name.toUpperCase().endsWith("1")
-                                    ? ` (Lab ${cohortLetter}1)`
+                                    ? ` (Lab ${cohortLetter}1 • 25 seats)`
                                     : s.section_name.toUpperCase().endsWith("2")
-                                    ? ` (Lab ${cohortLetter}2)`
+                                    ? ` (Lab ${cohortLetter}2 • 25 seats)`
                                     : "";
                                   return (
                                     <option key={s.id} value={s.id}>
