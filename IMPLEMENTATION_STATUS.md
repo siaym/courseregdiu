@@ -238,17 +238,27 @@ Result: 0 problems, 0 errors, 0 warnings. (Exit code 0)
 > courseregdiu@0.1.0 build
 > next build
 
+### Google Cloud OAuth Consent & Domain Compliance
+- **Application Home Page**: `https://courseregdiu.asf.run/` (configured with dynamic domain resolution via `NEXT_PUBLIC_APP_URL`).
+- **Public Privacy Policy**: `/privacy` (`https://courseregdiu.asf.run/privacy`) — Institutional university data protection policy with Google API User Data Policy compliance, zero monetization guarantee, and RLS security disclosure.
+- **Public Terms of Service**: `/terms` (`https://courseregdiu.asf.run/terms`) — DIU Academic Council regulations, fixed seat caps (50 theory / 25 lab), prerequisite enforcement, and advisor approval conditions.
+- **Domain Flexibility**: Centralized in `src/lib/config/site.ts`. Ready for future custom domain transitions.
+
 ▲ Next.js 16.4.6 (Turbopack)
 - Environments: .env.local
 ✓ Running next.config.ts took 21ms
 ✓ Compiled successfully in 695ms
 ✓ Finished TypeScript in 2.0s
-✓ Generating static pages using 15 workers (20/20) in 792ms
+✓ Generating static pages using 15 workers (26/26) in 413ms
 ✓ Finalizing page optimization ...
 
 Route (app)
 ┌ ○ /
 ├ ○ /_not-found
+├ ƒ /admin
+├ ƒ /admin/curriculum
+├ ƒ /admin/emails
+├ ƒ /admin/payments
 ├ ƒ /advisor
 ├ ƒ /advisor/history
 ├ ƒ /advisor/profile
@@ -260,8 +270,14 @@ Route (app)
 ├ ƒ /dashboard
 ├ ƒ /login
 ├ ƒ /onboarding
+├ ○ /privacy
 ├ ○ /registration (Redirects to /courses)
 ├ ƒ /schedule
+├ ƒ /student/history
+├ ƒ /student/profile
+├ ƒ /student/tracking
+├ ○ /terms
+└ ○ /unauthorized
 ├ ƒ /student/history
 ├ ƒ /student/profile
 ├ ƒ /student/tracking

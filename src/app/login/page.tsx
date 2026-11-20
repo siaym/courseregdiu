@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { GraduationCap, ShieldAlert, AlertCircle, ArrowRight, UserCheck, Sparkles, UserPlus } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -211,7 +212,16 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         )}
 
         {/* Footer info */}
-        <div className="text-center text-[11px] text-[#8e9db2] space-y-1">
+        <div className="text-center text-[11px] text-[#8e9db2] space-y-2">
+          <div className="flex items-center justify-center gap-3 text-slate-400">
+            <Link href="/privacy" className="hover:text-white transition-colors hover:underline">
+              Privacy Policy
+            </Link>
+            <span>•</span>
+            <Link href="/terms" className="hover:text-white transition-colors hover:underline">
+              Terms of Service
+            </Link>
+          </div>
           <div>Daffodil Smart City, Birulia, Savar, Dhaka-1216</div>
           <div>Division of Information Technology & Academic Records</div>
         </div>

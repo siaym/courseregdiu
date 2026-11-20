@@ -53,16 +53,22 @@ The **Batch Course Configuration, Authoritative Payment Clearance & Global UI/UX
      - Collapsible course-by-course breakdown of batch-configured subjects offered under that section with room numbers and individual seat availability.
    - Institutional DIU Academic Council policy reminders (50/25 seat rules, routine clash prevention, and advisor sign-off).
 
-7. **44/44 Automated Test Suite Pass (`npm test`)**:
+7. **Google Cloud OAuth Consent Compliance & Public Legal Routes**:
+   - Centralized dynamic domain resolution utility in `src/lib/config/site.ts` (`NEXT_PUBLIC_APP_URL` with deployment fallback).
+   - Public **Privacy Policy** page at `/privacy` (`https://courseregdiu.asf.run/privacy`) adhering to the Google API User Data Policy, zero monetization commitments, RLS security disclosure, and DIU contact channels.
+   - Public **Terms of Service** page at `/terms` (`https://courseregdiu.asf.run/terms`) containing DIU Academic Council regulations, fixed seat caps (50 theory / 25 lab), prerequisite rules, and advisor review authority.
+   - Added Privacy Policy and Terms of Service links to the `/login` portal footer.
+
+8. **44/44 Automated Test Suite Pass (`npm test`)**:
    - `tests/batch-course-and-payment.test.mjs` (11/11 batch course & payment clearance tests pass).
    - `tests/advisor-queue-verification.test.mjs` (9/9 three-category queue verification tests pass).
    - `tests/security-verification.test.mjs` (8/8 P0 security tests pass).
    - `tests/auth-policy-verification.test.mjs` (10/10 auth policy tests pass).
    - `tests/concurrency-and-privacy.test.mjs` (5/5 privacy, identity linking & capacity tests pass).
 
-6. **Performance & Build Verification**:
+9. **Performance & Build Verification**:
    - `npm run lint` -> **0 problems, 0 errors, 0 warnings**.
-   - `npm run build` -> **Compiled successfully, exit code 0 (24/24 routes)**.
+   - `npm run build` -> **Compiled successfully, exit code 0 (26/26 routes)**.
    - Live development server operational on `http://localhost:3000`.
 
 ---
