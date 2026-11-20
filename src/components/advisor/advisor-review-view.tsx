@@ -423,7 +423,7 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
         </div>
 
         <div className="p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c] flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <div className="text-slate-300 font-semibold flex items-center gap-2">
               <span>Accounts Clearance Status:</span>
               {application.registration.payment_cleared ? (
@@ -432,23 +432,24 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
                 <span className="text-rose-400 font-bold">Financial Hold: Clearance Pending</span>
               )}
             </div>
-            <div className="text-slate-400 text-xs flex flex-wrap items-center gap-2">
-              <span>Accounts Audit Voucher:</span>
-              <strong className="font-mono text-emerald-400 bg-[#121827] px-2 py-0.5 rounded border border-[#1c263c]">
-                {application.registration.payment_reference || "DIU-AC-2027-4561"}
-              </strong>
-            </div>
+            <p className="text-[#8e9db2] text-[11px] leading-relaxed">
+              {application.registration.payment_cleared
+                ? "Minimum 50% semester advance tuition fee confirmed. Student is academically eligible for advising authorization."
+                : "Student has outstanding tuition balances. Advising approval should only proceed if special departmental clearance is granted."}
+            </p>
           </div>
 
-          <div className="text-xs text-slate-400 sm:text-right">
+          <div className="shrink-0">
             {application.registration.payment_cleared ? (
-              <p className="text-[#8e9db2] text-[11px] leading-relaxed max-w-xs">
-                Minimum 50% semester advance tuition fee confirmed. Student is academically eligible for advising authorization.
-              </p>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950/80 border border-emerald-800 text-emerald-300">
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                <span>Tuition Accounts Cleared</span>
+              </span>
             ) : (
-              <p className="text-rose-400 text-[11px] leading-relaxed max-w-xs">
-                Student has outstanding tuition balances. Advising approval should only proceed if special departmental clearance is granted.
-              </p>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-950/80 border border-rose-800 text-rose-300">
+                <AlertTriangle className="h-3.5 w-3.5 text-rose-400" />
+                <span>Financial Clearance Hold</span>
+              </span>
             )}
           </div>
         </div>
