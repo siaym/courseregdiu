@@ -44,6 +44,8 @@ The **Batch Course Configuration, Authoritative Payment Clearance & Global UI/UX
    - Promoted **Payment Information** to **Section 2** (immediately after Student Information), providing immediate visibility into tuition accounts clearance before reviewing cohort sections (`Section 3`), course selections (`Section 4`), and submitting determinations (`Section 5`).
 
 6. **Student Academic Section Details Redesign & Live Seat Monitor (`/courses` Step 1)**:
+   - **Laboratory Subgroup Option (`Lab D1` / `Lab D2`, Cap 25)**: Modeled DIU policy where 50-student theory cohorts (e.g. `69_D`) split into two 25-capacity lab subgroups (`Lab D1` and `Lab D2`). Provided interactive subgroup selection cards in Step 1 and 1-click toggles in Step 2 Course Selection.
+   - **Elimination of Room Column**: Removed the unnecessary room column from the scheduled courses table, displaying Course, Type, Section / Lab Subgroup Option, Enrolled, and Available Seats.
    - Transformed Step 1 into a high-density, professional university administration routing interface.
    - Dual-card layout for **Previous Enrolled Section** and **Desired Section for Spring 2027** with batch cohort quick-select chips.
    - **Live Desired Section Seat Availability Display**: Positioned directly underneath the Desired Section input, dynamically calculating live seat metrics:

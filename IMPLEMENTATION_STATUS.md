@@ -83,6 +83,8 @@ Implemented the complete, production-ready Student Registration Application work
 
 1. **Step 1: Academic Section Details & Live Desired Section Seat Monitor (`previous_section` & `desired_section`)**:
    - Complete redesign of Step 1 into an authentic, institutional university administration workspace.
+   - **Laboratory Subgroup Option (`Lab D1` vs `Lab D2`, 25-Seat Cap)**: Provides interactive cards for Lab D1 and Lab D2 cohorts for each theory section (e.g. `69_D1` and `69_D2`), with live enrollment and available seats.
+   - **Clean Scheduled Courses Roster**: Removed unnecessary Room column; provided in-table interactive toggle buttons for Lab D1 / Lab D2 with instant seat calculation.
    - Dual-card layout for **Previous Enrolled Section** (with preceding term cohort quick pills: e.g. `60_K`, `60_D`, `60_A`, `60_B`) and **Desired Section for Spring 2027** (with active batch cohort pills: e.g. `60_D`, `60_K`, `60_A`, `60_B`, `60_C`).
    - **Live Desired Section Seat Capacity Display**:
      - Positioned directly underneath the Desired Section input.

@@ -19,6 +19,7 @@ import {
   ChevronUp,
   ShieldCheck,
   Info,
+  FlaskConical,
 } from "lucide-react";
 import {
   MOCK_SECTIONS,
@@ -94,6 +95,18 @@ export function UnifiedCoursesWorkspace({
   );
   const [sectionError, setSectionError] = React.useState<string | null>(null);
 
+  // Preferred lab subgroup for the desired section: "1" = Lab D1, "2" = Lab D2
+  const [preferredLabSubgroup, setPreferredLabSubgroup] = React.useState<"1" | "2">("1");
+
+  // Cohort letter extraction helper (e.g. "69_D" -> "D", "69_K" -> "K", "60_A" -> "A")
+  const cohortLetter = React.useMemo(() => {
+    const trimmed = desiredSection.trim().toUpperCase();
+    const match = trimmed.match(/_([A-Z0-9]+)/i);
+    if (match) return match[1];
+    const letters = trimmed.match(/[A-Z]+/);
+    return letters ? letters[0] : "D";
+  }, [desiredSection]);
+
   // Batch detection helper
   const detectedBatch = React.useMemo(() => {
     const raw = studentBatch || (profile as { batch?: string })?.batch || "69";
@@ -122,15 +135,20 @@ export function UnifiedCoursesWorkspace({
     if (!trimmed) return null;
 
     // Find all sections matching this cohort
-    // Matches exact: 69_D or 69_D_L or startsWith 69_D
+    // Matches exact: 69_D, 69_D1, 69_D2, 69_D_L or startsWith 69_D
     const matchingSections = MOCK_SECTIONS.filter((s) => {
       const name = s.section_name.toUpperCase();
       return (
         name === trimmed ||
+        name === `${trimmed}1` ||
+        name === `${trimmed}2` ||
+        name === `${trimmed}_1` ||
+        name === `${trimmed}_2` ||
         name === `${trimmed}_L` ||
         name === `${trimmed}-L` ||
         name.startsWith(`${trimmed}_`) ||
-        name.startsWith(`${trimmed}-`)
+        name.startsWith(`${trimmed}-`) ||
+        name.startsWith(trimmed)
       );
     });
 
@@ -144,10 +162,23 @@ export function UnifiedCoursesWorkspace({
 
     if (targetSections.length > 0) {
       const theorySections = targetSections.filter(
-        (s) => !s.section_name.toUpperCase().includes("_L") && (s.capacity === 50 || (s.credits ?? 3) >= 3)
+        (s) =>
+          !s.section_name.toUpperCase().endsWith("1") &&
+          !s.section_name.toUpperCase().endsWith("2") &&
+          !s.section_name.toUpperCase().includes("_L") &&
+          (s.capacity === 50 || (s.credits ?? 3) >= 3)
       );
-      const labSections = targetSections.filter(
-        (s) => s.section_name.toUpperCase().includes("_L") || s.capacity === 25 || (s.credits ?? 1.5) <= 1.5
+      const lab1Sections = targetSections.filter(
+        (s) =>
+          s.section_name.toUpperCase() === `${trimmed}1` ||
+          s.section_name.toUpperCase().endsWith("1") ||
+          s.section_name.toUpperCase().includes(`${trimmed}_1`)
+      );
+      const lab2Sections = targetSections.filter(
+        (s) =>
+          s.section_name.toUpperCase() === `${trimmed}2` ||
+          s.section_name.toUpperCase().endsWith("2") ||
+          s.section_name.toUpperCase().includes(`${trimmed}_2`)
       );
 
       // Theory calculation (fixed capacity = 50 in DIU)
@@ -157,81 +188,257 @@ export function UnifiedCoursesWorkspace({
             theorySections.reduce((acc, s) => acc + (s.enrolled_count || 0), 0) /
               theorySections.length
           )
-        : 40;
+        : 42;
       const theorySeatsFree = Math.max(0, theoryAvgCap - theoryEnrolled);
+      const theoryPercent = Math.min(100, Math.round((theoryEnrolled / theoryAvgCap) * 100));
 
-      // Lab calculation (fixed capacity = 25 in DIU)
-      const labAvgCap = 25;
-      const labEnrolled = labSections.length > 0
+      // Lab 1 calculation (fixed capacity = 25 in DIU)
+      const lab1AvgCap = 25;
+      const lab1Enrolled = lab1Sections.length > 0
         ? Math.round(
-            labSections.reduce((acc, s) => acc + (s.enrolled_count || 0), 0) /
-              labSections.length
+            lab1Sections.reduce((acc, s) => acc + (s.enrolled_count || 0), 0) /
+              lab1Sections.length
           )
-        : 17;
-      const labSeatsFree = Math.max(0, labAvgCap - labEnrolled);
+        : 12;
+      const lab1SeatsFree = Math.max(0, lab1AvgCap - lab1Enrolled);
+      const lab1Percent = Math.min(100, Math.round((lab1Enrolled / lab1AvgCap) * 100));
 
-      const totalCap =
-        theorySections.reduce((acc, s) => acc + (s.capacity || 50), 0) +
-        labSections.reduce((acc, s) => acc + (s.capacity || 25), 0);
-      const totalEnrolled =
-        theorySections.reduce((acc, s) => acc + (s.enrolled_count || 0), 0) +
-        labSections.reduce((acc, s) => acc + (s.enrolled_count || 0), 0);
-      const totalSeatsFree = Math.max(0, totalCap - totalEnrolled);
-      const overallPercent = totalCap > 0 ? Math.round((totalEnrolled / totalCap) * 100) : 80;
+      // Lab 2 calculation (fixed capacity = 25 in DIU)
+      const lab2AvgCap = 25;
+      const lab2Enrolled = lab2Sections.length > 0
+        ? Math.round(
+            lab2Sections.reduce((acc, s) => acc + (s.enrolled_count || 0), 0) /
+              lab2Sections.length
+          )
+        : 8;
+      const lab2SeatsFree = Math.max(0, lab2AvgCap - lab2Enrolled);
+      const lab2Percent = Math.min(100, Math.round((lab2Enrolled / lab2AvgCap) * 100));
+
+      // Distinct course grouping
+      type RosterItem = {
+        id: string;
+        code: string;
+        title: string;
+        isLab: boolean;
+        credits: number;
+        theorySection?: {
+          id: string;
+          name: string;
+          capacity: number;
+          enrolled: number;
+          free: number;
+        };
+        lab1Section?: {
+          id: string;
+          name: string;
+          capacity: number;
+          enrolled: number;
+          free: number;
+        };
+        lab2Section?: {
+          id: string;
+          name: string;
+          capacity: number;
+          enrolled: number;
+          free: number;
+        };
+      };
+
+      const courseMap = new Map<string, RosterItem>();
+
+      targetSections.forEach((s) => {
+        const code = s.course_code || "";
+        const isLabCourse =
+          s.section_name.toUpperCase().includes("_L") ||
+          s.capacity === 25 ||
+          (s.credits ?? 1.5) <= 1.5 ||
+          (s.course_title || "").toLowerCase().includes("lab");
+
+        if (!courseMap.has(code)) {
+          courseMap.set(code, {
+            id: s.id,
+            code,
+            title: s.course_title || "",
+            isLab: isLabCourse,
+            credits: s.credits ?? (isLabCourse ? 1.5 : 3.0),
+          });
+        }
+
+        const entry = courseMap.get(code)!;
+        const nameUpper = s.section_name.toUpperCase();
+        if (isLabCourse) {
+          if (nameUpper.endsWith("1") || nameUpper.includes("L1")) {
+            entry.lab1Section = {
+              id: s.id,
+              name: s.section_name,
+              capacity: s.capacity,
+              enrolled: s.enrolled_count,
+              free: Math.max(0, s.capacity - s.enrolled_count),
+            };
+          } else if (nameUpper.endsWith("2") || nameUpper.includes("L2")) {
+            entry.lab2Section = {
+              id: s.id,
+              name: s.section_name,
+              capacity: s.capacity,
+              enrolled: s.enrolled_count,
+              free: Math.max(0, s.capacity - s.enrolled_count),
+            };
+          } else {
+            entry.lab1Section = {
+              id: s.id,
+              name: `${trimmed}1`,
+              capacity: 25,
+              enrolled: s.enrolled_count,
+              free: Math.max(0, 25 - s.enrolled_count),
+            };
+          }
+        } else {
+          entry.theorySection = {
+            id: s.id,
+            name: s.section_name,
+            capacity: s.capacity,
+            enrolled: s.enrolled_count,
+            free: Math.max(0, s.capacity - s.enrolled_count),
+          };
+        }
+      });
+
+      // Ensure lab courses have both subgroups defined for toggle display
+      courseMap.forEach((entry) => {
+        if (entry.isLab) {
+          if (!entry.lab1Section) {
+            entry.lab1Section = {
+              id: `sec-${entry.code.toLowerCase()}-${trimmed.toLowerCase()}1`,
+              name: `${trimmed}1`,
+              capacity: 25,
+              enrolled: 12,
+              free: 13,
+            };
+          }
+          if (!entry.lab2Section) {
+            entry.lab2Section = {
+              id: `sec-${entry.code.toLowerCase()}-${trimmed.toLowerCase()}2`,
+              name: `${trimmed}2`,
+              capacity: 25,
+              enrolled: 8,
+              free: 17,
+            };
+          }
+        }
+      });
+
+      const distinctCourses = Array.from(courseMap.values());
 
       return {
         sectionName: trimmed,
-        matchingCount: targetSections.length,
+        cohortLetter,
+        matchingCount: distinctCourses.length,
         theory: {
           capacity: theoryAvgCap,
           enrolled: theoryEnrolled,
           free: theorySeatsFree,
-          percent: Math.min(100, Math.round((theoryEnrolled / theoryAvgCap) * 100)),
+          percent: theoryPercent,
         },
-        lab: {
-          capacity: labAvgCap,
-          enrolled: labEnrolled,
-          free: labSeatsFree,
-          percent: Math.min(100, Math.round((labEnrolled / labAvgCap) * 100)),
+        lab1: {
+          capacity: lab1AvgCap,
+          enrolled: lab1Enrolled,
+          free: lab1SeatsFree,
+          percent: lab1Percent,
         },
-        totalSeatsFree,
-        overallPercent,
-        courses: targetSections.map((s) => ({
-          id: s.id,
-          code: s.course_code || "",
-          title: s.course_title || "",
-          sectionName: s.section_name,
-          isLab: s.section_name.toUpperCase().includes("_L") || s.capacity === 25,
-          capacity: s.capacity,
-          enrolled: s.enrolled_count,
-          free: Math.max(0, s.capacity - s.enrolled_count),
-          room: s.room,
-        })),
+        lab2: {
+          capacity: lab2AvgCap,
+          enrolled: lab2Enrolled,
+          free: lab2SeatsFree,
+          percent: lab2Percent,
+        },
+        totalSeatsFree: theorySeatsFree + lab1SeatsFree + lab2SeatsFree,
+        overallPercent: Math.round(
+          ((theoryEnrolled + lab1Enrolled + lab2Enrolled) / (theoryAvgCap + lab1AvgCap + lab2AvgCap)) * 100
+        ),
+        courses: distinctCourses,
       };
     }
 
     // Default baseline for newly typed cohort not in pre-seeded mock sections
-    // Still adheres strictly to DIU rules: 50 seats for theory, 25 for lab
+    // Still adheres strictly to DIU rules: 50 seats for theory, 25 for lab D1 & D2
     return {
       sectionName: trimmed,
-      matchingCount: 0,
+      cohortLetter,
+      matchingCount: 6,
       theory: {
         capacity: 50,
-        enrolled: 38,
-        free: 12,
-        percent: 76,
+        enrolled: 42,
+        free: 8,
+        percent: 84,
       },
-      lab: {
+      lab1: {
         capacity: 25,
-        enrolled: 16,
-        free: 9,
-        percent: 64,
+        enrolled: 14,
+        free: 11,
+        percent: 56,
       },
-      totalSeatsFree: 21,
-      overallPercent: 72,
-      courses: [],
+      lab2: {
+        capacity: 25,
+        enrolled: 9,
+        free: 16,
+        percent: 36,
+      },
+      totalSeatsFree: 35,
+      overallPercent: 65,
+      courses: [
+        {
+          id: "c-cse110",
+          code: "CSE110",
+          title: "Structured Programming Language",
+          isLab: false,
+          credits: 3.0,
+          theorySection: { id: "s-cse110", name: trimmed, capacity: 50, enrolled: 44, free: 6 },
+        },
+        {
+          id: "c-cse111",
+          code: "CSE111",
+          title: "Structured Programming Language Lab",
+          isLab: true,
+          credits: 1.5,
+          lab1Section: { id: "s-cse111-1", name: `${trimmed}1`, capacity: 25, enrolled: 12, free: 13 },
+          lab2Section: { id: "s-cse111-2", name: `${trimmed}2`, capacity: 25, enrolled: 8, free: 17 },
+        },
+        {
+          id: "c-mat101",
+          code: "MAT101",
+          title: "Differential and Integral Calculus",
+          isLab: false,
+          credits: 3.0,
+          theorySection: { id: "s-mat101", name: trimmed, capacity: 50, enrolled: 42, free: 8 },
+        },
+        {
+          id: "c-eng101",
+          code: "ENG101",
+          title: "Basic English Language Skills",
+          isLab: false,
+          credits: 3.0,
+          theorySection: { id: "s-eng101", name: trimmed, capacity: 50, enrolled: 48, free: 2 },
+        },
+        {
+          id: "c-phy111",
+          code: "PHY111",
+          title: "Physics: Mechanics, Waves and Optics",
+          isLab: false,
+          credits: 3.0,
+          theorySection: { id: "s-phy111", name: trimmed, capacity: 50, enrolled: 39, free: 11 },
+        },
+        {
+          id: "c-cse123",
+          code: "CSE123",
+          title: "Data Structures Lab",
+          isLab: true,
+          credits: 1.5,
+          lab1Section: { id: "s-cse123-1", name: `${trimmed}1`, capacity: 25, enrolled: 11, free: 14 },
+          lab2Section: { id: "s-cse123-2", name: `${trimmed}2`, capacity: 25, enrolled: 9, free: 16 },
+        },
+      ],
     };
-  }, [desiredSection, eligibleCourses]);
+  }, [desiredSection, eligibleCourses, cohortLetter]);
 
   // Search State: Single prominent search field, debounced
   const [searchInput, setSearchInput] = React.useState("");
@@ -270,7 +477,10 @@ export function UnifiedCoursesWorkspace({
     const seedEligible = eligibleCourses.slice(0, 3);
     seedEligible.forEach((co) => {
       const available = getCourseSections(co.id);
+      const isLab = co.title.toLowerCase().includes("lab") || (co.credits ?? 1.5) <= 1.5;
+      const targetSubgroupName = `69_D1`;
       const sec =
+        (isLab ? available.find((s) => s.section_name.toUpperCase() === targetSubgroupName) : null) ||
         available.find((s) => s.section_name.includes("69_D") || s.section_name.includes("60_A")) ||
         available[0] ||
         MOCK_SECTIONS[0];
@@ -283,6 +493,30 @@ export function UnifiedCoursesWorkspace({
 
     return items;
   });
+
+  // Select lab subgroup ("1" or "2") and sync existing selected lab courses
+  const handleSelectLabSubgroup = (subgroup: "1" | "2") => {
+    setPreferredLabSubgroup(subgroup);
+    setSelectedCourses((prev) =>
+      prev.map((item) => {
+        const isLab =
+          item.course.title.toLowerCase().includes("lab") ||
+          (item.course.credits ?? 1.5) <= 1.5 ||
+          item.section.capacity === 25;
+        if (!isLab) return item;
+
+        const available = getCourseSections(item.course.id);
+        const targetSubgroupName = `${desiredSection.trim()}${subgroup}`.toUpperCase();
+        const matched =
+          available.find((s) => s.section_name.toUpperCase() === targetSubgroupName) ||
+          available.find((s) => s.section_name.toUpperCase().endsWith(subgroup));
+        if (matched) {
+          return { ...item, section: matched };
+        }
+        return item;
+      })
+    );
+  };
 
   // Submission State
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -361,7 +595,13 @@ export function UnifiedCoursesWorkspace({
     }
 
     const available = getCourseSections(course.id);
+    const isLab = course.title.toLowerCase().includes("lab") || (course.credits ?? 1.5) <= 1.5;
+    const targetSubgroupName = `${desiredSection.trim()}${preferredLabSubgroup}`.toUpperCase();
     const targetSection =
+      (isLab
+        ? available.find((s) => s.section_name.toUpperCase() === targetSubgroupName) ||
+          available.find((s) => s.section_name.toUpperCase().endsWith(preferredLabSubgroup))
+        : null) ||
       available.find((s) => s.section_name.toLowerCase().includes(desiredSection.trim().toLowerCase())) ||
       available[0];
 
@@ -788,6 +1028,115 @@ export function UnifiedCoursesWorkspace({
               </div>
             </div>
 
+            {/* Laboratory Subgroup Option (Lab D1 vs Lab D2) */}
+            <div className="bg-[#0b0f19] border border-[#1c263c] rounded-xl p-4 sm:p-5 space-y-3.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-[#1c263c]">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-8 w-8 rounded-lg bg-purple-950/80 border border-purple-800 flex items-center justify-center text-purple-400">
+                    <FlaskConical className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs font-semibold text-white">
+                        Laboratory Subgroup Selection for Section {desiredSection || "69_D"}
+                      </label>
+                      <span className="text-[10px] font-mono text-purple-300 bg-purple-950/80 border border-purple-800 px-2 py-0.2 rounded-full">
+                        Fixed 25 Cap per Lab
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#8e9db2]">
+                      In DIU, theory sections (50 cap) split into two 25-capacity lab cohorts: <strong>Lab {cohortLetter}1</strong> and <strong>Lab {cohortLetter}2</strong>
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs font-mono font-medium text-purple-300 bg-purple-950/60 border border-purple-800/80 px-2.5 py-1 rounded-lg self-start sm:self-auto">
+                  Active: Lab {cohortLetter}{preferredLabSubgroup}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                {/* Subgroup 1 Option Card */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectLabSubgroup("1")}
+                  className={`text-left p-3.5 rounded-xl border transition-all cursor-pointer ${
+                    preferredLabSubgroup === "1"
+                      ? "bg-purple-950/30 border-purple-500 shadow-xs ring-1 ring-purple-500/50"
+                      : "bg-[#121827] border-[#1c263c] hover:border-slate-600"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`h-4 w-4 rounded-full border flex items-center justify-center ${
+                          preferredLabSubgroup === "1"
+                            ? "border-purple-400 bg-purple-500 text-white"
+                            : "border-slate-600 bg-transparent"
+                        }`}
+                      >
+                        {preferredLabSubgroup === "1" && <Check className="h-2.5 w-2.5 stroke-[3]" />}
+                      </span>
+                      <span className="text-sm font-bold font-mono text-white">
+                        Lab {cohortLetter}1
+                      </span>
+                      <span className="text-[11px] font-mono text-slate-400">
+                        ({desiredSection.trim() || "69_D"}1)
+                      </span>
+                    </div>
+                    <span className="text-[11px] font-mono font-semibold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/60">
+                      {desiredSectionStats?.lab1?.free ?? 13} Seats Free
+                    </span>
+                  </div>
+                  <div className="mt-2 text-xs text-[#8e9db2] flex items-center justify-between">
+                    <span>Lab Cohort 1 • 25 Seat Limit</span>
+                    <span className="font-mono text-slate-300">
+                      {desiredSectionStats?.lab1?.enrolled ?? 12} / 25 Enrolled
+                    </span>
+                  </div>
+                </button>
+
+                {/* Subgroup 2 Option Card */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectLabSubgroup("2")}
+                  className={`text-left p-3.5 rounded-xl border transition-all cursor-pointer ${
+                    preferredLabSubgroup === "2"
+                      ? "bg-purple-950/30 border-purple-500 shadow-xs ring-1 ring-purple-500/50"
+                      : "bg-[#121827] border-[#1c263c] hover:border-slate-600"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`h-4 w-4 rounded-full border flex items-center justify-center ${
+                          preferredLabSubgroup === "2"
+                            ? "border-purple-400 bg-purple-500 text-white"
+                            : "border-slate-600 bg-transparent"
+                        }`}
+                      >
+                        {preferredLabSubgroup === "2" && <Check className="h-2.5 w-2.5 stroke-[3]" />}
+                      </span>
+                      <span className="text-sm font-bold font-mono text-white">
+                        Lab {cohortLetter}2
+                      </span>
+                      <span className="text-[11px] font-mono text-slate-400">
+                        ({desiredSection.trim() || "69_D"}2)
+                      </span>
+                    </div>
+                    <span className="text-[11px] font-mono font-semibold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/60">
+                      {desiredSectionStats?.lab2?.free ?? 17} Seats Free
+                    </span>
+                  </div>
+                  <div className="mt-2 text-xs text-[#8e9db2] flex items-center justify-between">
+                    <span>Lab Cohort 2 • 25 Seat Limit</span>
+                    <span className="font-mono text-slate-300">
+                      {desiredSectionStats?.lab2?.enrolled ?? 8} / 25 Enrolled
+                    </span>
+                  </div>
+                </button>
+              </div>
+            </div>
+
             {/* ========================================================================= */}
             {/* LIVE DESIRED SECTION SEAT CAPACITY DISPLAY (RIGHT DOWN UNDERNEATH)        */}
             {/* ========================================================================= */}
@@ -833,8 +1182,8 @@ export function UnifiedCoursesWorkspace({
                   </div>
                 </div>
 
-                {/* Dual Seat Metric Cards: Theory (50 Cap) & Lab (25 Cap) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Triple Seat Metric Cards: Theory (50 Cap), Lab 1 (25 Cap), Lab 2 (25 Cap) */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                   {/* Metric 1: Theory Lectures (50 Fixed Cap) */}
                   <div className="p-4 rounded-xl bg-[#0f172a]/60 border border-[#1e293b] space-y-2.5">
                     <div className="flex items-center justify-between text-xs">
@@ -869,46 +1218,114 @@ export function UnifiedCoursesWorkspace({
                     />
 
                     <p className="text-[10px] text-[#8e9db2] pt-0.5">
-                      DIU Academic Standard: 50 seats maximum per Theory lecture section.
+                      Section {desiredSectionStats.sectionName} lecture cohort (50 seats cap).
                     </p>
                   </div>
 
-                  {/* Metric 2: Lab Courses (25 Fixed Cap) */}
-                  <div className="p-4 rounded-xl bg-[#0f172a]/60 border border-[#1e293b] space-y-2.5">
+                  {/* Metric 2: Lab Subgroup 1 (25 Fixed Cap) */}
+                  <div className={`p-4 rounded-xl border space-y-2.5 transition-all ${
+                    preferredLabSubgroup === "1"
+                      ? "bg-[#131b2e] border-purple-500/70 ring-1 ring-purple-500/40"
+                      : "bg-[#0f172a]/60 border-[#1e293b]"
+                  }`}>
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-1.5 text-slate-300 font-semibold">
-                        <Layers className="h-3.5 w-3.5 text-purple-400" />
-                        <span>Laboratory Courses (Fixed 25 Cap)</span>
+                        <FlaskConical className="h-3.5 w-3.5 text-purple-400" />
+                        <span>Lab {desiredSectionStats.cohortLetter}1 Subgroup (25 Cap)</span>
                       </div>
                       <span className="text-[11px] font-mono text-emerald-400 font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/80">
-                        {desiredSectionStats.lab.free} Seats Free
+                        {desiredSectionStats.lab1.free} Seats Free
                       </span>
                     </div>
 
                     <div className="flex items-baseline justify-between text-xs">
                       <span className="text-2xl font-bold font-mono text-white">
-                        {desiredSectionStats.lab.enrolled}
+                        {desiredSectionStats.lab1.enrolled}
                         <span className="text-sm font-normal text-slate-400 ml-1">/ 25 Enrolled</span>
                       </span>
                       <span className="text-xs font-mono text-slate-400">
-                        {desiredSectionStats.lab.percent}% Occupied
+                        {desiredSectionStats.lab1.percent}% Occupied
                       </span>
                     </div>
 
                     <Progress
-                      value={desiredSectionStats.lab.percent}
+                      value={desiredSectionStats.lab1.percent}
                       className={`h-2 ${
-                        desiredSectionStats.lab.percent >= 96
+                        desiredSectionStats.lab1.percent >= 96
                           ? "[&>div]:bg-rose-500"
-                          : desiredSectionStats.lab.percent >= 80
+                          : desiredSectionStats.lab1.percent >= 80
                           ? "[&>div]:bg-amber-400"
                           : "[&>div]:bg-purple-500"
                       }`}
                     />
 
-                    <p className="text-[10px] text-[#8e9db2] pt-0.5">
-                      DIU Academic Standard: 25 seats maximum per Computer/Hardware Lab section.
-                    </p>
+                    <div className="flex items-center justify-between text-[10px] pt-0.5">
+                      <span className="text-[#8e9db2]">Section {desiredSectionStats.sectionName}1</span>
+                      {preferredLabSubgroup === "1" ? (
+                        <span className="font-mono font-semibold text-purple-300">✓ Active Selection</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleSelectLabSubgroup("1")}
+                          className="font-mono text-slate-400 hover:text-purple-300 underline cursor-pointer"
+                        >
+                          Select Lab {desiredSectionStats.cohortLetter}1
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Metric 3: Lab Subgroup 2 (25 Fixed Cap) */}
+                  <div className={`p-4 rounded-xl border space-y-2.5 transition-all ${
+                    preferredLabSubgroup === "2"
+                      ? "bg-[#131b2e] border-purple-500/70 ring-1 ring-purple-500/40"
+                      : "bg-[#0f172a]/60 border-[#1e293b]"
+                  }`}>
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1.5 text-slate-300 font-semibold">
+                        <FlaskConical className="h-3.5 w-3.5 text-purple-400" />
+                        <span>Lab {desiredSectionStats.cohortLetter}2 Subgroup (25 Cap)</span>
+                      </div>
+                      <span className="text-[11px] font-mono text-emerald-400 font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/80">
+                        {desiredSectionStats.lab2.free} Seats Free
+                      </span>
+                    </div>
+
+                    <div className="flex items-baseline justify-between text-xs">
+                      <span className="text-2xl font-bold font-mono text-white">
+                        {desiredSectionStats.lab2.enrolled}
+                        <span className="text-sm font-normal text-slate-400 ml-1">/ 25 Enrolled</span>
+                      </span>
+                      <span className="text-xs font-mono text-slate-400">
+                        {desiredSectionStats.lab2.percent}% Occupied
+                      </span>
+                    </div>
+
+                    <Progress
+                      value={desiredSectionStats.lab2.percent}
+                      className={`h-2 ${
+                        desiredSectionStats.lab2.percent >= 96
+                          ? "[&>div]:bg-rose-500"
+                          : desiredSectionStats.lab2.percent >= 80
+                          ? "[&>div]:bg-amber-400"
+                          : "[&>div]:bg-purple-500"
+                      }`}
+                    />
+
+                    <div className="flex items-center justify-between text-[10px] pt-0.5">
+                      <span className="text-[#8e9db2]">Section {desiredSectionStats.sectionName}2</span>
+                      {preferredLabSubgroup === "2" ? (
+                        <span className="font-mono font-semibold text-purple-300">✓ Active Selection</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleSelectLabSubgroup("2")}
+                          className="font-mono text-slate-400 hover:text-purple-300 underline cursor-pointer"
+                        >
+                          Select Lab {desiredSectionStats.cohortLetter}2
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -941,56 +1358,105 @@ export function UnifiedCoursesWorkspace({
                         <table className="w-full text-left text-xs">
                           <thead className="bg-[#121827] text-slate-400 uppercase text-[10px] tracking-wider border-b border-[#1c263c]">
                             <tr>
-                              <th className="py-2 px-3">Course</th>
-                              <th className="py-2 px-3">Type</th>
-                              <th className="py-2 px-3">Room</th>
-                              <th className="py-2 px-3">Enrolled</th>
-                              <th className="py-2 px-3 text-right">Available Seats</th>
+                              <th className="py-2.5 px-3">Course</th>
+                              <th className="py-2.5 px-3">Type</th>
+                              <th className="py-2.5 px-3">Section / Lab Subgroup Option</th>
+                              <th className="py-2.5 px-3">Enrolled</th>
+                              <th className="py-2.5 px-3 text-right">Available Seats</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-[#1c263c]">
-                            {desiredSectionStats.courses.map((c) => (
-                              <tr key={c.id} className="hover:bg-[#121827]/40 transition-colors">
-                                <td className="py-2 px-3">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="font-mono font-bold text-white">{c.code}</span>
-                                    <span className="text-[11px] text-[#8e9db2] truncate max-w-[200px] sm:max-w-xs">
-                                      {c.title}
+                            {desiredSectionStats.courses.map((c) => {
+                              const activeLab = preferredLabSubgroup === "1" ? c.lab1Section : c.lab2Section;
+                              const enrolledCount = c.isLab
+                                ? activeLab?.enrolled ?? 12
+                                : c.theorySection?.enrolled ?? 42;
+                              const capacityCount = c.isLab ? 25 : 50;
+                              const freeCount = c.isLab
+                                ? activeLab?.free ?? 13
+                                : c.theorySection?.free ?? 8;
+
+                              return (
+                                <tr key={c.id} className="hover:bg-[#121827]/40 transition-colors">
+                                  <td className="py-2.5 px-3">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-mono font-bold text-white">{c.code}</span>
+                                      <span className="text-[11px] text-[#8e9db2] truncate max-w-[180px] sm:max-w-xs">
+                                        {c.title}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="py-2.5 px-3">
+                                    <span
+                                      className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-medium ${
+                                        c.isLab
+                                          ? "bg-purple-950 text-purple-300 border border-purple-800"
+                                          : "bg-blue-950 text-blue-300 border border-blue-800"
+                                      }`}
+                                    >
+                                      {c.isLab ? "Lab (25 Cap)" : "Theory (50 Cap)"}
                                     </span>
-                                  </div>
-                                </td>
-                                <td className="py-2 px-3">
-                                  <span
-                                    className={`px-1.5 py-0.2 rounded text-[10px] font-mono font-medium ${
-                                      c.isLab
-                                        ? "bg-purple-950 text-purple-300 border border-purple-800"
-                                        : "bg-blue-950 text-blue-300 border border-blue-800"
-                                    }`}
-                                  >
-                                    {c.isLab ? "Lab (25 Cap)" : "Theory (50 Cap)"}
-                                  </span>
-                                </td>
-                                <td className="py-2 px-3 font-mono text-slate-300 text-[11px]">
-                                  {c.room || "AB4-TBA"}
-                                </td>
-                                <td className="py-2 px-3 font-mono text-slate-200">
-                                  {c.enrolled} / {c.capacity}
-                                </td>
-                                <td className="py-2 px-3 text-right">
-                                  <span
-                                    className={`font-mono text-xs font-semibold px-2 py-0.5 rounded ${
-                                      c.free > 5
-                                        ? "text-emerald-400 bg-emerald-950/60"
-                                        : c.free > 0
-                                        ? "text-amber-400 bg-amber-950/60"
-                                        : "text-rose-400 bg-rose-950/60"
-                                    }`}
-                                  >
-                                    {c.free > 0 ? `${c.free} free` : "Full"}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
+                                  </td>
+                                  <td className="py-2.5 px-3">
+                                    {c.isLab ? (
+                                      <div className="inline-flex items-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSelectLabSubgroup("1")}
+                                          className={`px-2 py-0.5 rounded text-[11px] font-mono font-semibold transition-all cursor-pointer border ${
+                                            preferredLabSubgroup === "1"
+                                              ? "bg-purple-900/80 text-purple-200 border-purple-500 shadow-xs ring-1 ring-purple-500/40"
+                                              : "bg-[#121827] text-slate-400 border-[#1c263c] hover:text-slate-200"
+                                          }`}
+                                          title={`Select Lab ${desiredSectionStats.cohortLetter}1 (${c.lab1Section?.free ?? 13} seats free)`}
+                                        >
+                                          {preferredLabSubgroup === "1" ? "✓ " : ""}Lab {desiredSectionStats.cohortLetter}1
+                                          <span className="text-[10px] ml-1 opacity-75">({c.lab1Section?.free ?? 13} free)</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSelectLabSubgroup("2")}
+                                          className={`px-2 py-0.5 rounded text-[11px] font-mono font-semibold transition-all cursor-pointer border ${
+                                            preferredLabSubgroup === "2"
+                                              ? "bg-purple-900/80 text-purple-200 border-purple-500 shadow-xs ring-1 ring-purple-500/40"
+                                              : "bg-[#121827] text-slate-400 border-[#1c263c] hover:text-slate-200"
+                                          }`}
+                                          title={`Select Lab ${desiredSectionStats.cohortLetter}2 (${c.lab2Section?.free ?? 17} seats free)`}
+                                        >
+                                          {preferredLabSubgroup === "2" ? "✓ " : ""}Lab {desiredSectionStats.cohortLetter}2
+                                          <span className="text-[10px] ml-1 opacity-75">({c.lab2Section?.free ?? 17} free)</span>
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <span className="font-mono text-slate-300 text-xs px-2 py-0.5 rounded bg-[#121827] border border-[#1c263c]">
+                                        Section {desiredSectionStats.sectionName}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-2.5 px-3 font-mono text-slate-200">
+                                    {enrolledCount} / {capacityCount}
+                                    {c.isLab && (
+                                      <span className="text-[10px] text-purple-400 ml-1.5 font-normal">
+                                        (Lab {desiredSectionStats.cohortLetter}{preferredLabSubgroup})
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-right">
+                                    <span
+                                      className={`font-mono text-xs font-semibold px-2 py-0.5 rounded ${
+                                        freeCount > 5
+                                          ? "text-emerald-400 bg-emerald-950/60"
+                                          : freeCount > 0
+                                          ? "text-amber-400 bg-amber-950/60"
+                                          : "text-rose-400 bg-rose-950/60"
+                                      }`}
+                                    >
+                                      {freeCount > 0 ? `${freeCount} free` : "Full"}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -1210,19 +1676,58 @@ export function UnifiedCoursesWorkspace({
                       {isSelected && selectedItem && (
                         <div className="mt-3 pt-3 border-t border-[#1c263c] flex flex-wrap items-center justify-between gap-3 text-xs bg-[#0b0f19]/60 p-2.5 rounded-lg">
                           {/* Class Section Selection */}
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span className="text-[#8e9db2] font-medium text-[11px]">Class Section:</span>
+                            {isLab && availableSections.some((s) => s.section_name.toUpperCase().endsWith("1") || s.section_name.toUpperCase().endsWith("2")) && (
+                              <div className="inline-flex rounded-lg bg-[#121827] p-0.5 border border-[#1c263c]">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const s1 = availableSections.find((s) => s.section_name.toUpperCase().endsWith("1"));
+                                    if (s1) handleSectionChange(course.id, s1.id);
+                                  }}
+                                  className={`px-2 py-0.5 rounded text-[11px] font-mono font-semibold transition-all cursor-pointer ${
+                                    selectedItem.section.section_name.toUpperCase().endsWith("1")
+                                      ? "bg-purple-600 text-white shadow-xs"
+                                      : "text-[#8e9db2] hover:text-white"
+                                  }`}
+                                >
+                                  Lab {cohortLetter}1
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const s2 = availableSections.find((s) => s.section_name.toUpperCase().endsWith("2"));
+                                    if (s2) handleSectionChange(course.id, s2.id);
+                                  }}
+                                  className={`px-2 py-0.5 rounded text-[11px] font-mono font-semibold transition-all cursor-pointer ${
+                                    selectedItem.section.section_name.toUpperCase().endsWith("2")
+                                      ? "bg-purple-600 text-white shadow-xs"
+                                      : "text-[#8e9db2] hover:text-white"
+                                  }`}
+                                >
+                                  Lab {cohortLetter}2
+                                </button>
+                              </div>
+                            )}
                             {availableSections.length > 0 ? (
                               <select
                                 value={selectedItem.section.id}
                                 onChange={(e) => handleSectionChange(course.id, e.target.value)}
                                 className="text-xs font-mono bg-[#121827] border border-[#1c263c] rounded px-2.5 py-1 text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
                               >
-                                {availableSections.map((s) => (
-                                  <option key={s.id} value={s.id}>
-                                    Section {s.section_name} ({s.enrolled_count}/{s.capacity} seats)
-                                  </option>
-                                ))}
+                                {availableSections.map((s) => {
+                                  const labBadge = s.section_name.toUpperCase().endsWith("1")
+                                    ? ` (Lab ${cohortLetter}1)`
+                                    : s.section_name.toUpperCase().endsWith("2")
+                                    ? ` (Lab ${cohortLetter}2)`
+                                    : "";
+                                  return (
+                                    <option key={s.id} value={s.id}>
+                                      Section {s.section_name}{labBadge} ({s.enrolled_count}/{s.capacity} seats)
+                                    </option>
+                                  );
+                                })}
                               </select>
                             ) : (
                               <span className="font-mono text-slate-300 text-xs">
