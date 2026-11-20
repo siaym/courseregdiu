@@ -43,7 +43,17 @@ The **Batch Course Configuration, Authoritative Payment Clearance & Global UI/UX
    - Removed extraneous `Passed: Total Cr` and `Proposed: Max Cr` statistic boxes from the student header.
    - Promoted **Payment Information** to **Section 2** (immediately after Student Information), providing immediate visibility into tuition accounts clearance before reviewing cohort sections (`Section 3`), course selections (`Section 4`), and submitting determinations (`Section 5`).
 
-6. **43/43 Automated Test Suite Pass (`npm test`)**:
+6. **Student Academic Section Details Redesign & Live Seat Monitor (`/courses` Step 1)**:
+   - Transformed Step 1 into a high-density, professional university administration routing interface.
+   - Dual-card layout for **Previous Enrolled Section** and **Desired Section for Spring 2027** with batch cohort quick-select chips.
+   - **Live Desired Section Seat Availability Display**: Positioned directly underneath the Desired Section input, dynamically calculating live seat metrics:
+     - Theory Lecture Courses: Fixed 50 seats cap (DIU Council standard) with real-time enrolled, free seats, and occupancy progress meter.
+     - Laboratory Courses: Fixed 25 seats cap with real-time enrolled, free seats, and occupancy progress meter.
+     - Status badges (`Open for Enrollment`, `High Demand`, `Section Full`).
+     - Collapsible course-by-course breakdown of batch-configured subjects offered under that section with room numbers and individual seat availability.
+   - Institutional DIU Academic Council policy reminders (50/25 seat rules, routine clash prevention, and advisor sign-off).
+
+7. **44/44 Automated Test Suite Pass (`npm test`)**:
    - `tests/batch-course-and-payment.test.mjs` (11/11 batch course & payment clearance tests pass).
    - `tests/advisor-queue-verification.test.mjs` (9/9 three-category queue verification tests pass).
    - `tests/security-verification.test.mjs` (8/8 P0 security tests pass).

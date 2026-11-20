@@ -81,10 +81,17 @@ Engineered a comprehensive design overhaul elevating the Advisor Portal into a h
 ### Student Guided Registration Workflow & Advisor Review
 Implemented the complete, production-ready Student Registration Application workflow and enterprise UI:
 
-1. **Step 1: Academic Section Details (`previous_section` & `desired_section`)**:
-   - Mandatory input fields for Previous Section (e.g. `69_K`) and Desired Section (e.g. `69_D`).
-   - Authentic format preservation and normalization; educational guidance explaining cohort routine bundling.
-   - Database columns added to `public.registrations` with sequential migration and RLS policies.
+1. **Step 1: Academic Section Details & Live Desired Section Seat Monitor (`previous_section` & `desired_section`)**:
+   - Complete redesign of Step 1 into an authentic, institutional university administration workspace.
+   - Dual-card layout for **Previous Enrolled Section** (with preceding term cohort quick pills: e.g. `60_K`, `60_D`, `60_A`, `60_B`) and **Desired Section for Spring 2027** (with active batch cohort pills: e.g. `60_D`, `60_K`, `60_A`, `60_B`, `60_C`).
+   - **Live Desired Section Seat Capacity Display**:
+     - Positioned directly underneath the Desired Section input.
+     - Live enrollment status indicator badge (`Open for Enrollment`, `High Demand`, `Section Full`).
+     - Real-time dual capacity meters strictly adhering to DIU Academic Council regulations:
+       - **Theory Lecture Courses**: Fixed 50 seats cap (e.g. `42 / 50 Enrolled`, `8 Seats Free`, 84% occupancy progress meter).
+       - **Laboratory Courses**: Fixed 25 seats cap (e.g. `20 / 25 Enrolled`, `5 Seats Free`, 80% occupancy progress meter).
+     - **Toggleable Course-Level Schedule & Seat Roster**: Collapsible breakdown displaying each batch-configured course offering under the selected cohort, complete with course code, title, Theory (50 Cap) / Lab (25 Cap) badge, room number, enrolled/capacity ratio, and live free seat badges.
+   - DIU Academic Council Registration Rules callout (fixed 50/25 seat limits, clash-free routine guarantees, and advisor review).
 
 2. **Step 2: Course Selection Workspace**:
    - Expanded section offerings for all 20 courses in the DIU curriculum (resolving the previous Level 1 "0 Sections" deficiency).

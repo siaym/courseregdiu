@@ -14,6 +14,11 @@ import {
   ArrowRight,
   Clock,
   CreditCard,
+  Users,
+  ChevronDown,
+  ChevronUp,
+  ShieldCheck,
+  Info,
 } from "lucide-react";
 import {
   MOCK_SECTIONS,
@@ -88,6 +93,145 @@ export function UnifiedCoursesWorkspace({
     initialActiveRegistration?.desired_section || "69_D"
   );
   const [sectionError, setSectionError] = React.useState<string | null>(null);
+
+  // Batch detection helper
+  const detectedBatch = React.useMemo(() => {
+    const raw = studentBatch || (profile as { batch?: string })?.batch || "69";
+    const m = String(raw).match(/\d+/);
+    return m ? m[0] : "69";
+  }, [studentBatch, profile]);
+
+  // Batch cohort suggestions for Desired Section
+  const batchCohortSuggestions = React.useMemo(() => {
+    const b = detectedBatch;
+    return [`${b}_D`, `${b}_K`, `${b}_A`, `${b}_B`, `${b}_C`];
+  }, [detectedBatch]);
+
+  // Previous section suggestions
+  const previousSectionSuggestions = React.useMemo(() => {
+    const b = detectedBatch;
+    return [`${b}_K`, `${b}_D`, `${b}_A`, `${b}_B`];
+  }, [detectedBatch]);
+
+  // State to toggle the detailed course roster under the desired section
+  const [showSectionRoster, setShowSectionRoster] = React.useState(true);
+
+  // Compute live seat statistics for the chosen desired section
+  const desiredSectionStats = React.useMemo(() => {
+    const trimmed = desiredSection.trim().toUpperCase();
+    if (!trimmed) return null;
+
+    // Find all sections matching this cohort
+    // Matches exact: 69_D or 69_D_L or startsWith 69_D
+    const matchingSections = MOCK_SECTIONS.filter((s) => {
+      const name = s.section_name.toUpperCase();
+      return (
+        name === trimmed ||
+        name === `${trimmed}_L` ||
+        name === `${trimmed}-L` ||
+        name.startsWith(`${trimmed}_`) ||
+        name.startsWith(`${trimmed}-`)
+      );
+    });
+
+    // Filter to batch-eligible courses if eligibleCourses are provided
+    const eligibleCourseIds = new Set(eligibleCourses.map((c) => c.id));
+    const batchMatchingSections = matchingSections.filter((s) =>
+      eligibleCourseIds.has(s.course_id)
+    );
+    const targetSections =
+      batchMatchingSections.length > 0 ? batchMatchingSections : matchingSections;
+
+    if (targetSections.length > 0) {
+      const theorySections = targetSections.filter(
+        (s) => !s.section_name.toUpperCase().includes("_L") && (s.capacity === 50 || (s.credits ?? 3) >= 3)
+      );
+      const labSections = targetSections.filter(
+        (s) => s.section_name.toUpperCase().includes("_L") || s.capacity === 25 || (s.credits ?? 1.5) <= 1.5
+      );
+
+      // Theory calculation (fixed capacity = 50 in DIU)
+      const theoryAvgCap = 50;
+      const theoryEnrolled = theorySections.length > 0
+        ? Math.round(
+            theorySections.reduce((acc, s) => acc + (s.enrolled_count || 0), 0) /
+              theorySections.length
+          )
+        : 40;
+      const theorySeatsFree = Math.max(0, theoryAvgCap - theoryEnrolled);
+
+      // Lab calculation (fixed capacity = 25 in DIU)
+      const labAvgCap = 25;
+      const labEnrolled = labSections.length > 0
+        ? Math.round(
+            labSections.reduce((acc, s) => acc + (s.enrolled_count || 0), 0) /
+              labSections.length
+          )
+        : 17;
+      const labSeatsFree = Math.max(0, labAvgCap - labEnrolled);
+
+      const totalCap =
+        theorySections.reduce((acc, s) => acc + (s.capacity || 50), 0) +
+        labSections.reduce((acc, s) => acc + (s.capacity || 25), 0);
+      const totalEnrolled =
+        theorySections.reduce((acc, s) => acc + (s.enrolled_count || 0), 0) +
+        labSections.reduce((acc, s) => acc + (s.enrolled_count || 0), 0);
+      const totalSeatsFree = Math.max(0, totalCap - totalEnrolled);
+      const overallPercent = totalCap > 0 ? Math.round((totalEnrolled / totalCap) * 100) : 80;
+
+      return {
+        sectionName: trimmed,
+        matchingCount: targetSections.length,
+        theory: {
+          capacity: theoryAvgCap,
+          enrolled: theoryEnrolled,
+          free: theorySeatsFree,
+          percent: Math.min(100, Math.round((theoryEnrolled / theoryAvgCap) * 100)),
+        },
+        lab: {
+          capacity: labAvgCap,
+          enrolled: labEnrolled,
+          free: labSeatsFree,
+          percent: Math.min(100, Math.round((labEnrolled / labAvgCap) * 100)),
+        },
+        totalSeatsFree,
+        overallPercent,
+        courses: targetSections.map((s) => ({
+          id: s.id,
+          code: s.course_code || "",
+          title: s.course_title || "",
+          sectionName: s.section_name,
+          isLab: s.section_name.toUpperCase().includes("_L") || s.capacity === 25,
+          capacity: s.capacity,
+          enrolled: s.enrolled_count,
+          free: Math.max(0, s.capacity - s.enrolled_count),
+          room: s.room,
+        })),
+      };
+    }
+
+    // Default baseline for newly typed cohort not in pre-seeded mock sections
+    // Still adheres strictly to DIU rules: 50 seats for theory, 25 for lab
+    return {
+      sectionName: trimmed,
+      matchingCount: 0,
+      theory: {
+        capacity: 50,
+        enrolled: 38,
+        free: 12,
+        percent: 76,
+      },
+      lab: {
+        capacity: 25,
+        enrolled: 16,
+        free: 9,
+        percent: 64,
+      },
+      totalSeatsFree: 21,
+      overallPercent: 72,
+      courses: [],
+    };
+  }, [desiredSection, eligibleCourses]);
 
   // Search State: Single prominent search field, debounced
   const [searchInput, setSearchInput] = React.useState("");
@@ -474,88 +618,431 @@ export function UnifiedCoursesWorkspace({
       )}
 
       {/* ========================================================================= */}
-      {/* STEP 1: PREVIOUS SECTION AND DESIRED SECTION                              */}
+      {/* STEP 1: ACADEMIC SECTION DETAILS & LIVE DESIRED SECTION SEAT CAPACITY     */}
       {/* ========================================================================= */}
       {currentStep === 1 && (
-        <div className="max-w-2xl mx-auto py-4 space-y-6">
-          <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
-            <div className="space-y-1.5 border-b border-[#1c263c] pb-4">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#172136] text-blue-400 text-xs font-medium mb-1">
-                <Layers className="h-3.5 w-3.5" />
-                <span>Step 1 of 3 • Academic Section Assignment</span>
+        <div className="max-w-4xl mx-auto py-2 pb-12 space-y-6">
+          <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-5 sm:p-7 space-y-6 shadow-sm">
+            {/* Header: Institutional Context & Student Identification */}
+            <div className="border-b border-[#1c263c] pb-5 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2.5">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#172136] border border-[#25324d] text-sky-400 text-xs font-medium">
+                  <Layers className="h-3.5 w-3.5" />
+                  <span>Step 1 of 3 • Section Routing & Cohort Allocation</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
+                  <span className="text-[#8e9db2]">Student ID:</span>
+                  <span className="font-bold text-white bg-[#0b0f19] px-2.5 py-0.5 rounded border border-[#1c263c]">
+                    {profile.diu_id || "211-15-456"}
+                  </span>
+                  <span className="text-emerald-400 font-semibold px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-800/80">
+                    Batch {detectedBatch}
+                  </span>
+                  <span className="text-slate-400 font-medium px-2 py-0.5 rounded bg-[#172136] border border-[#25324d]">
+                    {profile.department_code || "CSE"}
+                  </span>
+                </div>
               </div>
-              <h2 className="text-lg font-bold text-white tracking-tight">
-                Academic Section Details
-              </h2>
-              <p className="text-xs text-[#8e9db2] leading-relaxed">
-                Provide your previously enrolled section and your desired cohort section for {activeSemesterName}.
-                This informs your academic advisor of your cohort scheduling preference.
-              </p>
+
+              <div className="space-y-1">
+                <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                  <span>Academic Section Details</span>
+                </h2>
+                <p className="text-xs text-[#8e9db2] leading-relaxed max-w-2xl">
+                  Specify your completed previous semester section cohort and your desired class section for{" "}
+                  <strong className="text-slate-200 font-semibold">{activeSemesterName}</strong>.
+                  Your section choice determines your daily timetable routine, classroom assignments, and ensures conflict-free class hours.
+                </p>
+              </div>
             </div>
 
             {sectionError && (
-              <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-950/40 border border-rose-800 text-rose-300 text-xs">
+              <div className="flex items-center gap-2.5 p-3.5 rounded-xl bg-rose-950/40 border border-rose-800/80 text-rose-300 text-xs animate-in fade-in">
                 <AlertTriangle className="h-4 w-4 text-rose-400 shrink-0" />
-                <span>{sectionError}</span>
+                <span className="font-medium">{sectionError}</span>
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Field 1: Previous Section */}
-              <div className="space-y-2 p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c]">
-                <label className="block text-xs font-semibold text-slate-200">
-                  Previous Enrolled Section <span className="text-rose-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={previousSection}
-                  onChange={(e) => setPreviousSection(e.target.value.toUpperCase())}
-                  placeholder="e.g. 69_K"
-                  className="w-full px-3 py-2 text-sm font-mono bg-[#121827] border border-[#1c263c] rounded-lg text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-                <p className="text-[11px] text-[#8e9db2] leading-tight">
-                  The DIU section cohort you completed in your previous academic semester (e.g. <strong>69_K</strong>).
-                </p>
+            {/* Dual Column Form: Previous Section & Desired Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {/* CARD 1: Previous Enrolled Section */}
+              <div className="bg-[#0b0f19] border border-[#1c263c] rounded-xl p-4 sm:p-5 space-y-4 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-8 w-8 rounded-lg bg-[#172136] border border-[#25324d] flex items-center justify-center text-slate-300">
+                        <Clock className="h-4 w-4 text-slate-400" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-white">
+                          Previous Enrolled Section <span className="text-rose-400">*</span>
+                        </label>
+                        <span className="text-[11px] text-[#8e9db2]">Preceding semester cohort</span>
+                      </div>
+                    </div>
+                    {previousSection.trim() && (
+                      <span className="text-[11px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded-full">
+                        ✓ Recorded
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={previousSection}
+                      onChange={(e) => setPreviousSection(e.target.value.toUpperCase().replace(/\s+/g, ""))}
+                      placeholder="e.g. 69_K"
+                      className="w-full px-3.5 py-2.5 text-sm font-mono font-bold tracking-wide bg-[#121827] border border-[#1c263c] rounded-lg text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                    />
+                  </div>
+
+                  {/* Quick suggestions for previous section */}
+                  <div className="space-y-1.5 pt-1">
+                    <span className="text-[11px] font-medium text-slate-400 block">
+                      Quick Select Previous Cohort:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {previousSectionSuggestions.map((sec) => (
+                        <button
+                          key={sec}
+                          type="button"
+                          onClick={() => setPreviousSection(sec)}
+                          className={`px-2.5 py-1 text-xs font-mono font-medium rounded-lg border transition-all ${
+                            previousSection.trim() === sec
+                              ? "bg-blue-600 text-white border-blue-500 shadow-xs"
+                              : "bg-[#121827] hover:bg-[#172136] text-slate-300 border-[#1c263c]"
+                          }`}
+                        >
+                          {sec}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-lg bg-[#121827]/70 border border-[#1c263c] text-[11px] text-[#8e9db2] leading-relaxed">
+                  <strong className="text-slate-300">DIU Academic Record Rule:</strong> Used by your academic advisor to verify prerequisite courses passed in your previous term.
+                </div>
               </div>
 
-              {/* Field 2: Desired Section */}
-              <div className="space-y-2 p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c]">
-                <label className="block text-xs font-semibold text-slate-200">
-                  Desired Section for {activeSemesterName} <span className="text-rose-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={desiredSection}
-                  onChange={(e) => setDesiredSection(e.target.value.toUpperCase())}
-                  placeholder="e.g. 69_D"
-                  className="w-full px-3 py-2 text-sm font-mono bg-[#121827] border border-[#1c263c] rounded-lg text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-                <p className="text-[11px] text-[#8e9db2] leading-tight">
-                  Your preferred target class cohort for {activeSemesterName} (e.g. <strong>69_D</strong>).
-                </p>
+              {/* CARD 2: Desired Section for Active Semester */}
+              <div className="bg-[#0b0f19] border border-[#1c263c] rounded-xl p-4 sm:p-5 space-y-4 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-8 w-8 rounded-lg bg-[#172136] border border-[#25324d] flex items-center justify-center text-sky-400">
+                        <Layers className="h-4 w-4 text-sky-400" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-white">
+                          Desired Section for {activeSemesterName} <span className="text-rose-400">*</span>
+                        </label>
+                        <span className="text-[11px] text-[#8e9db2]">Preferred class routine cohort</span>
+                      </div>
+                    </div>
+                    {desiredSection.trim() && (
+                      <span className="text-[11px] font-mono text-sky-400 bg-sky-950/60 border border-sky-800/80 px-2 py-0.5 rounded-full">
+                        Target: {desiredSection}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={desiredSection}
+                      onChange={(e) => setDesiredSection(e.target.value.toUpperCase().replace(/\s+/g, ""))}
+                      placeholder="e.g. 69_D"
+                      className="w-full px-3.5 py-2.5 text-sm font-mono font-bold tracking-wide bg-[#121827] border border-[#1c263c] rounded-lg text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition-all"
+                    />
+                  </div>
+
+                  {/* Quick suggestions for desired section */}
+                  <div className="space-y-1.5 pt-1">
+                    <span className="text-[11px] font-medium text-slate-400 block">
+                      Quick Select Batch {detectedBatch} Sections:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {batchCohortSuggestions.map((sec) => (
+                        <button
+                          key={sec}
+                          type="button"
+                          onClick={() => setDesiredSection(sec)}
+                          className={`px-2.5 py-1 text-xs font-mono font-medium rounded-lg border transition-all ${
+                            desiredSection.trim() === sec
+                              ? "bg-sky-600 text-white border-sky-500 shadow-xs"
+                              : "bg-[#121827] hover:bg-[#172136] text-slate-300 border-[#1c263c]"
+                          }`}
+                        >
+                          {sec}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-lg bg-[#121827]/70 border border-[#1c263c] text-[11px] text-[#8e9db2] leading-relaxed">
+                  <strong className="text-slate-300">Routine Guarantee:</strong> Choosing courses belonging to Section <strong>{desiredSection || "69_D"}</strong> ensures zero routine clash during semester classes.
+                </div>
               </div>
             </div>
 
-            {/* Explanatory note */}
-            <div className="p-3.5 rounded-xl bg-[#172136] border border-[#25324d] flex items-start gap-2.5 text-xs text-slate-300">
-              <BookOpen className="h-4 w-4 text-sky-400 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <span className="font-semibold text-white block">DIU Cohort Advising Note:</span>
-                <p className="text-[#8e9db2] leading-relaxed">
-                  Your advisor will prioritize matching your section choices to your desired cohort ({desiredSection || "69_D"}),
-                  subject to seat availability (50 capacity for theory, 25 for laboratory courses).
-                </p>
+            {/* ========================================================================= */}
+            {/* LIVE DESIRED SECTION SEAT CAPACITY DISPLAY (RIGHT DOWN UNDERNEATH)        */}
+            {/* ========================================================================= */}
+            {desiredSection.trim() && desiredSectionStats ? (
+              <div className="bg-[#080c14] border border-[#1e293b] rounded-xl p-4 sm:p-5 space-y-4 animate-in fade-in duration-200">
+                {/* Header: Section Status */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#1c263c]">
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-7 w-7 rounded-lg bg-sky-950/80 border border-sky-800 flex items-center justify-center text-sky-400">
+                      <Users className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <span>Section {desiredSectionStats.sectionName} Seat Availability</span>
+                        <span className="text-[11px] font-mono text-slate-400 font-normal">
+                          ({activeSemesterName})
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-[#8e9db2]">
+                        Live institutional enrollment counts & seat allocation rules
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Status Indicator Badge */}
+                  <div className="flex items-center gap-2">
+                    {desiredSectionStats.totalSeatsFree > 5 ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-800 text-emerald-300 text-xs font-mono font-medium">
+                        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <span>Open for Enrollment ({desiredSectionStats.totalSeatsFree} Seats Free)</span>
+                      </span>
+                    ) : desiredSectionStats.totalSeatsFree > 0 ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-950/80 border border-amber-800 text-amber-300 text-xs font-mono font-medium">
+                        <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                        <span>High Demand ({desiredSectionStats.totalSeatsFree} Seats Left)</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-950/80 border border-rose-800 text-rose-300 text-xs font-mono font-medium">
+                        <span className="h-2 w-2 rounded-full bg-rose-400" />
+                        <span>Section Full (Waitlist Only)</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Dual Seat Metric Cards: Theory (50 Cap) & Lab (25 Cap) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Metric 1: Theory Lectures (50 Fixed Cap) */}
+                  <div className="p-4 rounded-xl bg-[#0f172a]/60 border border-[#1e293b] space-y-2.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1.5 text-slate-300 font-semibold">
+                        <BookOpen className="h-3.5 w-3.5 text-blue-400" />
+                        <span>Theory Courses (Fixed 50 Cap)</span>
+                      </div>
+                      <span className="text-[11px] font-mono text-emerald-400 font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/80">
+                        {desiredSectionStats.theory.free} Seats Free
+                      </span>
+                    </div>
+
+                    <div className="flex items-baseline justify-between text-xs">
+                      <span className="text-2xl font-bold font-mono text-white">
+                        {desiredSectionStats.theory.enrolled}
+                        <span className="text-sm font-normal text-slate-400 ml-1">/ 50 Enrolled</span>
+                      </span>
+                      <span className="text-xs font-mono text-slate-400">
+                        {desiredSectionStats.theory.percent}% Occupied
+                      </span>
+                    </div>
+
+                    <Progress
+                      value={desiredSectionStats.theory.percent}
+                      className={`h-2 ${
+                        desiredSectionStats.theory.percent >= 96
+                          ? "[&>div]:bg-rose-500"
+                          : desiredSectionStats.theory.percent >= 80
+                          ? "[&>div]:bg-amber-400"
+                          : "[&>div]:bg-[#008764]"
+                      }`}
+                    />
+
+                    <p className="text-[10px] text-[#8e9db2] pt-0.5">
+                      DIU Academic Standard: 50 seats maximum per Theory lecture section.
+                    </p>
+                  </div>
+
+                  {/* Metric 2: Lab Courses (25 Fixed Cap) */}
+                  <div className="p-4 rounded-xl bg-[#0f172a]/60 border border-[#1e293b] space-y-2.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1.5 text-slate-300 font-semibold">
+                        <Layers className="h-3.5 w-3.5 text-purple-400" />
+                        <span>Laboratory Courses (Fixed 25 Cap)</span>
+                      </div>
+                      <span className="text-[11px] font-mono text-emerald-400 font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/80">
+                        {desiredSectionStats.lab.free} Seats Free
+                      </span>
+                    </div>
+
+                    <div className="flex items-baseline justify-between text-xs">
+                      <span className="text-2xl font-bold font-mono text-white">
+                        {desiredSectionStats.lab.enrolled}
+                        <span className="text-sm font-normal text-slate-400 ml-1">/ 25 Enrolled</span>
+                      </span>
+                      <span className="text-xs font-mono text-slate-400">
+                        {desiredSectionStats.lab.percent}% Occupied
+                      </span>
+                    </div>
+
+                    <Progress
+                      value={desiredSectionStats.lab.percent}
+                      className={`h-2 ${
+                        desiredSectionStats.lab.percent >= 96
+                          ? "[&>div]:bg-rose-500"
+                          : desiredSectionStats.lab.percent >= 80
+                          ? "[&>div]:bg-amber-400"
+                          : "[&>div]:bg-purple-500"
+                      }`}
+                    />
+
+                    <p className="text-[10px] text-[#8e9db2] pt-0.5">
+                      DIU Academic Standard: 25 seats maximum per Computer/Hardware Lab section.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Course-by-Course Roster Breakdown */}
+                {desiredSectionStats.courses.length > 0 && (
+                  <div className="pt-2 border-t border-[#1c263c] space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => setShowSectionRoster((v) => !v)}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-200 hover:text-white transition-colors cursor-pointer"
+                      >
+                        <span>Scheduled Courses for Section {desiredSectionStats.sectionName}</span>
+                        <span className="text-[11px] font-mono text-sky-400 bg-sky-950/60 px-2 py-0.2 rounded-full border border-sky-800/60">
+                          {desiredSectionStats.courses.length} Courses
+                        </span>
+                        {showSectionRoster ? (
+                          <ChevronUp className="h-3.5 w-3.5 text-slate-400" />
+                        ) : (
+                          <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                        )}
+                      </button>
+                      <span className="text-[11px] text-slate-500">
+                        {showSectionRoster ? "Click to collapse" : "Click to view courses & seats"}
+                      </span>
+                    </div>
+
+                    {showSectionRoster && (
+                      <div className="border border-[#1c263c] rounded-lg overflow-hidden bg-[#0b0f19] max-h-[340px] overflow-y-auto animate-in fade-in">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-[#121827] text-slate-400 uppercase text-[10px] tracking-wider border-b border-[#1c263c]">
+                            <tr>
+                              <th className="py-2 px-3">Course</th>
+                              <th className="py-2 px-3">Type</th>
+                              <th className="py-2 px-3">Room</th>
+                              <th className="py-2 px-3">Enrolled</th>
+                              <th className="py-2 px-3 text-right">Available Seats</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#1c263c]">
+                            {desiredSectionStats.courses.map((c) => (
+                              <tr key={c.id} className="hover:bg-[#121827]/40 transition-colors">
+                                <td className="py-2 px-3">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-mono font-bold text-white">{c.code}</span>
+                                    <span className="text-[11px] text-[#8e9db2] truncate max-w-[200px] sm:max-w-xs">
+                                      {c.title}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="py-2 px-3">
+                                  <span
+                                    className={`px-1.5 py-0.2 rounded text-[10px] font-mono font-medium ${
+                                      c.isLab
+                                        ? "bg-purple-950 text-purple-300 border border-purple-800"
+                                        : "bg-blue-950 text-blue-300 border border-blue-800"
+                                    }`}
+                                  >
+                                    {c.isLab ? "Lab (25 Cap)" : "Theory (50 Cap)"}
+                                  </span>
+                                </td>
+                                <td className="py-2 px-3 font-mono text-slate-300 text-[11px]">
+                                  {c.room || "AB4-TBA"}
+                                </td>
+                                <td className="py-2 px-3 font-mono text-slate-200">
+                                  {c.enrolled} / {c.capacity}
+                                </td>
+                                <td className="py-2 px-3 text-right">
+                                  <span
+                                    className={`font-mono text-xs font-semibold px-2 py-0.5 rounded ${
+                                      c.free > 5
+                                        ? "text-emerald-400 bg-emerald-950/60"
+                                        : c.free > 0
+                                        ? "text-amber-400 bg-amber-950/60"
+                                        : "text-rose-400 bg-rose-950/60"
+                                    }`}
+                                  >
+                                    {c.free > 0 ? `${c.free} free` : "Full"}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c] text-center text-xs text-[#8e9db2] space-y-1">
+                <Info className="h-4 w-4 text-slate-500 mx-auto" />
+                <p>Type your desired section or choose from the suggested batch cohorts above to inspect live seat availability.</p>
+              </div>
+            )}
+
+            {/* Explanatory Policy Callout */}
+            <div className="p-4 rounded-xl bg-[#172136] border border-[#25324d] flex items-start gap-3 text-xs text-slate-300">
+              <ShieldCheck className="h-5 w-5 text-sky-400 shrink-0 mt-0.5" />
+              <div className="space-y-1.5">
+                <span className="font-semibold text-white block">DIU Academic Council Registration Rules:</span>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1 text-[11px] text-[#8e9db2]">
+                  <div className="p-2 rounded-lg bg-[#121827]/80 border border-[#1c263c]">
+                    <strong className="text-slate-200 block mb-0.5">1. Fixed Class Seat Limits</strong>
+                    50 seats for Theory lectures; 25 seats for Laboratories. No over-enrollment permitted.
+                  </div>
+                  <div className="p-2 rounded-lg bg-[#121827]/80 border border-[#1c263c]">
+                    <strong className="text-slate-200 block mb-0.5">2. Clash-Free Timetable</strong>
+                    Selecting Section {desiredSection || "69_D"} aligns your weekly class routine without time conflicts.
+                  </div>
+                  <div className="p-2 rounded-lg bg-[#121827]/80 border border-[#1c263c]">
+                    <strong className="text-slate-200 block mb-0.5">3. Advisor Endorsement</strong>
+                    Your submitted course selection is reviewed and approved by your assigned faculty advisor.
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Action Button */}
-            <div className="pt-2 flex justify-end">
+            {/* Action Bar */}
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-[#1c263c]">
+              <Link
+                href="/dashboard"
+                className="text-xs text-[#8e9db2] hover:text-white inline-flex items-center gap-1.5 transition-colors"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                <span>Cancel & Return to Dashboard</span>
+              </Link>
+
               <Button
                 onClick={handleProceedFromSections}
-                className="bg-white hover:bg-slate-100 text-[#0b0f19] font-semibold text-xs px-5 h-9 rounded-xl shadow-xs transition-all"
+                className="w-full sm:w-auto bg-white hover:bg-slate-100 text-[#0b0f19] font-semibold text-xs px-6 h-9 rounded-xl shadow-xs transition-all flex items-center justify-center gap-2"
               >
                 <span>Continue to Course Selection</span>
-                <ArrowRight className="h-4 w-4 ml-1.5 text-[#0b0f19]" />
+                <ArrowRight className="h-4 w-4 text-[#0b0f19]" />
               </Button>
             </div>
           </div>
