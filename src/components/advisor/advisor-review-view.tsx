@@ -293,80 +293,100 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
       {/* 1. STUDENT INFORMATION                                                    */}
       {/* ========================================================================= */}
       <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-5 sm:p-6 space-y-4 shadow-sm">
-        <div className="flex items-center gap-2.5 border-b border-[#1c263c] pb-3">
-          <User className="h-5 w-5 text-[#008764]" />
-          <h2 className="text-base font-bold text-white tracking-tight">
-            1. Student Information
-          </h2>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1c263c] pb-3">
+          <div className="flex items-center gap-2.5">
+            <User className="h-5 w-5 text-[#008764]" />
+            <h2 className="text-base font-bold text-white tracking-tight">
+              1. Student Information
+            </h2>
+          </div>
+          {/* CGPA display */}
+          <div className="flex items-center gap-2 font-mono text-xs">
+            <span className="text-slate-400">CGPA:</span>
+            <span
+              className={`px-2.5 py-0.5 rounded-lg border font-bold text-xs ${
+                application.isProbation
+                  ? "bg-rose-950/60 border-rose-800 text-rose-300"
+                  : "bg-[#0b0f19] border-[#1c263c] text-white"
+              }`}
+            >
+              {application.student.cgpa ? application.student.cgpa.toFixed(2) : "N/A"}{" "}
+              <span className="text-[11px] text-slate-500 font-normal">/ 4.00</span>
+            </span>
+            {application.isProbation && (
+              <span className="px-2 py-0.5 rounded bg-rose-950 border border-rose-800 text-rose-400 text-[10px] uppercase font-bold">
+                Probation
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-          {/* Identity & Contact Details */}
-          <div className="md:col-span-7 space-y-2.5 text-xs">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-lg font-bold text-white">
-                {application.student.full_name}
-              </span>
-              <span className="font-mono text-xs font-bold text-emerald-400 px-2 py-0.5 rounded bg-[#0b0f19] border border-[#1c263c]">
-                {application.student.diu_id}
-              </span>
-              <span className="text-xs text-slate-300">
-                Dept. of {application.student.department_code} • {application.student.batch || "60th Batch"}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 font-mono text-xs">
-              <div className="flex items-center gap-2 text-slate-300">
-                <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                <span className="truncate">{application.student.email}</span>
+        {/* Primary Identity & Contact Details */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+          {/* Primary ID & Name (7 cols) */}
+          <div className="lg:col-span-7 space-y-2">
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Prominent Student ID (Primary Identifier) */}
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-[#0b0f19] border border-emerald-800/80 text-emerald-400 font-mono text-base sm:text-lg font-bold shadow-xs">
+                <span className="text-[10px] uppercase tracking-wider text-slate-400 font-sans font-semibold">ID</span>
+                <span>{application.student.diu_id}</span>
               </div>
-              {application.student.phone && (
-                <div className="flex items-center gap-2 text-slate-300">
-                  <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                  <span>{application.student.phone}</span>
-                </div>
-              )}
+              <h3 className="text-lg font-bold text-white tracking-tight">
+                {application.student.full_name}
+              </h3>
             </div>
 
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 font-medium">
+              <span>Department of {application.student.department_code}</span>
+              <span className="text-slate-600">•</span>
+              <span className="font-mono text-slate-300">
+                {application.student.batch || "Batch"}
+              </span>
+            </div>
+          </div>
+
+          {/* Contact Details: Email & Phone (5 cols) */}
+          <div className="lg:col-span-5 space-y-2 p-3.5 rounded-xl bg-[#0b0f19] border border-[#1c263c] text-xs font-mono">
+            {/* Institutional Email */}
+            <div className="flex items-center gap-2 text-slate-200">
+              <Mail className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+              <a
+                href={`mailto:${application.student.email}`}
+                className="hover:text-sky-300 hover:underline truncate"
+                title={application.student.email}
+              >
+                {application.student.email}
+              </a>
+            </div>
+
+            {/* Phone Number */}
+            {application.student.phone && (
+              <div className="flex items-center gap-2 text-slate-200">
+                <Phone className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                <a
+                  href={`tel:${application.student.phone}`}
+                  className="hover:text-emerald-300 hover:underline"
+                >
+                  {application.student.phone}
+                </a>
+              </div>
+            )}
+
+            {/* Authorized Alternative Email (if registered) */}
             {application.student.authorized_alternative_email && (
-              <div className="p-2 rounded-lg bg-emerald-950/40 border border-emerald-800/80 text-emerald-300 text-xs font-mono flex items-center gap-2">
-                <UserCheck className="h-4 w-4 text-emerald-400 shrink-0" />
-                <span>
-                  Authorized Alternative Email: <strong>{application.student.authorized_alternative_email}</strong> (Admin Authorized)
+              <div className="pt-2 border-t border-[#1c263c] flex items-center gap-1.5 text-[11px] text-emerald-400">
+                <UserCheck className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+                <span className="text-slate-400 font-sans">Alt:</span>
+                <span className="truncate">{application.student.authorized_alternative_email}</span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 border border-emerald-800 text-emerald-300 shrink-0 ml-auto font-sans">
+                  Verified
                 </span>
               </div>
             )}
           </div>
-
-          {/* Academic Standing Cards */}
-          <div className="md:col-span-5 grid grid-cols-3 gap-2 bg-[#0b0f19] p-3.5 rounded-xl border border-[#1c263c] text-xs font-mono">
-            <div className="space-y-1">
-              <span className="text-slate-400 text-xs block">CGPA:</span>
-              <strong className={`text-base block ${application.isProbation ? "text-rose-400 font-bold" : "text-white"}`}>
-                {application.student.cgpa?.toFixed(2)}
-              </strong>
-              <span className="text-slate-500 text-[11px]">Scale: 4.00</span>
-            </div>
-
-            <div className="space-y-1 border-l border-[#1c263c] pl-3">
-              <span className="text-slate-400 text-xs block">Passed:</span>
-              <strong className="text-base text-slate-200 block">
-                {application.student.completed_credits}
-              </strong>
-              <span className="text-slate-500 text-[11px]">Total Cr</span>
-            </div>
-
-            <div className="space-y-1 border-l border-[#1c263c] pl-3">
-              <span className="text-slate-400 text-xs block">Proposed:</span>
-              <strong className={`text-base block ${isOverloaded ? "text-rose-400 font-bold" : "text-emerald-400"}`}>
-                {totalCredits.toFixed(1)}
-              </strong>
-              <span className="text-slate-500 text-[11px]">Max: {creditRules.maxCredits.toFixed(1)} Cr</span>
-            </div>
-          </div>
         </div>
 
-        {/* Academic Warning Alerts if probation or prerequisite issues */}
+        {/* Academic Warning Alerts if probation */}
         {application.isProbation && (
           <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-800 text-rose-300 text-xs flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -376,13 +396,72 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. SECTION INFORMATION                                                    */}
+      {/* 2. PAYMENT INFORMATION (Promoted after Student Information)               */}
+      {/* ========================================================================= */}
+      <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-5 sm:p-6 space-y-4 shadow-sm">
+        <div className="flex items-center justify-between border-b border-[#1c263c] pb-3">
+          <div className="flex items-center gap-2.5">
+            <CreditCard className="h-5 w-5 text-[#008764]" />
+            <h2 className="text-base font-bold text-white tracking-tight">
+              2. Payment Information
+            </h2>
+          </div>
+
+          <div className="shrink-0">
+            {application.registration.payment_cleared ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950/80 border border-emerald-800 text-emerald-300">
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                <span>Tuition Accounts Cleared</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-950/80 border border-rose-800 text-rose-300">
+                <AlertTriangle className="h-3.5 w-3.5 text-rose-400" />
+                <span>Financial Clearance Hold</span>
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c] flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
+          <div className="space-y-1.5">
+            <div className="text-slate-300 font-semibold flex items-center gap-2">
+              <span>Accounts Clearance Status:</span>
+              {application.registration.payment_cleared ? (
+                <span className="text-emerald-400 font-bold">Verified by Finance & Accounts</span>
+              ) : (
+                <span className="text-rose-400 font-bold">Financial Hold: Clearance Pending</span>
+              )}
+            </div>
+            <div className="text-slate-400 text-xs flex flex-wrap items-center gap-2">
+              <span>Accounts Audit Voucher:</span>
+              <strong className="font-mono text-emerald-400 bg-[#121827] px-2 py-0.5 rounded border border-[#1c263c]">
+                {application.registration.payment_reference || "DIU-AC-2027-4561"}
+              </strong>
+            </div>
+          </div>
+
+          <div className="text-xs text-slate-400 sm:text-right">
+            {application.registration.payment_cleared ? (
+              <p className="text-[#8e9db2] text-[11px] leading-relaxed max-w-xs">
+                Minimum 50% semester advance tuition fee confirmed. Student is academically eligible for advising authorization.
+              </p>
+            ) : (
+              <p className="text-rose-400 text-[11px] leading-relaxed max-w-xs">
+                Student has outstanding tuition balances. Advising approval should only proceed if special departmental clearance is granted.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 3. SECTION INFORMATION                                                    */}
       {/* ========================================================================= */}
       <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-5 sm:p-6 space-y-4 shadow-sm">
         <div className="flex items-center gap-2.5 border-b border-[#1c263c] pb-3">
           <Layers className="h-5 w-5 text-[#008764]" />
           <h2 className="text-base font-bold text-white tracking-tight">
-            2. Section Information
+            3. Section Information
           </h2>
         </div>
 
@@ -411,20 +490,30 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
       </div>
 
       {/* ========================================================================= */}
-      {/* 3. COURSE SELECTION                                                       */}
+      {/* 4. COURSE SELECTION                                                       */}
       {/* ========================================================================= */}
       <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-5 sm:p-6 space-y-4 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#1c263c] pb-3">
           <div className="flex items-center gap-2.5">
             <BookOpen className="h-5 w-5 text-[#008764]" />
             <h2 className="text-base font-bold text-white tracking-tight">
-              3. Course Selection
+              4. Course Selection
             </h2>
           </div>
           <div className="text-xs font-mono text-slate-300">
             Total Load: <strong className="text-white">{items.length} Courses</strong> • <strong className="text-emerald-400">{totalCredits.toFixed(1)} Credits</strong> ({generalCount} General, {retakeCount} Retake)
           </div>
         </div>
+
+        {/* Credit Overload Warning if applicable */}
+        {isOverloaded && (
+          <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-800 text-amber-300 text-xs flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
+            <span>
+              Credit Load Alert: Proposed total load ({totalCredits.toFixed(1)} Cr) exceeds standard cap of {creditRules.maxCredits.toFixed(1)} Cr for CGPA {application.student.cgpa?.toFixed(2)}.
+            </span>
+          </div>
+        )}
 
         {/* Table of Selected Courses */}
         <div className="border border-[#1c263c] rounded-xl overflow-hidden bg-[#0b0f19]">
@@ -519,48 +608,6 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
                 })}
               </tbody>
             </table>
-          </div>
-        </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* 4. PAYMENT INFORMATION                                                    */}
-      {/* ========================================================================= */}
-      <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-5 sm:p-6 space-y-4 shadow-sm">
-        <div className="flex items-center gap-2.5 border-b border-[#1c263c] pb-3">
-          <CreditCard className="h-5 w-5 text-[#008764]" />
-          <h2 className="text-base font-bold text-white tracking-tight">
-            4. Payment Information
-          </h2>
-        </div>
-
-        <div className="p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-          <div className="space-y-1">
-            <div className="text-slate-300 font-semibold flex items-center gap-2">
-              <span>Admin Accounts Verification Status:</span>
-              {application.registration.payment_cleared ? (
-                <span className="text-emerald-400 font-bold">Verified by Finance & Accounts</span>
-              ) : (
-                <span className="text-rose-400 font-bold">Financial Hold: Clearance Pending</span>
-              )}
-            </div>
-            <div className="text-slate-400">
-              Accounts Audit Voucher Reference: <strong className="font-mono text-slate-200">{application.registration.payment_reference || "DIU-AC-2027-4561"}</strong>
-            </div>
-          </div>
-
-          <div className="shrink-0">
-            {application.registration.payment_cleared ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-950/80 border border-emerald-800 text-emerald-300">
-                <ShieldCheck className="h-4 w-4 text-emerald-400" />
-                <span>Tuition Accounts Cleared</span>
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-rose-950/80 border border-rose-800 text-rose-300">
-                <AlertTriangle className="h-4 w-4 text-rose-400" />
-                <span>Financial Clearance Hold</span>
-              </span>
-            )}
           </div>
         </div>
       </div>

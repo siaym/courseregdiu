@@ -38,7 +38,12 @@ The **Batch Course Configuration, Authoritative Payment Clearance & Global UI/UX
    - Live operational dashboard displaying batch curriculum stats, payment clearance metrics, and quick links to admin modules.
    - Clean enterprise dark layout with Swiss Modernism design tokens from `ui-ux-pro-max`.
 
-5. **43/43 Automated Test Suite Pass (`npm test`)**:
+5. **Advisor Review Studio Hierarchy Optimization (`/advisor/review/[id]`)**:
+   - Redesigned **1. Student Information** to prioritize DIU Student ID (prominent badge), student name, department & batch, followed directly by primary contact channels (institutional email, phone number, and verified alternative email).
+   - Removed extraneous `Passed: Total Cr` and `Proposed: Max Cr` statistic boxes from the student header.
+   - Promoted **Payment Information** to **Section 2** (immediately after Student Information), providing immediate visibility into tuition accounts clearance before reviewing cohort sections (`Section 3`), course selections (`Section 4`), and submitting determinations (`Section 5`).
+
+6. **43/43 Automated Test Suite Pass (`npm test`)**:
    - `tests/batch-course-and-payment.test.mjs` (11/11 batch course & payment clearance tests pass).
    - `tests/advisor-queue-verification.test.mjs` (9/9 three-category queue verification tests pass).
    - `tests/security-verification.test.mjs` (8/8 P0 security tests pass).

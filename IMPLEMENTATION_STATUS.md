@@ -38,6 +38,11 @@
    - Live operational dashboard displaying batch curriculum stats, payment clearance metrics, and quick links to admin modules.
    - Clean enterprise dark layout with Swiss Modernism design tokens from `ui-ux-pro-max`.
 
+5. **Advisor Review Studio Hierarchy Optimization (`/advisor/review/[id]`)**:
+   - Redesigned **1. Student Information** to prioritize DIU Student ID (large prominent badge), student name, department & batch, followed directly by primary contact channels (institutional email, phone number, and verified alternative email).
+   - Removed extraneous `Passed: Total Cr` and `Proposed: Max Cr` statistic boxes from the student header.
+   - Promoted **Payment Information** to **Section 2** (immediately after Student Information), providing immediate visibility into tuition accounts clearance before reviewing cohort sections (`Section 3`), course selections (`Section 4`), and submitting determinations (`Section 5`).
+
 ### Advisor Portal UI/UX and Content Design Overhaul
 Engineered a comprehensive design overhaul elevating the Advisor Portal into a high-density, professional university administration system:
 
