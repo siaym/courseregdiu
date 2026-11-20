@@ -27,6 +27,7 @@ export const studentRegistrationSubmitSchema = z.object({
     .array(courseSelectionItemSchema)
     .min(1, "Select at least 1 course to submit registration application")
     .max(8, "Cannot register for more than 8 courses simultaneously"),
+  isPaid: z.boolean().optional().default(true),
 });
 
 export type CourseSelectionItemInput = z.infer<typeof courseSelectionItemSchema>;

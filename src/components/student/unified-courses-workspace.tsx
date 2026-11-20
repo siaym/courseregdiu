@@ -8,13 +8,12 @@ import {
   AlertTriangle,
   Trash2,
   ArrowLeft,
-  ShieldCheck,
   Check,
   Layers,
   BookOpen,
   ArrowRight,
   Clock,
-  AlertCircle,
+  CreditCard,
 } from "lucide-react";
 import {
   MOCK_SECTIONS,
@@ -70,7 +69,6 @@ export function UnifiedCoursesWorkspace({
   eligibleCourses = [],
   studentBatch = "60",
   activeSemesterName = ACTIVE_MOCK_SEMESTER_LABEL,
-  paymentClearance,
 }: UnifiedCoursesWorkspaceProps) {
   const profile = initialProfile || MOCK_STUDENT_PROFILE;
 
@@ -159,6 +157,9 @@ export function UnifiedCoursesWorkspace({
     }
     return null;
   });
+
+  // Manual payment declaration state (manually marked paid by student)
+  const [isPaid, setIsPaid] = React.useState(true);
 
   // Credit calculation
   const totalCredits = React.useMemo(() => {
@@ -306,6 +307,7 @@ export function UnifiedCoursesWorkspace({
           sectionName: c.section.section_name,
           courseType: c.courseType,
         })),
+        isPaid,
       };
 
       const result = await submitStudentRegistration(payload);
@@ -329,30 +331,21 @@ export function UnifiedCoursesWorkspace({
     }
   };
 
-  // Payment Status Badge Component
+  // Payment Status Badge Component (Student manual payment status)
   const renderPaymentBadge = () => {
-    if (!paymentClearance || paymentClearance.status === "awaiting_verification") {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-950/60 border border-amber-800/80 text-amber-300 text-xs font-medium">
-          <Clock className="h-3 w-3" />
-          <span>Payment: Awaiting Verification</span>
-        </span>
-      );
-    }
-
-    if (paymentClearance.status === "cleared") {
+    if (isPaid) {
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-950/60 border border-emerald-800/80 text-emerald-300 text-xs font-medium">
-          <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-          <span>Payment Cleared: {paymentClearance.referenceCode || "DIU-AC-2027-4561"}</span>
+          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+          <span>Payment: Paid</span>
         </span>
       );
     }
 
     return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-950/60 border border-rose-800/80 text-rose-300 text-xs font-medium">
-        <AlertCircle className="h-3.5 w-3.5 text-rose-400" />
-        <span>Payment Not Cleared (Accounts Hold)</span>
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-950/60 border border-amber-800/80 text-amber-300 text-xs font-medium">
+        <Clock className="h-3.5 w-3.5 text-amber-400" />
+        <span>Payment: Unpaid</span>
       </span>
     );
   };
@@ -872,15 +865,24 @@ export function UnifiedCoursesWorkspace({
                 )}
               </div>
 
-              {/* Verified Accounts Clearance Voucher */}
-              <div className="p-2.5 rounded-lg bg-[#0b0f19] border border-[#1c263c] flex items-center gap-2 text-[11px] text-[#8e9db2]">
-                <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" />
-                <span>
-                  Accounts Tuition:{" "}
-                  <strong className="text-white">
-                    {paymentClearance?.referenceCode || "DIU-AC-2027-4561"}
-                  </strong>
-                </span>
+              {/* Payment Status Toggle / Indicator */}
+              <div className="p-2.5 rounded-lg bg-[#0b0f19] border border-[#1c263c] flex items-center justify-between text-[11px]">
+                <div className="flex items-center gap-1.5 text-[#8e9db2]">
+                  <CreditCard className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  <span>Tuition Payment:</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsPaid((p) => !p)}
+                  className={`font-mono text-xs font-semibold px-2 py-0.5 rounded transition-colors ${
+                    isPaid
+                      ? "bg-emerald-950 text-emerald-400 border border-emerald-800"
+                      : "bg-amber-950 text-amber-400 border border-amber-800"
+                  }`}
+                  title="Click to toggle payment status"
+                >
+                  {isPaid ? "Paid ✓" : "Unpaid"}
+                </button>
               </div>
 
               {/* Classification Breakdown */}
@@ -996,18 +998,46 @@ export function UnifiedCoursesWorkspace({
               </Button>
             </div>
 
-            {/* 3. PAYMENT STATUS */}
-            <div className="p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c] flex flex-wrap items-center justify-between gap-4">
+            {/* 3. TUITION PAYMENT STATUS (Manually marked by student after doing payment) */}
+            <div className="p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="space-y-1">
                 <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                  3. Accounts Tuition Clearance Status
+                  3. Tuition Payment Status
                 </div>
-                <div className="flex items-center gap-2 pt-0.5">
-                  {renderPaymentBadge()}
+                <div className="text-xs font-semibold text-white">
+                  Have you completed your semester tuition fee payment?
                 </div>
+                <p className="text-[11px] text-[#8e9db2]">
+                  Mark this as paid if you have completed your tuition fee deposit or payment for {activeSemesterName}.
+                </p>
               </div>
-              <div className="text-[11px] text-slate-400 font-mono text-right">
-                Term: {activeSemesterName}
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsPaid(true)}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold font-mono flex items-center gap-1.5 border transition-all ${
+                    isPaid
+                      ? "bg-emerald-950/90 border-emerald-600 text-emerald-300 shadow-xs"
+                      : "bg-[#121827] border-[#1c263c] text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <CheckCircle2 className={`h-3.5 w-3.5 ${isPaid ? "text-emerald-400" : "text-slate-500"}`} />
+                  <span>Mark as Paid</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsPaid(false)}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold font-mono flex items-center gap-1.5 border transition-all ${
+                    !isPaid
+                      ? "bg-amber-950/90 border-amber-600 text-amber-300 shadow-xs"
+                      : "bg-[#121827] border-[#1c263c] text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Clock className={`h-3.5 w-3.5 ${!isPaid ? "text-amber-400" : "text-slate-500"}`} />
+                  <span>Unpaid</span>
+                </button>
               </div>
             </div>
 

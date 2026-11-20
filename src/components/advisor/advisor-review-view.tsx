@@ -27,7 +27,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   ArrowLeft,
-  ShieldCheck,
   Check,
   UserCheck,
   User,
@@ -37,6 +36,7 @@ import {
   FileCheck2,
   Mail,
   Phone,
+  Clock,
 } from "lucide-react";
 import {
   finalizeAdvisorReviewAction,
@@ -410,48 +410,32 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
           <div className="shrink-0">
             {application.registration.payment_cleared ? (
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950/80 border border-emerald-800 text-emerald-300">
-                <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-                <span>Tuition Accounts Cleared</span>
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                <span>Paid</span>
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-950/80 border border-rose-800 text-rose-300">
-                <AlertTriangle className="h-3.5 w-3.5 text-rose-400" />
-                <span>Financial Clearance Hold</span>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-950/80 border border-amber-800 text-amber-300">
+                <Clock className="h-3.5 w-3.5 text-amber-400" />
+                <span>Unpaid</span>
               </span>
             )}
           </div>
         </div>
 
-        <div className="p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c] flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
-          <div className="space-y-1">
-            <div className="text-slate-300 font-semibold flex items-center gap-2">
-              <span>Accounts Clearance Status:</span>
-              {application.registration.payment_cleared ? (
-                <span className="text-emerald-400 font-bold">Verified by Finance & Accounts</span>
-              ) : (
-                <span className="text-rose-400 font-bold">Financial Hold: Clearance Pending</span>
-              )}
-            </div>
-            <p className="text-[#8e9db2] text-[11px] leading-relaxed">
-              {application.registration.payment_cleared
-                ? "Minimum 50% semester advance tuition fee confirmed. Student is academically eligible for advising authorization."
-                : "Student has outstanding tuition balances. Advising approval should only proceed if special departmental clearance is granted."}
-            </p>
-          </div>
-
-          <div className="shrink-0">
+        <div className="p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c] text-xs space-y-1">
+          <div className="text-slate-300 font-semibold flex items-center gap-2">
+            <span>Payment Status:</span>
             {application.registration.payment_cleared ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950/80 border border-emerald-800 text-emerald-300">
-                <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-                <span>Tuition Accounts Cleared</span>
-              </span>
+              <span className="text-emerald-400 font-bold">Marked as Paid by Student</span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-950/80 border border-rose-800 text-rose-300">
-                <AlertTriangle className="h-3.5 w-3.5 text-rose-400" />
-                <span>Financial Clearance Hold</span>
-              </span>
+              <span className="text-amber-400 font-bold">Not Marked as Paid</span>
             )}
           </div>
+          <p className="text-[#8e9db2] text-[11px] leading-relaxed">
+            {application.registration.payment_cleared
+              ? "The student confirmed that tuition payment for this semester has been completed."
+              : "The student has not yet declared payment completion for this registration application."}
+          </p>
         </div>
       </div>
 

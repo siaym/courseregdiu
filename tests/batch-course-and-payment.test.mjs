@@ -226,3 +226,45 @@ test("Scenario 11: Payment status for one semester does not affect another semes
   const fallStatus = await getStudentPaymentClearance(MOCK_STUDENT_PROFILE.id, "sem-fall-2026");
   assert.equal(fallStatus, null, "Payment clearance for Fall 2026 must be isolated from Spring 2027");
 });
+
+test("Scenario 12: Student manually marks payment as Paid or Unpaid on registration submission", async () => {
+  const paidPayload = {
+    previousSection: "60_A",
+    desiredSection: "60_B",
+    isPaid: true,
+    courses: [
+      {
+        courseId: "course-cse221",
+        courseCode: "CSE221",
+        courseTitle: "Algorithms Design and Analysis",
+        credits: 3.0,
+        sectionId: "sec-cse221-60a",
+        sectionName: "60_A",
+        courseType: "general",
+      },
+    ],
+  };
+
+  const paidResult = await submitStudentRegistration(paidPayload);
+  assert.equal(paidResult.success, true, "Student registration with isPaid=true must succeed");
+
+  const unpaidPayload = {
+    previousSection: "60_A",
+    desiredSection: "60_B",
+    isPaid: false,
+    courses: [
+      {
+        courseId: "course-cse221",
+        courseCode: "CSE221",
+        courseTitle: "Algorithms Design and Analysis",
+        credits: 3.0,
+        sectionId: "sec-cse221-60a",
+        sectionName: "60_A",
+        courseType: "general",
+      },
+    ],
+  };
+
+  const unpaidResult = await submitStudentRegistration(unpaidPayload);
+  assert.equal(unpaidResult.success, true, "Student registration with isPaid=false must succeed");
+});

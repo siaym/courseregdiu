@@ -20,7 +20,6 @@ import {
   type ExtendedSection,
 } from "@/lib/mock/data";
 import { isCourseEligibleForBatch, normalizeBatch } from "@/lib/curriculum/batch-course-service";
-import { getStudentPaymentClearance } from "@/lib/payment/payment-service";
 
 export interface RegistrationSubmitResult {
   success: boolean;
@@ -57,7 +56,7 @@ export async function submitStudentRegistration(
     };
   }
 
-  const { previousSection, desiredSection, courses } = parseResult.data;
+  const { previousSection, desiredSection, courses, isPaid } = parseResult.data;
 
   // 2. Server-side session verification
   const user = await getCurrentUser();
@@ -105,16 +104,14 @@ export async function submitStudentRegistration(
     }
   }
 
-  // 5. Query verified payment clearance status from authoritative finance/accounts records
-  const paymentRecord = await getStudentPaymentClearance(profile.id, MOCK_CURRENT_SEMESTER.id);
-  const isPaymentCleared = paymentRecord ? paymentRecord.status === "cleared" : false;
-  const paymentRefCode = paymentRecord?.referenceCode || `REG-2027-SP-${Math.floor(1000 + Math.random() * 9000)}`;
+  // 5. Payment status: manually marked by the student after completing payment
+  const isPaymentCleared = typeof isPaid === "boolean" ? isPaid : true;
+  const referenceId = `REG-2027-SP-${Math.floor(1000 + Math.random() * 9000)}`;
 
   // 6. Duplicate submission prevention & Reference Generation
   const registrationId = `reg-app-${profile.id.replace(/[^a-zA-Z0-9]/g, "-")}`;
   const now = new Date();
   const submittedAt = now.toISOString();
-  const referenceId = paymentRefCode;
 
   // 7. Calculate metrics
   const totalCredits = courses.reduce((sum, c) => sum + c.credits, 0);
