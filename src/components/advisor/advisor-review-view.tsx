@@ -536,23 +536,28 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
 
         <div className="p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
           <div className="space-y-1">
-            <div className="text-slate-300 font-semibold">
-              Tuition Accounts Clearance Status:
+            <div className="text-slate-300 font-semibold flex items-center gap-2">
+              <span>Admin Accounts Verification Status:</span>
+              {application.registration.payment_cleared ? (
+                <span className="text-emerald-400 font-bold">Verified by Finance & Accounts</span>
+              ) : (
+                <span className="text-rose-400 font-bold">Financial Hold: Clearance Pending</span>
+              )}
             </div>
             <div className="text-slate-400">
-              Institutional accounts audit code: <strong className="font-mono text-slate-200">{application.registration.payment_reference || "DIU-AC-2027-4561"}</strong>
+              Accounts Audit Voucher Reference: <strong className="font-mono text-slate-200">{application.registration.payment_reference || "DIU-AC-2027-4561"}</strong>
             </div>
           </div>
 
           <div className="shrink-0">
             {application.registration.payment_cleared ? (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-950/80 border border-emerald-800 text-emerald-300">
-                <ShieldCheck className="h-4 w-4" />
+                <ShieldCheck className="h-4 w-4 text-emerald-400" />
                 <span>Tuition Accounts Cleared</span>
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-rose-950/80 border border-rose-800 text-rose-300">
-                <AlertTriangle className="h-4 w-4" />
+                <AlertTriangle className="h-4 w-4 text-rose-400" />
                 <span>Financial Clearance Hold</span>
               </span>
             )}

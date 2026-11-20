@@ -4,38 +4,42 @@
 > **To**: Incoming Engineering Agent / Phase 2 Full-Stack Team  
 > **Repository**: `courseregdiu` (`https://github.com/siaym/courseregdiu`)  
 > **Handover Date**: November 2026  
-> **Milestone Status**: Phase 1.5 Complete (100%) | P0 Security Remediation Complete (100%) | Final Auth Policy Complete (100%) | P0 Security Hardening Complete (100%) | Advisor Portal UI/UX Overhaul & 3-Category Application Center Complete (100%) | **Supabase Cloud URL Resolver & Next.js 16 Proxy Migration Complete (100%)** | Ready for Phase 2 Implementation Sprint  
+> **Milestone Status**: Phase 1.5 Complete (100%) | P0 Security Remediation Complete (100%) | Final Auth Policy Complete (100%) | P0 Security Hardening Complete (100%) | Advisor Portal UI/UX Overhaul & 3-Category Application Center Complete (100%) | Supabase Cloud URL Resolver Complete (100%) | **Batch Course Configuration, Payment Clearance & Global UI/UX Redesign Complete (100%)** | Ready for Remote Supabase Production Migration  
 
 ---
 
 ## 1. Handover Summary
 
-The **Advisor Portal UI/UX and Content Design Overhaul** cycle has been completed with full automated test coverage and zero build warnings:
+The **Batch Course Configuration, Authoritative Payment Clearance & Global UI/UX Overhaul** cycle has been completed with full automated test coverage and zero build warnings:
 
-1. **Advisor Dashboard (`/advisor`)**:
-   - Replaced redundant/decorative data with an actionable overview.
-   - 4 live metric cards linking to Application Center categories: **Pending** (`4`), **In Progress** (`1`), **Approved** (`1`), and **Not Applied** (`4`).
-   - Actionable **Pending Applications Requiring Action** section displaying students awaiting review with quick-action triggers.
+1. **Student Course Selection Workspace (`/courses`)**:
+   - Removed "All Departments" and "All Academic Levels" dropdown filters.
+   - Cohort batch gating: Students in Batch 69 see only Batch 69 courses for active semester `Spring 2027` (e.g. `CSE110`, `CSE111`, `MAT101`, `ENG101`, `PHY111`).
+   - Single prominent debounced course search by code or title with instant keyboard reset.
+   - Independent General / Retake classification per selected course (all initially defaulted to General).
+   - Removed routine/room/faculty noise from the course selection list and sidebar cart.
+   - Fixed seat capacity caps: 50 seats for theory courses, 25 seats for laboratory courses.
+   - Server-side batch course validation in `submitStudentRegistration` rejecting unconfigured courses and duplicate submissions.
 
-2. **Application Center (`/advisor/queue`)**:
-   - Segmented navigation with 3 mutually exclusive categories: **Pending**, **Approved**, and **Not Applied**.
-   - Prominent search and compact batch/sub-status filters.
-   - High-contrast, readable typography scale (minimum 12px / `text-xs`).
-   - Advising Details modal for Not Applied students with direct email reminder action.
+2. **Admin Batch Course Studio (`/admin/curriculum`)**:
+   - Interactive semester and cohort batch selector (Batch 69, Batch 60, Batch 70, Batch 59).
+   - Live roster of configured courses for each batch with credit load tracking.
+   - Searchable master catalog to add courses with server action persistence.
+   - One-click course removal from batch configuration.
 
-3. **Application Review Studio (`/advisor/review/[id]`)**:
-   - Established strict 5-part institutional information hierarchy:
-     1. **Student Information**: Standing, CGPA, completed credits, institutional email, authorized alternative personal email badge.
-     2. **Section Information**: Cohort progression (`Previous: 69_K` &rarr; `Desired: 69_D`).
-     3. **Course Selection**: Table with credits, classification (`General` vs `Retake`), prerequisite check, and in-place section reassignment with fixed capacities (50 theory / 25 lab).
-     4. **Payment Information**: Accounts clearance audit (`DIU-AC-2027-4561`) and hold warnings.
-     5. **Advisor Decision**: Faculty remarks textarea, revision rationale selector, and atomic confirmation dialogs.
-   - Advisee queue keyboard navigation (`[J]` Prev • `[K]` Next).
+3. **Authoritative Tuition Payment Clearance Workflow (`/admin/payments`)**:
+   - Decoupled self-declared payment checks from official Admin verification.
+   - 3 distinct statuses: `Awaiting Verification`, `Cleared`, `Not Cleared` (Financial Hold).
+   - Admin Payment Clearance Center with search, status filtering tabs, update dialog with mandatory administrative audit notes.
+   - Immutable audit log (`payment_clearance_audit`) tracking every status modification with actor ID, timestamp, and notes.
+   - Real-time clearance badges across Student Dashboard, Courses Workspace, Tracking view, and Advisor Review Studio.
 
-4. **Navigation & Terminology Alignment**:
-   - Unified terminology across navigation, headings, badges, and buttons: `Application Center`, `My Assigned Students`, `Review History`, `Pending`, `In Progress`, `Approved`, `Not Applied`, `Review Application`.
+4. **Dedicated University Administration Portal (`/admin`)**:
+   - Live operational dashboard displaying batch curriculum stats, payment clearance metrics, and quick links to admin modules.
+   - Clean enterprise dark layout with Swiss Modernism design tokens from `ui-ux-pro-max`.
 
-5. **32/32 Automated Test Suite Pass (`npm test`)**:
+5. **43/43 Automated Test Suite Pass (`npm test`)**:
+   - `tests/batch-course-and-payment.test.mjs` (11/11 batch course & payment clearance tests pass).
    - `tests/advisor-queue-verification.test.mjs` (9/9 three-category queue verification tests pass).
    - `tests/security-verification.test.mjs` (8/8 P0 security tests pass).
    - `tests/auth-policy-verification.test.mjs` (10/10 auth policy tests pass).
@@ -43,7 +47,7 @@ The **Advisor Portal UI/UX and Content Design Overhaul** cycle has been complete
 
 6. **Performance & Build Verification**:
    - `npm run lint` -> **0 problems, 0 errors, 0 warnings**.
-   - `npm run build` -> **Compiled successfully, exit code 0 (22/22 routes)**.
+   - `npm run build` -> **Compiled successfully, exit code 0 (24/24 routes)**.
    - Live development server operational on `http://localhost:3000`.
 
 ---

@@ -379,3 +379,131 @@ export async function getAdminStudentEmailDirectoryAction() {
     auditLog: MOCK_EMAIL_AUDIT_LOG,
   };
 }
+
+
+// ============================================================================
+// BATCH-SEMESTER COURSE CONFIGURATION ACTIONS (Admin Only)
+// ============================================================================
+
+import {
+  getBatchSemesterCourses,
+  addCourseToBatchConfig,
+  removeCourseFromBatchConfig,
+} from "@/lib/curriculum/batch-course-service";
+import {
+  listPaymentClearances,
+  updatePaymentClearanceStatus,
+  getPaymentAuditTrail,
+  type PaymentStatus,
+} from "@/lib/payment/payment-service";
+
+/**
+ * Admin action: Retrieves courses configured for a batch and semester.
+ */
+export async function getBatchCoursesAction(semesterId: string, batch: string) {
+  await requireAdmin();
+  const records = await getBatchSemesterCourses(semesterId, batch);
+  return { success: true, records };
+}
+
+/**
+ * Admin action: Adds an authoritative course to a batch & semester configuration.
+ */
+export async function addCourseToBatchAction(
+  semesterId: string,
+  batch: string,
+  courseId: string
+): Promise<AdminActionResult> {
+  const { user } = await requireAdmin();
+
+  const res = await addCourseToBatchConfig(semesterId, batch, courseId, user.id);
+  if (!res.success) {
+    return { success: false, error: res.error };
+  }
+
+  revalidatePath("/admin/curriculum");
+  revalidatePath("/courses");
+
+  return { success: true, data: res.record };
+}
+
+/**
+ * Admin action: Removes a course from a batch & semester configuration.
+ */
+export async function removeCourseFromBatchAction(
+  semesterId: string,
+  batch: string,
+  courseId: string
+): Promise<AdminActionResult> {
+  await requireAdmin();
+
+  const res = await removeCourseFromBatchConfig(semesterId, batch, courseId);
+  if (!res.success) {
+    return { success: false, error: res.error };
+  }
+
+  revalidatePath("/admin/curriculum");
+  revalidatePath("/courses");
+
+  return { success: true };
+}
+
+// ============================================================================
+// PAYMENT CLEARANCE ACTIONS (Admin Only)
+// ============================================================================
+
+/**
+ * Admin action: Lists all student tuition payment statuses for a semester.
+ */
+export async function listPaymentClearancesAction(
+  semesterId: string = "sem-spring-2027",
+  statusFilter: string = "ALL",
+  searchQuery: string = ""
+) {
+  await requireAdmin();
+  const records = await listPaymentClearances(semesterId, statusFilter, searchQuery);
+  return { success: true, records };
+}
+
+/**
+ * Admin action: Updates a student's verified payment clearance status.
+ */
+export async function updatePaymentClearanceStatusAction(
+  studentId: string,
+  semesterId: string = "sem-spring-2027",
+  status: PaymentStatus,
+  notes: string = ""
+): Promise<AdminActionResult> {
+  const { user } = await requireAdmin();
+
+  const res = await updatePaymentClearanceStatus(
+    studentId,
+    semesterId,
+    status,
+    notes,
+    user.id
+  );
+
+  if (!res.success) {
+    return { success: false, error: res.error };
+  }
+
+  revalidatePath("/admin/payments");
+  revalidatePath("/advisor/queue");
+  revalidatePath("/courses");
+  revalidatePath("/dashboard");
+
+  return { success: true, data: res.record };
+}
+
+/**
+ * Admin action: Retrieves tuition payment audit trail.
+ */
+export async function getPaymentAuditTrailAction(
+  studentId?: string,
+  semesterId: string = "sem-spring-2027"
+) {
+  await requireAdmin();
+  const records = await getPaymentAuditTrail(studentId, semesterId);
+  return { success: true, records };
+}

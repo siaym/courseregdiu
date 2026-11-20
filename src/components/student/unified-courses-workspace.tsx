@@ -13,27 +13,22 @@ import {
   Layers,
   BookOpen,
   ArrowRight,
-  Info,
+  Clock,
+  AlertCircle,
 } from "lucide-react";
 import {
-  MOCK_COURSES,
   MOCK_SECTIONS,
-  MOCK_DEPARTMENTS,
-  MOCK_COMPLETED_COURSE_CODES,
   MOCK_STUDENT_PROFILE,
   ACTIVE_MOCK_SEMESTER_LABEL,
   ACTIVE_MOCK_REGISTRATION_WINDOW,
   type ExtendedSection,
   type ExtendedCourse,
 } from "@/lib/mock/data";
-import {
-  getPrerequisiteStatus,
-} from "@/lib/mock/helpers";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { submitStudentRegistration } from "@/app/courses/actions";
 import type { Database } from "@/types/database";
+import type { PaymentClearanceRecord } from "@/lib/payment/payment-service";
 
 export interface SelectedCourseItem {
   course: ExtendedCourse;
@@ -63,11 +58,19 @@ interface UnifiedCoursesWorkspaceProps {
     generalCourseCount: number;
     retakeCourseCount: number;
   } | null;
+  eligibleCourses?: ExtendedCourse[];
+  studentBatch?: string;
+  activeSemesterName?: string;
+  paymentClearance?: PaymentClearanceRecord | null;
 }
 
 export function UnifiedCoursesWorkspace({
   initialProfile,
   initialActiveRegistration,
+  eligibleCourses = [],
+  studentBatch = "60",
+  activeSemesterName = ACTIVE_MOCK_SEMESTER_LABEL,
+  paymentClearance,
 }: UnifiedCoursesWorkspaceProps) {
   const profile = initialProfile || MOCK_STUDENT_PROFILE;
 
@@ -88,11 +91,29 @@ export function UnifiedCoursesWorkspace({
   );
   const [sectionError, setSectionError] = React.useState<string | null>(null);
 
-  // Step 2: Selected Courses Cart (Initially all courses marked general)
+  // Search State: Single prominent search field, debounced
+  const [searchInput, setSearchInput] = React.useState("");
+  const [debouncedSearch, setDebouncedSearch] = React.useState("");
+  const [feedback, setFeedback] = React.useState<{ text: string; type: "success" | "warning" } | null>(null);
+
+  // Debounce search input (150ms for snappy response)
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchInput);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  // Available sections lookup helper
+  const getCourseSections = React.useCallback((courseId: string) => {
+    return MOCK_SECTIONS.filter((s) => s.course_id === courseId);
+  }, []);
+
+  // Step 2: Selected Courses Cart
   const [selectedCourses, setSelectedCourses] = React.useState<SelectedCourseItem[]>(() => {
     if (initialActiveRegistration?.courses && initialActiveRegistration.courses.length > 0) {
       return initialActiveRegistration.courses.map((c) => {
-        const co = MOCK_COURSES.find((item) => item.code === c.courseCode) || MOCK_COURSES[0];
+        const co = eligibleCourses.find((item) => item.code === c.courseCode) || eligibleCourses[0];
         const sec = MOCK_SECTIONS.find((item) => item.id === c.sectionId) || MOCK_SECTIONS[0];
         return {
           course: co,
@@ -102,35 +123,24 @@ export function UnifiedCoursesWorkspace({
       });
     }
 
-    // Default initial enrollment (all initially marked general)
-    const initialCourseCodes = ["CSE221", "CSE222", "CSE225", "CSE110"];
+    // Default initial enrollment selected from eligible batch courses
     const items: SelectedCourseItem[] = [];
-
-    initialCourseCodes.forEach((code) => {
-      const co = MOCK_COURSES.find((c) => c.code === code);
-      if (co) {
-        // Pick section matching desired section (69_D) or fallback
-        const sec =
-          MOCK_SECTIONS.find((s) => s.course_id === co.id && s.section_name.includes("69_D")) ||
-          MOCK_SECTIONS.find((s) => s.course_id === co.id) ||
-          MOCK_SECTIONS[0];
-        items.push({
-          course: co,
-          section: sec,
-          courseType: "general",
-        });
-      }
+    const seedEligible = eligibleCourses.slice(0, 3);
+    seedEligible.forEach((co) => {
+      const available = getCourseSections(co.id);
+      const sec =
+        available.find((s) => s.section_name.includes("69_D") || s.section_name.includes("60_A")) ||
+        available[0] ||
+        MOCK_SECTIONS[0];
+      items.push({
+        course: co,
+        section: sec,
+        courseType: "general",
+      });
     });
 
     return items;
   });
-
-  // Search & Filter State
-  const [searchInput, setSearchInput] = React.useState("");
-  const [debouncedSearch, setDebouncedSearch] = React.useState("");
-  const [selectedDept, setSelectedDept] = React.useState("ALL");
-  const [selectedLevel, setSelectedLevel] = React.useState("ALL");
-  const [feedback, setFeedback] = React.useState<{ text: string; type: "success" | "warning" } | null>(null);
 
   // Submission State
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -150,20 +160,13 @@ export function UnifiedCoursesWorkspace({
     return null;
   });
 
-  // Debounce search input (150ms for snappy Linear-like response)
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchInput);
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [searchInput]);
-
   // Credit calculation
   const totalCredits = React.useMemo(() => {
     return selectedCourses.reduce((sum, item) => sum + (item.section.credits || item.course.credits || 3.0), 0);
   }, [selectedCourses]);
 
   const maxAllowedCredits = 15.0; // Standard DIU undergraduate term cap
+  const remainingCredits = Math.max(0, maxAllowedCredits - totalCredits);
   const isCreditOverload = totalCredits > maxAllowedCredits;
 
   const generalCourseCount = React.useMemo(() => {
@@ -174,26 +177,18 @@ export function UnifiedCoursesWorkspace({
     return selectedCourses.filter((c) => c.courseType === "retake").length;
   }, [selectedCourses]);
 
-  // Filter available courses
+  // Filter ONLY against the student's eligible batch courses
   const filteredCourses = React.useMemo(() => {
-    return MOCK_COURSES.filter((course) => {
-      const q = debouncedSearch.trim().toLowerCase();
-      const matchesSearch =
-        q === "" ||
+    const q = debouncedSearch.trim().toLowerCase();
+    if (!q) return eligibleCourses;
+
+    return eligibleCourses.filter((course) => {
+      return (
         course.code.toLowerCase().includes(q) ||
-        course.title.toLowerCase().includes(q);
-
-      const matchesDept = selectedDept === "ALL" || course.department_code === selectedDept;
-      const matchesLevel = selectedLevel === "ALL" || course.level?.toString() === selectedLevel;
-
-      return matchesSearch && matchesDept && matchesLevel;
+        course.title.toLowerCase().includes(q)
+      );
     });
-  }, [debouncedSearch, selectedDept, selectedLevel]);
-
-  // Get sections available for a specific course
-  const getCourseSections = React.useCallback((courseId: string) => {
-    return MOCK_SECTIONS.filter((s) => s.course_id === courseId);
-  }, []);
+  }, [debouncedSearch, eligibleCourses]);
 
   // Section Step 1 Validation
   const handleProceedFromSections = () => {
@@ -209,79 +204,59 @@ export function UnifiedCoursesWorkspace({
     setCurrentStep(2);
   };
 
-  // Add / Switch Course in Selection
-  const handleToggleCourse = (course: ExtendedCourse, chosenSection?: ExtendedSection) => {
-    const existingIndex = selectedCourses.findIndex((c) => c.course.id === course.id);
-
-    // If already in cart, remove
-    if (existingIndex >= 0 && !chosenSection) {
-      setSelectedCourses((prev) => prev.filter((c) => c.course.id !== course.id));
+  // Add Course to Selection (guarantees no duplicates)
+  const handleAddCourse = (course: ExtendedCourse) => {
+    const alreadySelected = selectedCourses.some((c) => c.course.id === course.id);
+    if (alreadySelected) {
       setFeedback({
-        text: `Removed ${course.code} from course selection.`,
-        type: "success",
+        text: `${course.code} is already in your registration selection.`,
+        type: "warning",
       });
       return;
     }
 
-    // Pick section: either chosen, or one matching desiredSection, or the first available
     const available = getCourseSections(course.id);
     const targetSection =
-      chosenSection ||
       available.find((s) => s.section_name.toLowerCase().includes(desiredSection.trim().toLowerCase())) ||
       available[0];
 
     if (!targetSection) {
       setFeedback({
-        text: `No active class sections are currently scheduled for ${course.code}.`,
+        text: `No active sections currently scheduled for ${course.code}.`,
         type: "warning",
       });
       return;
     }
 
-    // Credit overload safety check
-    const otherSections = selectedCourses
-      .filter((c) => c.course.id !== course.id)
-      .map((c) => c.section);
-    const additionalCredits = targetSection.credits || course.credits || 3.0;
-    const currentCreditsWithoutThis = otherSections.reduce((sum, s) => sum + (s.credits || 3.0), 0);
-    if (currentCreditsWithoutThis + additionalCredits > maxAllowedCredits) {
+    const courseCredits = targetSection.credits || course.credits || 3.0;
+    if (totalCredits + courseCredits > maxAllowedCredits) {
       setFeedback({
-        text: `Credit limit warning: Total load would reach ${(currentCreditsWithoutThis + additionalCredits).toFixed(1)} Cr (maximum regular cap: ${maxAllowedCredits} Cr).`,
+        text: `Credit limit warning: Total load would reach ${(totalCredits + courseCredits).toFixed(1)} Cr (maximum cap: ${maxAllowedCredits} Cr).`,
         type: "warning",
       });
     }
 
-    if (existingIndex >= 0) {
-      // Update section of already selected course
-      setSelectedCourses((prev) =>
-        prev.map((item, idx) =>
-          idx === existingIndex
-            ? { ...item, section: targetSection }
-            : item
-        )
-      );
-      setFeedback({
-        text: `Updated ${course.code} to Section ${targetSection.section_name}.`,
-        type: "success",
-      });
-    } else {
-      // Add new course with default classification (initially all marked general)
-      setSelectedCourses((prev) => [
-        ...prev,
-        {
-          course,
-          section: targetSection,
-          courseType: "general",
-        },
-      ]);
-      setFeedback({
-        text: `Added ${course.code} (Section ${targetSection.section_name}) as General course.`,
-        type: "success",
-      });
-    }
+    setSelectedCourses((prev) => [
+      ...prev,
+      {
+        course,
+        section: targetSection,
+        courseType: "general", // Defaults to general
+      },
+    ]);
+
+    setFeedback({
+      text: `Added ${course.code} (Section ${targetSection.section_name}) as General course.`,
+      type: "success",
+    });
   };
 
-  // Switch section for an already selected course
+  // Remove Course from Selection
+  const handleRemoveCourse = (courseId: string) => {
+    setSelectedCourses((prev) => prev.filter((c) => c.course.id !== courseId));
+  };
+
+  // Switch section for a selected course
   const handleSectionChange = (courseId: string, newSectionId: string) => {
     const newSection = MOCK_SECTIONS.find((s) => s.id === newSectionId);
     if (!newSection) return;
@@ -293,12 +268,7 @@ export function UnifiedCoursesWorkspace({
     );
   };
 
-  // Remove a course from selection
-  const handleRemoveCourse = (courseId: string) => {
-    setSelectedCourses((prev) => prev.filter((c) => c.course.id !== courseId));
-  };
-
-  // Step 3: Change course classification for an individual course
+  // Independent General / Retake classification per course
   const handleSetClassification = (courseId: string, courseType: "general" | "retake") => {
     setSelectedCourses((prev) =>
       prev.map((item) =>
@@ -307,7 +277,7 @@ export function UnifiedCoursesWorkspace({
     );
   };
 
-  // Step 4 & 5: Submission Handler
+  // Final Application Submission
   const handleFinalSubmit = async () => {
     if (selectedCourses.length === 0) {
       setSubmitError("Please select at least 1 course before submitting.");
@@ -348,23 +318,50 @@ export function UnifiedCoursesWorkspace({
 
       setIsSubmitting(false);
       setSubmittedData({
-        registrationId: result.registrationId || "reg-app-submitted",
-        referenceId: result.referenceId || "REG-2027-SP-7819",
+        registrationId: result.registrationId || `reg-app-${Date.now()}`,
+        referenceId: result.referenceId || `REG-2027-SP-${Math.floor(1000 + Math.random() * 9000)}`,
         submittedAt: result.submittedAt || new Date().toISOString(),
       });
       setCurrentStep(4);
-    } catch (err: unknown) {
+    } catch {
       setIsSubmitting(false);
-      const message = err instanceof Error ? err.message : "An unexpected network error occurred.";
-      setSubmitError(message);
+      setSubmitError("Network or server communication error. Please try again.");
     }
   };
 
-  // Stepper Header Component
+  // Payment Status Badge Component
+  const renderPaymentBadge = () => {
+    if (!paymentClearance || paymentClearance.status === "awaiting_verification") {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-950/60 border border-amber-800/80 text-amber-300 text-xs font-medium">
+          <Clock className="h-3 w-3" />
+          <span>Payment: Awaiting Verification</span>
+        </span>
+      );
+    }
+
+    if (paymentClearance.status === "cleared") {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-950/60 border border-emerald-800/80 text-emerald-300 text-xs font-medium">
+          <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+          <span>Payment Cleared: {paymentClearance.referenceCode || "DIU-AC-2027-4561"}</span>
+        </span>
+      );
+    }
+
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-950/60 border border-rose-800/80 text-rose-300 text-xs font-medium">
+        <AlertCircle className="h-3.5 w-3.5 text-rose-400" />
+        <span>Payment Not Cleared (Accounts Hold)</span>
+      </span>
+    );
+  };
+
+  // Interactive Stepper
   const renderStepper = () => {
     const steps = [
       { num: 1, title: "Section Info", desc: `${previousSection || "—"} → ${desiredSection || "—"}` },
-      { num: 2, title: "Course Selection", desc: `${selectedCourses.length} Courses • ${generalCourseCount} Gen, ${retakeCourseCount} Ret` },
+      { num: 2, title: "Course Selection", desc: `${selectedCourses.length} Courses • ${totalCredits.toFixed(1)} Cr` },
       { num: 3, title: "Review & Submit", desc: "Final Verification" },
     ];
 
@@ -422,25 +419,31 @@ export function UnifiedCoursesWorkspace({
 
   return (
     <div className="space-y-4 text-slate-100 max-w-7xl mx-auto py-2">
-      {/* Top Header: Linear simplicity */}
-      <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 border-b border-[#1c263c] pb-3">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-            <span>Course Registration Application</span>
-            <span className="text-xs font-mono font-normal text-emerald-400 px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-800/80">
-              {ACTIVE_MOCK_SEMESTER_LABEL}
+      {/* TOP HEADER: University Administration Workspace */}
+      <div className="bg-[#121827] border border-[#1c263c] rounded-xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl font-bold tracking-tight text-white">
+              Course Registration Workspace
+            </h1>
+            <span className="text-xs font-mono font-medium text-emerald-400 px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-800/80">
+              {activeSemesterName}
             </span>
-          </h1>
-          <p className="text-xs text-[#8e9db2] mt-0.5">
-            Daffodil International University • Registration Window: {ACTIVE_MOCK_REGISTRATION_WINDOW}
+            <span className="text-xs font-mono font-medium text-sky-400 px-2 py-0.5 rounded-full bg-sky-950/60 border border-sky-800/80">
+              Batch {studentBatch}
+            </span>
+          </div>
+          <p className="text-xs text-[#8e9db2]">
+            Daffodil International University • Window: {ACTIVE_MOCK_REGISTRATION_WINDOW}
           </p>
         </div>
 
-        {/* Quick return or status */}
-        <div className="flex items-center gap-2">
+        {/* Right side: Payment status and Dashboard Link */}
+        <div className="flex flex-wrap items-center gap-3">
+          {renderPaymentBadge()}
           <Link
             href="/dashboard"
-            className="text-xs text-[#8e9db2] hover:text-white inline-flex items-center gap-1 transition-colors"
+            className="text-xs text-[#8e9db2] hover:text-white inline-flex items-center gap-1 transition-colors px-2.5 py-1 rounded-lg border border-[#1c263c] hover:bg-[#1a233a]"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             <span>Dashboard</span>
@@ -486,13 +489,13 @@ export function UnifiedCoursesWorkspace({
             <div className="space-y-1.5 border-b border-[#1c263c] pb-4">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#172136] text-blue-400 text-xs font-medium mb-1">
                 <Layers className="h-3.5 w-3.5" />
-                <span>Step 1 of 4 • Academic Sections</span>
+                <span>Step 1 of 3 • Academic Section Assignment</span>
               </div>
               <h2 className="text-lg font-bold text-white tracking-tight">
                 Academic Section Details
               </h2>
               <p className="text-xs text-[#8e9db2] leading-relaxed">
-                Provide your previous enrolled section and your desired cohort section for {ACTIVE_MOCK_SEMESTER_LABEL}.
+                Provide your previously enrolled section and your desired cohort section for {activeSemesterName}.
                 This informs your academic advisor of your cohort scheduling preference.
               </p>
             </div>
@@ -504,82 +507,62 @@ export function UnifiedCoursesWorkspace({
               </div>
             )}
 
-            <div className="space-y-5">
-              {/* Previous Section */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label htmlFor="prevSection" className="text-xs font-semibold text-white">
-                    Previous Section <span className="text-rose-400">*</span>
-                  </label>
-                  <span className="text-[11px] font-mono text-slate-400">Example: 69_K</span>
-                </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Field 1: Previous Section */}
+              <div className="space-y-2 p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c]">
+                <label className="block text-xs font-semibold text-slate-200">
+                  Previous Enrolled Section <span className="text-rose-400">*</span>
+                </label>
                 <input
-                  id="prevSection"
                   type="text"
                   value={previousSection}
-                  onChange={(e) => {
-                    setPreviousSection(e.target.value);
-                    if (sectionError) setSectionError(null);
-                  }}
+                  onChange={(e) => setPreviousSection(e.target.value.toUpperCase())}
                   placeholder="e.g. 69_K"
-                  className="w-full px-3.5 py-2.5 bg-[#0b0f19] border border-[#1c263c] rounded-xl text-white font-mono text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-slate-600"
+                  className="w-full px-3 py-2 text-sm font-mono bg-[#121827] border border-[#1c263c] rounded-lg text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
-                <p className="text-[11px] text-[#8e9db2]">
-                  The class section you attended in the preceding semester (e.g., 69_K, 60_A, 58_B).
+                <p className="text-[11px] text-[#8e9db2] leading-tight">
+                  The DIU section cohort you completed in your previous academic semester (e.g. <strong>69_K</strong>).
                 </p>
               </div>
 
-              {/* Desired Section */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label htmlFor="desiredSection" className="text-xs font-semibold text-white">
-                    Desired Section <span className="text-rose-400">*</span>
-                  </label>
-                  <span className="text-[11px] font-mono text-slate-400">Example: 69_D</span>
-                </div>
+              {/* Field 2: Desired Section */}
+              <div className="space-y-2 p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c]">
+                <label className="block text-xs font-semibold text-slate-200">
+                  Desired Section for {activeSemesterName} <span className="text-rose-400">*</span>
+                </label>
                 <input
-                  id="desiredSection"
                   type="text"
                   value={desiredSection}
-                  onChange={(e) => {
-                    setDesiredSection(e.target.value);
-                    if (sectionError) setSectionError(null);
-                  }}
+                  onChange={(e) => setDesiredSection(e.target.value.toUpperCase())}
                   placeholder="e.g. 69_D"
-                  className="w-full px-3.5 py-2.5 bg-[#0b0f19] border border-[#1c263c] rounded-xl text-white font-mono text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-slate-600"
+                  className="w-full px-3 py-2 text-sm font-mono bg-[#121827] border border-[#1c263c] rounded-lg text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
-                <p className="text-[11px] text-[#8e9db2]">
-                  The target section cohort you are requesting for your courses this semester (e.g., 69_D, 60_A).
+                <p className="text-[11px] text-[#8e9db2] leading-tight">
+                  Your preferred target class cohort for {activeSemesterName} (e.g. <strong>69_D</strong>).
                 </p>
-              </div>
-
-              {/* Educational Note */}
-              <div className="p-3.5 rounded-xl bg-[#0b0f19] border border-[#1c263c] text-xs text-[#8e9db2] flex items-start gap-2.5">
-                <Info className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <div className="font-semibold text-slate-200">How DIU Cohort Sections Work:</div>
-                  <p className="text-[11px] leading-relaxed">
-                    Sections (such as <strong className="text-emerald-400 font-mono">69_K</strong> or <strong className="text-emerald-400 font-mono">69_D</strong>) represent your academic cohort. When you advance to Course Selection, courses matching your desired section will be prioritized.
-                  </p>
-                </div>
               </div>
             </div>
 
-            {/* Action Bar */}
-            <div className="pt-2 flex items-center justify-between border-t border-[#1c263c]">
-              <Link
-                href="/dashboard"
-                className="text-xs text-[#8e9db2] hover:text-white transition-colors"
-              >
-                Cancel
-              </Link>
+            {/* Explanatory note */}
+            <div className="p-3.5 rounded-xl bg-[#172136] border border-[#25324d] flex items-start gap-2.5 text-xs text-slate-300">
+              <BookOpen className="h-4 w-4 text-sky-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <span className="font-semibold text-white block">DIU Cohort Advising Note:</span>
+                <p className="text-[#8e9db2] leading-relaxed">
+                  Your advisor will prioritize matching your section choices to your desired cohort ({desiredSection || "69_D"}),
+                  subject to seat availability (50 capacity for theory, 25 for laboratory courses).
+                </p>
+              </div>
+            </div>
+
+            {/* Action Button */}
+            <div className="pt-2 flex justify-end">
               <Button
-                type="button"
                 onClick={handleProceedFromSections}
-                className="bg-white hover:bg-slate-100 text-[#0b0f19] font-semibold text-xs px-5 h-9 rounded-xl transition-all shadow-xs"
+                className="bg-white hover:bg-slate-100 text-[#0b0f19] font-semibold text-xs px-5 h-9 rounded-xl shadow-xs transition-all"
               >
                 <span>Continue to Course Selection</span>
-                <ArrowRight className="h-4 w-4 ml-1 text-[#0b0f19]" />
+                <ArrowRight className="h-4 w-4 ml-1.5 text-[#0b0f19]" />
               </Button>
             </div>
           </div>
@@ -587,22 +570,25 @@ export function UnifiedCoursesWorkspace({
       )}
 
       {/* ========================================================================= */}
-      {/* STEP 2: COURSE SELECTION WORKSPACE                                        */}
+      {/* STEP 2: COURSE SELECTION & CLASSIFICATION (Clean Workspace)               */}
       {/* ========================================================================= */}
       {currentStep === 2 && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-          {/* Left Column: Course Directory (8 cols) */}
-          <div className="lg:col-span-8 space-y-3">
-            {/* Context bar with Section Summary */}
-            <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-[#121827] border border-[#1c263c] text-xs">
+          {/* Main Area: Search & Eligible Course List (8 cols) */}
+          <div className="lg:col-span-8 space-y-4">
+            {/* Top Cohort Bar */}
+            <div className="bg-[#121827] border border-[#1c263c] rounded-xl p-3 flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
-                <span className="text-[#8e9db2]">Assigned Cohort:</span>
+                <span className="text-[#8e9db2]">Enrolled Cohort:</span>
                 <span className="font-mono text-emerald-400 font-bold bg-[#0b0f19] px-2 py-0.5 rounded border border-[#1c263c]">
                   Prev: {previousSection}
                 </span>
                 <span className="text-slate-600">&rarr;</span>
                 <span className="font-mono text-sky-400 font-bold bg-[#0b0f19] px-2 py-0.5 rounded border border-[#1c263c]">
                   Desired: {desiredSection}
+                </span>
+                <span className="hidden sm:inline-block text-[11px] text-slate-500 font-mono">
+                  • Configured for Batch {studentBatch}
                 </span>
               </div>
               <button
@@ -614,167 +600,116 @@ export function UnifiedCoursesWorkspace({
               </button>
             </div>
 
-            {/* Search and Filters */}
-            <div className="p-3 rounded-xl border border-[#1c263c] bg-[#121827] space-y-2.5">
-              <div className="flex flex-col sm:flex-row gap-2">
-                {/* Search Input */}
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-500 pointer-events-none" />
-                  <input
-                    type="text"
-                    value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
-                    placeholder="Search by course code or title (e.g. CSE221, Algorithms, Math)..."
-                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-[#0b0f19] border border-[#1c263c] rounded-lg text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                  {searchInput && (
-                    <button
-                      onClick={() => setSearchInput("")}
-                      className="absolute right-2.5 top-2 text-slate-400 hover:text-white text-xs"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-
-                {/* Department Dropdown */}
-                <select
-                  value={selectedDept}
-                  onChange={(e) => setSelectedDept(e.target.value)}
-                  className="text-xs bg-[#0b0f19] border border-[#1c263c] rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="ALL">All Departments</option>
-                  {MOCK_DEPARTMENTS.map((d) => (
-                    <option key={d.code} value={d.code}>
-                      {d.code} ({d.name})
-                    </option>
-                  ))}
-                </select>
-
-                {/* Level Dropdown */}
-                <select
-                  value={selectedLevel}
-                  onChange={(e) => setSelectedLevel(e.target.value)}
-                  className="text-xs bg-[#0b0f19] border border-[#1c263c] rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="ALL">All Academic Levels</option>
-                  <option value="1">Level 1 (Freshman)</option>
-                  <option value="2">Level 2 (Sophomore)</option>
-                  <option value="3">Level 3 (Junior)</option>
-                  <option value="4">Level 4 (Senior)</option>
-                </select>
+            {/* SINGLE PROMINENT COURSE SEARCH (No department or level dropdowns) */}
+            <div className="p-3.5 rounded-xl border border-[#1c263c] bg-[#121827] space-y-2">
+              <div className="relative">
+                <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder={`Search eligible courses for Batch ${studentBatch} by code or title (e.g. CSE110, Data Structures)...`}
+                  className="w-full pl-10 pr-9 py-2 text-xs bg-[#0b0f19] border border-[#1c263c] rounded-lg text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                {searchInput && (
+                  <button
+                    onClick={() => setSearchInput("")}
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-white text-xs p-0.5"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
 
-              <div className="flex items-center justify-between text-[11px] text-[#8e9db2] pt-1">
+              <div className="flex items-center justify-between text-[11px] text-[#8e9db2] px-0.5">
                 <span>
-                  Showing <strong>{filteredCourses.length}</strong> available courses in DIU curriculum
+                  Showing <strong>{filteredCourses.length}</strong> eligible course{filteredCourses.length !== 1 ? "s" : ""} configured for Batch {studentBatch} in {activeSemesterName}
                 </span>
-                {(searchInput || selectedDept !== "ALL" || selectedLevel !== "ALL") && (
+                {searchInput && (
                   <button
-                    onClick={() => {
-                      setSearchInput("");
-                      setSelectedDept("ALL");
-                      setSelectedLevel("ALL");
-                    }}
+                    onClick={() => setSearchInput("")}
                     className="text-blue-400 hover:underline"
                   >
-                    Reset Filters
+                    Clear Search
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Courses List */}
-            <div className="space-y-2.5">
+            {/* Available Course List */}
+            <div className="space-y-3">
               {filteredCourses.length === 0 ? (
-                <div className="p-12 text-center bg-[#121827] border border-[#1c263c] rounded-xl space-y-2">
+                <div className="p-10 text-center bg-[#121827] border border-[#1c263c] rounded-xl space-y-2">
                   <BookOpen className="h-8 w-8 text-slate-600 mx-auto" />
-                  <div className="text-sm font-semibold text-slate-300">No courses match your query</div>
+                  <div className="text-sm font-semibold text-slate-300">
+                    No courses match your query
+                  </div>
                   <p className="text-xs text-[#8e9db2] max-w-sm mx-auto">
-                    Try searching for another course code (e.g. CSE110, CSE221) or clear the department and level filters.
+                    Only courses configured for <strong>Batch {studentBatch}</strong> in <strong>{activeSemesterName}</strong> are displayed.
                   </p>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => {
-                      setSearchInput("");
-                      setSelectedDept("ALL");
-                      setSelectedLevel("ALL");
-                    }}
+                    onClick={() => setSearchInput("")}
                     className="text-xs mt-2 border-[#1c263c]"
                   >
-                    Clear Search
+                    Reset Search
                   </Button>
                 </div>
               ) : (
                 filteredCourses.map((course) => {
                   const selectedItem = selectedCourses.find((c) => c.course.id === course.id);
                   const isSelected = Boolean(selectedItem);
-                  const { isEligible, missingCodes } = getPrerequisiteStatus(
-                    course.prerequisite_codes,
-                    MOCK_COMPLETED_COURSE_CODES
-                  );
                   const availableSections = getCourseSections(course.id);
+                  const isLab = course.title.toLowerCase().includes("lab") || course.credits <= 1.5;
+                  const capacityCap = isLab ? 25 : 50;
 
                   return (
                     <div
                       key={course.id}
-                      className={`p-3.5 rounded-xl border transition-all ${
+                      className={`p-4 rounded-xl border transition-all ${
                         isSelected
                           ? "bg-[#141d30] border-blue-600/70 shadow-xs"
                           : "bg-[#121827] border-[#1c263c] hover:border-slate-700"
                       }`}
                     >
-                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                      {/* Top Row: Course Code, Title, Credits & Add/Selected Action */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-mono text-xs font-bold text-emerald-400 px-2 py-0.5 rounded bg-[#0b0f19] border border-[#1c263c]">
                               {course.code}
                             </span>
-                            <span className="text-xs font-semibold text-white">
+                            <span className="text-sm font-semibold text-white">
                               {course.title}
                             </span>
-                            <span className="text-[11px] font-mono text-slate-400">
+                            <span className="text-xs font-mono text-slate-400">
                               {course.credits.toFixed(1)} Credits
                             </span>
-                            {course.level && (
-                              <span className="text-[10px] text-slate-500 font-mono">
-                                Level {course.level}
-                              </span>
-                            )}
                           </div>
 
-                          {/* Prerequisites compliance tag */}
-                          <div className="text-[11px] text-[#8e9db2] flex items-center gap-1.5 pt-0.5">
-                            {course.prerequisite_codes.length === 0 ? (
-                              <span className="text-slate-500">Prerequisites: None required</span>
-                            ) : isEligible ? (
-                              <span className="text-emerald-400 flex items-center gap-1">
-                                <Check className="h-3 w-3" />
-                                Prerequisites satisfied ({course.prerequisite_codes.join(", ")})
-                              </span>
-                            ) : (
-                              <span className="text-rose-400 flex items-center gap-1">
-                                <AlertTriangle className="h-3 w-3" />
-                                Prerequisite missing: {missingCodes.join(", ")}
-                              </span>
-                            )}
+                          <div className="text-[11px] text-[#8e9db2] flex items-center gap-2">
+                            <span>
+                              {availableSections.length > 0
+                                ? `${availableSections.length} Sections Available (${capacityCap} seats/section)`
+                                : "1 Section Scheduled"}
+                            </span>
                           </div>
                         </div>
 
-                        {/* Add / Selected Action */}
+                        {/* Action: Add / Selected */}
                         <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-                          {selectedItem ? (
+                          {isSelected ? (
                             <div className="flex items-center gap-2">
-                              <span className="text-xs font-mono text-blue-400 bg-blue-950/60 border border-blue-800/80 px-2 py-1 rounded-lg flex items-center gap-1">
-                                <Check className="h-3 w-3" />
-                                <span>Sec {selectedItem.section.section_name}</span>
+                              <span className="text-xs font-mono text-blue-400 bg-blue-950/60 border border-blue-800/80 px-2.5 py-1 rounded-lg flex items-center gap-1 font-medium">
+                                <Check className="h-3.5 w-3.5" />
+                                <span>Selected</span>
                               </span>
                               <Button
                                 size="sm"
                                 variant="outline"
                                 onClick={() => handleRemoveCourse(course.id)}
-                                className="h-7 px-2 text-xs text-rose-400 border-rose-900/50 hover:bg-rose-950/40"
+                                className="h-7 px-2.5 text-xs text-rose-400 border-rose-900/50 hover:bg-rose-950/40"
                               >
                                 Remove
                               </Button>
@@ -782,8 +717,8 @@ export function UnifiedCoursesWorkspace({
                           ) : (
                             <Button
                               size="sm"
-                              onClick={() => handleToggleCourse(course)}
-                              className="h-7 text-xs bg-white hover:bg-slate-100 text-[#0b0f19] font-medium"
+                              onClick={() => handleAddCourse(course)}
+                              className="h-8 text-xs bg-white hover:bg-slate-100 text-[#0b0f19] font-semibold px-3"
                             >
                               + Add Course
                             </Button>
@@ -791,61 +726,58 @@ export function UnifiedCoursesWorkspace({
                         </div>
                       </div>
 
-                      {/* Section Picker & Classification Row */}
-                      {availableSections.length > 0 && (
-                        <div className="mt-2.5 pt-2 border-t border-[#1c263c] flex flex-wrap items-center justify-between gap-2.5 text-xs">
-                          <div className="flex flex-wrap items-center gap-3 text-[#8e9db2]">
-                            <div className="flex items-center gap-2">
-                              <span>Class Section:</span>
-                              {selectedItem ? (
-                                <select
-                                  value={selectedItem.section.id}
-                                  onChange={(e) => handleSectionChange(course.id, e.target.value)}
-                                  className="text-xs font-mono bg-[#0b0f19] border border-[#1c263c] rounded px-2 py-1 text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                >
-                                  {availableSections.map((s) => (
-                                    <option key={s.id} value={s.id}>
-                                      Section {s.section_name} ({s.enrolled_count}/{s.capacity} seats)
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <span className="text-slate-400 font-mono text-[11px]">
-                                  {availableSections.length} offering{availableSections.length > 1 ? "s" : ""} available ({availableSections.map((s) => s.section_name).join(", ")})
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Option: General or Retake (initially all marked general) */}
-                            {selectedItem && (
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[11px] font-mono text-[#8e9db2]">Type:</span>
-                                <div className="inline-flex rounded-lg bg-[#0b0f19] p-0.5 border border-[#1c263c]">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSetClassification(course.id, "general")}
-                                    className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-all ${
-                                      selectedItem.courseType === "general"
-                                        ? "bg-blue-600 text-white shadow-xs"
-                                        : "text-[#8e9db2] hover:text-white"
-                                    }`}
-                                  >
-                                    General
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSetClassification(course.id, "retake")}
-                                    className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-all ${
-                                      selectedItem.courseType === "retake"
-                                        ? "bg-amber-600 text-white shadow-xs"
-                                        : "text-[#8e9db2] hover:text-white"
-                                    }`}
-                                  >
-                                    Retake
-                                  </button>
-                                </div>
-                              </div>
+                      {/* When Course is Selected: Individual Section & Classification Controls */}
+                      {isSelected && selectedItem && (
+                        <div className="mt-3 pt-3 border-t border-[#1c263c] flex flex-wrap items-center justify-between gap-3 text-xs bg-[#0b0f19]/60 p-2.5 rounded-lg">
+                          {/* Class Section Selection */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-[#8e9db2] font-medium text-[11px]">Class Section:</span>
+                            {availableSections.length > 0 ? (
+                              <select
+                                value={selectedItem.section.id}
+                                onChange={(e) => handleSectionChange(course.id, e.target.value)}
+                                className="text-xs font-mono bg-[#121827] border border-[#1c263c] rounded px-2.5 py-1 text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              >
+                                {availableSections.map((s) => (
+                                  <option key={s.id} value={s.id}>
+                                    Section {s.section_name} ({s.enrolled_count}/{s.capacity} seats)
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="font-mono text-slate-300 text-xs">
+                                Section {selectedItem.section.section_name}
+                              </span>
                             )}
+                          </div>
+
+                          {/* Individual General / Retake Classification (Per Course) */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-[#8e9db2] font-medium text-[11px]">Classification:</span>
+                            <div className="inline-flex rounded-lg bg-[#121827] p-0.5 border border-[#1c263c]">
+                              <button
+                                type="button"
+                                onClick={() => handleSetClassification(course.id, "general")}
+                                className={`px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all ${
+                                  selectedItem.courseType === "general"
+                                    ? "bg-blue-600 text-white shadow-xs"
+                                    : "text-[#8e9db2] hover:text-white"
+                                }`}
+                              >
+                                General
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleSetClassification(course.id, "retake")}
+                                className={`px-2.5 py-0.5 rounded text-[11px] font-semibold transition-all ${
+                                  selectedItem.courseType === "retake"
+                                    ? "bg-amber-600 text-white shadow-xs"
+                                    : "text-[#8e9db2] hover:text-white"
+                                }`}
+                              >
+                                Retake
+                              </button>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -856,20 +788,20 @@ export function UnifiedCoursesWorkspace({
             </div>
           </div>
 
-          {/* Right Column: Persistent Selected-Course Summary (4 cols) */}
+          {/* Right Area: Registration Summary (4 cols desktop, sticky) */}
           <div className="lg:col-span-4 sticky top-20 space-y-3">
-            <div className="bg-[#121827] border border-[#1c263c] rounded-xl p-4 space-y-4 shadow-sm">
+            <div className="bg-[#121827] border border-[#1c263c] rounded-xl p-4 sm:p-5 space-y-4 shadow-sm">
               <div className="space-y-1 border-b border-[#1c263c] pb-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-white">
-                    Registration Slip
+                    Registration Summary
                   </h3>
                   <span className="text-[11px] font-mono text-emerald-400">
-                    {ACTIVE_MOCK_SEMESTER_LABEL}
+                    {activeSemesterName}
                   </span>
                 </div>
                 <div className="text-[11px] font-mono text-slate-400">
-                  Cohort: <strong className="text-white">{previousSection} &rarr; {desiredSection}</strong>
+                  Batch {studentBatch} • {previousSection} &rarr; {desiredSection}
                 </div>
               </div>
 
@@ -887,15 +819,15 @@ export function UnifiedCoursesWorkspace({
                 />
                 <div className="flex justify-between text-[10px] text-slate-500 font-mono">
                   <span>{selectedCourses.length} Courses Selected</span>
-                  <span>Max Limit: {maxAllowedCredits.toFixed(1)} Cr</span>
+                  <span>Remaining: {remainingCredits.toFixed(1)} Cr</span>
                 </div>
               </div>
 
-              {/* Selected List */}
-              <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+              {/* Selected Course List */}
+              <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
                 {selectedCourses.length === 0 ? (
                   <div className="py-6 text-center text-xs text-slate-500">
-                    No courses added yet. Select courses from the left list.
+                    No courses added yet. Add courses from the eligible list.
                   </div>
                 ) : (
                   selectedCourses.map((item) => (
@@ -914,34 +846,18 @@ export function UnifiedCoursesWorkspace({
                           <span className="text-[10px] text-slate-500 font-mono">
                             ({item.section.credits || item.course.credits} Cr)
                           </span>
+                          <span
+                            className={`text-[9px] font-semibold px-1.5 py-0.2 rounded font-mono ${
+                              item.courseType === "general"
+                                ? "bg-blue-950 text-blue-300 border border-blue-800"
+                                : "bg-amber-950 text-amber-300 border border-amber-800"
+                            }`}
+                          >
+                            {item.courseType.toUpperCase()}
+                          </span>
                         </div>
                         <div className="text-[11px] text-[#8e9db2] truncate">
                           {item.course.title}
-                        </div>
-                        {/* Option: General or Retake per course */}
-                        <div className="flex items-center gap-1 pt-0.5">
-                          <button
-                            type="button"
-                            onClick={() => handleSetClassification(item.course.id, "general")}
-                            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all ${
-                              item.courseType === "general"
-                                ? "bg-blue-600 text-white shadow-xs"
-                                : "bg-[#121827] text-slate-400 hover:text-white border border-[#1c263c]"
-                            }`}
-                          >
-                            General
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleSetClassification(item.course.id, "retake")}
-                            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all ${
-                              item.courseType === "retake"
-                                ? "bg-amber-600 text-white shadow-xs"
-                                : "bg-[#121827] text-slate-400 hover:text-white border border-[#1c263c]"
-                            }`}
-                          >
-                            Retake
-                          </button>
                         </div>
                       </div>
                       <button
@@ -956,13 +872,18 @@ export function UnifiedCoursesWorkspace({
                 )}
               </div>
 
-              {/* Accounts Clearance Voucher */}
+              {/* Verified Accounts Clearance Voucher */}
               <div className="p-2.5 rounded-lg bg-[#0b0f19] border border-[#1c263c] flex items-center gap-2 text-[11px] text-[#8e9db2]">
                 <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" />
-                <span>Tuition Accounts Cleared: DIU-AC-2027-4561</span>
+                <span>
+                  Accounts Tuition:{" "}
+                  <strong className="text-white">
+                    {paymentClearance?.referenceCode || "DIU-AC-2027-4561"}
+                  </strong>
+                </span>
               </div>
 
-              {/* Breakdown summary */}
+              {/* Classification Breakdown */}
               <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 px-0.5">
                 <span>General: <strong className="text-blue-400">{generalCourseCount}</strong></span>
                 <span>Retake: <strong className="text-amber-400">{retakeCourseCount}</strong></span>
@@ -1001,13 +922,13 @@ export function UnifiedCoursesWorkspace({
             <div className="space-y-1.5 border-b border-[#1c263c] pb-4">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#172136] text-blue-400 text-xs font-medium mb-1">
                 <Layers className="h-3.5 w-3.5" />
-                <span>Step 3 of 3 • Final Review</span>
+                <span>Step 3 of 3 • Final Verification</span>
               </div>
               <h2 className="text-lg font-bold text-white tracking-tight">
                 Review Course Registration Application
               </h2>
               <p className="text-xs text-[#8e9db2] leading-relaxed">
-                Carefully review all submitted academic and section details before forwarding to your academic advisor for final audit.
+                Carefully review all academic section assignments, batch-configured courses, and classifications before forwarding to your academic advisor.
               </p>
             </div>
 
@@ -1034,10 +955,10 @@ export function UnifiedCoursesWorkspace({
                 </div>
                 <div>
                   <span className="text-[#8e9db2] block text-[11px]">Academic Batch:</span>
-                  <span className="text-slate-300">{profile.batch || "60th Batch"}</span>
+                  <span className="text-slate-300 font-mono">Batch {studentBatch}</span>
                 </div>
                 <div>
-                  <span className="text-[#8e9db2] block text-[11px]">Institutional Email:</span>
+                  <span className="text-[#8e9db2] block text-[11px]">Verified Email:</span>
                   <span className="font-mono text-slate-300 truncate block">{profile.email}</span>
                 </div>
               </div>
@@ -1049,77 +970,99 @@ export function UnifiedCoursesWorkspace({
                 <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                   2. Academic Section Assignment
                 </div>
-                <div className="flex items-center gap-3 text-xs font-mono">
-                  <span>
-                    Previous Section: <strong className="text-white px-2 py-0.5 rounded bg-[#121827] border border-[#1c263c]">{previousSection}</strong>
-                  </span>
-                  <span className="text-slate-600">&rarr;</span>
-                  <span>
-                    Desired Section: <strong className="text-emerald-400 px-2 py-0.5 rounded bg-[#121827] border border-[#1c263c]">{desiredSection}</strong>
-                  </span>
+                <div className="flex items-center gap-3 text-xs">
+                  <div>
+                    <span className="text-[#8e9db2] mr-1.5">Previous Enrolled Section:</span>
+                    <strong className="font-mono text-emerald-400 bg-[#121827] px-2 py-0.5 rounded border border-[#1c263c]">
+                      {previousSection}
+                    </strong>
+                  </div>
+                  <span className="text-slate-500">&rarr;</span>
+                  <div>
+                    <span className="text-[#8e9db2] mr-1.5">Desired Cohort Section:</span>
+                    <strong className="font-mono text-sky-400 bg-[#121827] px-2 py-0.5 rounded border border-[#1c263c]">
+                      {desiredSection}
+                    </strong>
+                  </div>
                 </div>
               </div>
-              <button
-                type="button"
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setCurrentStep(1)}
-                className="text-xs text-blue-400 hover:text-blue-300 hover:underline font-medium"
+                className="text-xs h-7 border-[#1c263c] text-slate-300"
               >
                 Change Sections
-              </button>
+              </Button>
             </div>
 
-            {/* 3. SELECTED COURSES TABLE */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
+            {/* 3. PAYMENT STATUS */}
+            <div className="p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c] flex flex-wrap items-center justify-between gap-4">
+              <div className="space-y-1">
                 <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                  3. Selected Courses & Classifications ({selectedCourses.length})
+                  3. Accounts Tuition Clearance Status
                 </div>
-                <button
-                  type="button"
+                <div className="flex items-center gap-2 pt-0.5">
+                  {renderPaymentBadge()}
+                </div>
+              </div>
+              <div className="text-[11px] text-slate-400 font-mono text-right">
+                Term: {activeSemesterName}
+              </div>
+            </div>
+
+            {/* 4. SELECTED COURSES TABLE */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  4. Enrolled Courses ({selectedCourses.length} Courses • {totalCredits.toFixed(1)} Credits)
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setCurrentStep(2)}
-                  className="text-xs text-blue-400 hover:text-blue-300 hover:underline font-medium"
+                  className="text-xs h-7 border-[#1c263c] text-slate-300"
                 >
-                  Edit Courses
-                </button>
+                  Modify Courses
+                </Button>
               </div>
 
               <div className="border border-[#1c263c] rounded-xl overflow-hidden bg-[#0b0f19]">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-[#121827] border-b border-[#1c263c] font-mono text-[11px] text-[#8e9db2]">
+                  <thead className="bg-[#121827] text-slate-400 uppercase text-[10px] tracking-wider border-b border-[#1c263c]">
                     <tr>
-                      <th className="py-2.5 px-3 font-medium">Course Code & Title</th>
-                      <th className="py-2.5 px-3 font-medium w-16 text-center">Credits</th>
-                      <th className="py-2.5 px-3 font-medium w-32">Classification</th>
-                      <th className="py-2.5 px-3 font-medium w-32 text-right">Assigned Section</th>
+                      <th className="py-2.5 px-3">Course Code</th>
+                      <th className="py-2.5 px-3">Course Title</th>
+                      <th className="py-2.5 px-3">Credits</th>
+                      <th className="py-2.5 px-3">Section</th>
+                      <th className="py-2.5 px-3 text-right">Classification</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#1c263c]">
                     {selectedCourses.map((item) => (
-                      <tr key={item.course.id} className="hover:bg-[#121827]/50 transition-colors">
-                        <td className="py-2.5 px-3">
-                          <span className="font-mono font-bold text-emerald-400 mr-2">
-                            {item.course.code}
+                      <tr key={item.course.id} className="hover:bg-[#121827]/40">
+                        <td className="py-2.5 px-3 font-mono font-bold text-emerald-400">
+                          {item.course.code}
+                        </td>
+                        <td className="py-2.5 px-3 font-medium text-slate-200">
+                          {item.course.title}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-slate-300">
+                          {(item.section.credits || item.course.credits).toFixed(1)} Cr
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-sky-400">
+                          Section {item.section.section_name}
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                              item.courseType === "general"
+                                ? "bg-blue-950/80 text-blue-300 border border-blue-800"
+                                : "bg-amber-950/80 text-amber-300 border border-amber-800"
+                            }`}
+                          >
+                            {item.courseType.toUpperCase()}
                           </span>
-                          <span className="text-white font-medium">
-                            {item.course.title}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-center font-mono text-slate-300">
-                          {item.section.credits || item.course.credits}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          {item.courseType === "general" ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-blue-950/70 border border-blue-800 text-blue-300">
-                              General
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-amber-950/70 border border-amber-800 text-amber-300">
-                              Retake
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 font-mono text-slate-300 text-right">
-                          Sec {item.section.section_name}
                         </td>
                       </tr>
                     ))}
@@ -1128,56 +1071,32 @@ export function UnifiedCoursesWorkspace({
               </div>
             </div>
 
-            {/* 4. APPLICATION METRICS SUMMARY */}
-            <div className="p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c] grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
-              <div>
-                <span className="text-[#8e9db2] block text-[11px]">Total Courses:</span>
-                <strong className="text-white text-sm">{selectedCourses.length} Courses</strong>
-              </div>
-              <div>
-                <span className="text-[#8e9db2] block text-[11px]">Total Credits:</span>
-                <strong className="text-emerald-400 text-sm">{totalCredits.toFixed(1)} Credits</strong>
-              </div>
-              <div>
-                <span className="text-[#8e9db2] block text-[11px]">Course Breakdown:</span>
-                <span className="text-slate-300">
-                  {generalCourseCount} General • {retakeCourseCount} Retake
-                </span>
-              </div>
-              <div>
-                <span className="text-[#8e9db2] block text-[11px]">Payment Clearance:</span>
-                <span className="text-emerald-400 font-medium">Cleared (DIU-AC-2027)</span>
-              </div>
+            {/* ADVISOR FORWARDING DISCLAIMER */}
+            <div className="p-4 rounded-xl bg-[#172136] border border-[#25324d] space-y-1.5 text-xs">
+              <span className="font-semibold text-white block">Advising Submission Commitment:</span>
+              <p className="text-slate-300 leading-relaxed">
+                By submitting this application, you declare that your requested courses and section cohort
+                preferences comply with DIU department regulations. Your academic advisor will review your prerequisite standing
+                and confirm section registrations.
+              </p>
             </div>
 
-            {/* Submission Actions */}
-            <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-[#1c263c]">
+            {/* ACTIONS */}
+            <div className="flex flex-col-reverse sm:flex-row items-center justify-between gap-3 pt-2">
               <Button
-                type="button"
                 variant="outline"
                 onClick={() => setCurrentStep(2)}
-                className="text-xs border-[#1c263c] text-slate-300 h-9 rounded-xl order-2 sm:order-1"
+                className="w-full sm:w-auto text-xs border-[#1c263c] text-slate-300"
               >
                 &larr; Back to Course Selection
               </Button>
 
               <Button
-                type="button"
-                disabled={isSubmitting || selectedCourses.length === 0}
+                disabled={isSubmitting || isCreditOverload}
                 onClick={handleFinalSubmit}
-                className="bg-[#008764] hover:bg-[#007053] text-white font-semibold text-xs px-6 h-10 rounded-xl transition-all shadow-md active:scale-[0.98] order-1 sm:order-2 disabled:opacity-50"
+                className="w-full sm:w-auto bg-white hover:bg-slate-100 text-[#0b0f19] font-semibold text-xs px-6 h-9 rounded-xl shadow-xs transition-all disabled:opacity-40"
               >
-                {isSubmitting ? (
-                  <div className="flex items-center gap-2">
-                    <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Submitting Application...</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <span>Submit Advising Slip to Advisor</span>
-                    <ArrowRight className="h-4 w-4" />
-                  </div>
-                )}
+                {isSubmitting ? "Submitting Application..." : "Confirm & Submit Application to Advisor"}
               </Button>
             </div>
           </div>
@@ -1185,64 +1104,73 @@ export function UnifiedCoursesWorkspace({
       )}
 
       {/* ========================================================================= */}
-      {/* STEP 4: SUBMITTED SUCCESS STATE                                           */}
+      {/* STEP 4: SUBMISSION CONFIRMATION RECEIPT                                   */}
       {/* ========================================================================= */}
-      {currentStep === 4 && submittedData && (
-        <div className="max-w-xl mx-auto py-8">
-          <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-8 text-center space-y-5 shadow-lg">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+      {currentStep === 4 && (
+        <div className="max-w-2xl mx-auto py-6 space-y-6">
+          <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-6 sm:p-8 space-y-6 text-center shadow-sm">
+            <div className="w-14 h-14 rounded-2xl bg-[#062822] border border-[#064e3b] flex items-center justify-center mx-auto text-[#10b981]">
               <CheckCircle2 className="h-8 w-8" />
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <h2 className="text-xl font-bold text-white tracking-tight">
-                Advising Application Submitted
+                Course Registration Submitted Successfully
               </h2>
-              <p className="text-xs text-[#8e9db2] max-w-sm mx-auto leading-relaxed">
-                Your course registration request has been forwarded to your assigned academic advisor, <strong>Dr. Rahman Ahmed</strong>.
+              <p className="text-xs text-[#8e9db2] max-w-md mx-auto leading-relaxed">
+                Your advising slip has been recorded and forwarded to your academic advisor for formal review and section confirmation.
               </p>
             </div>
 
-            {/* Submission Receipt Card */}
-            <div className="p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c] text-left space-y-2.5 font-mono text-xs">
-              <div className="flex justify-between border-b border-[#1c263c] pb-2">
-                <span className="text-[#8e9db2]">Reference Voucher:</span>
-                <strong className="text-emerald-400">{submittedData.referenceId}</strong>
+            {/* Metadata Card */}
+            <div className="p-4 rounded-xl bg-[#0b0f19] border border-[#1c263c] text-left space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3 pb-3 border-b border-[#1c263c]">
+                <div>
+                  <span className="text-[#8e9db2] block text-[11px]">Application Reference:</span>
+                  <strong className="font-mono text-emerald-400">
+                    {submittedData?.referenceId || "REG-2027-SP-4589"}
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-[#8e9db2] block text-[11px]">Submission Time:</span>
+                  <span className="text-slate-300 font-mono">
+                    {submittedData?.submittedAt
+                      ? new Date(submittedData.submittedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                      : "Just now"}
+                  </span>
+                </div>
               </div>
-              <div className="flex justify-between border-b border-[#1c263c] pb-2">
-                <span className="text-[#8e9db2]">Assigned Sections:</span>
-                <span className="text-slate-300">{previousSection} &rarr; {desiredSection}</span>
-              </div>
-              <div className="flex justify-between border-b border-[#1c263c] pb-2">
-                <span className="text-[#8e9db2]">Enrolled Courses:</span>
-                <span className="text-slate-300">{selectedCourses.length} Courses ({totalCredits.toFixed(1)} Cr)</span>
-              </div>
-              <div className="flex justify-between border-b border-[#1c263c] pb-2">
-                <span className="text-[#8e9db2]">Course Types:</span>
-                <span className="text-slate-300">{generalCourseCount} General • {retakeCourseCount} Retake</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#8e9db2]">Status:</span>
-                <StatusBadge status="pending_advisor" className="text-[10px]" />
+
+              <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                <div className="p-2 rounded-lg bg-[#121827]">
+                  <span className="text-[#8e9db2] block text-[10px]">COHORT</span>
+                  <strong className="font-mono text-white text-xs">{previousSection} &rarr; {desiredSection}</strong>
+                </div>
+                <div className="p-2 rounded-lg bg-[#121827]">
+                  <span className="text-[#8e9db2] block text-[10px]">COURSES</span>
+                  <strong className="font-mono text-white text-xs">{selectedCourses.length} Courses</strong>
+                </div>
+                <div className="p-2 rounded-lg bg-[#121827]">
+                  <span className="text-[#8e9db2] block text-[10px]">CREDITS</span>
+                  <strong className="font-mono text-emerald-400 text-xs">{totalCredits.toFixed(1)} Cr</strong>
+                </div>
               </div>
             </div>
 
-            {/* Action buttons */}
-            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+            {/* Navigation Buttons */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+              <Link
+                href="/dashboard"
+                className="w-full sm:w-auto px-5 py-2 rounded-xl bg-white hover:bg-slate-100 text-[#0b0f19] font-semibold text-xs transition-all shadow-xs"
+              >
+                Return to Dashboard
+              </Link>
               <Link
                 href="/student/tracking"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#008764] hover:bg-[#007053] text-white font-semibold text-xs transition-all shadow-sm"
+                className="w-full sm:w-auto px-5 py-2 rounded-xl bg-[#172136] hover:bg-[#1a233a] text-slate-200 border border-[#25324d] font-medium text-xs transition-all"
               >
-                <span>Go to Application Tracking</span>
-                <ArrowRight className="h-4 w-4" />
+                Track Advising Status
               </Link>
-              <Button
-                variant="outline"
-                onClick={() => setCurrentStep(2)}
-                className="w-full sm:w-auto text-xs border-[#1c263c] text-slate-300 h-10 rounded-xl"
-              >
-                Modify Selections
-              </Button>
             </div>
           </div>
         </div>

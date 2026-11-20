@@ -61,6 +61,7 @@ export async function getCurrentUser() {
     devSession = cookieStore.get("diu_session_role")?.value;
   } catch {
     // Outside request context (e.g. test environment)
+    devSession = process.env.NODE_TEST_ROLE || undefined;
   }
 
   if (devSession) {
@@ -153,6 +154,7 @@ export async function getCurrentProfile(userParam?: { id: string; email?: string
     onboardedData = cookieStore.get("diu_onboarded_student_data")?.value;
   } catch {
     // Outside request context
+    devSession = process.env.NODE_TEST_ROLE || undefined;
   }
 
   if (devSession === "advisor_deactivated") {

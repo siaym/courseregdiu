@@ -13,6 +13,8 @@ import {
   Clock,
   Headphones,
   ShieldCheck,
+  Layers,
+  Mail,
 } from "lucide-react";
 import { DiuLogo } from "@/components/brand/diu-logo";
 import type { UserRole } from "@/types/database";
@@ -51,9 +53,11 @@ export function Sidebar({ role, isOpen, onClose }: SidebarProps) {
   ];
 
   const adminLinks: NavItem[] = [
-    { title: "Email Auth", href: "/admin/emails", icon: ShieldCheck },
-    { title: "Advisor Portal", href: "/advisor", icon: Home },
-    { title: "Students", href: "/advisor/students", icon: Users },
+    { title: "Dashboard", href: "/admin", icon: Home },
+    { title: "Batch Courses", href: "/admin/curriculum", icon: Layers },
+    { title: "Payment Clearances", href: "/admin/payments", icon: ShieldCheck },
+    { title: "Email Auth", href: "/admin/emails", icon: Mail },
+    { title: "Advisor Portal", href: "/advisor", icon: Users },
   ];
 
   const links = isAdminRoute || role === "admin"

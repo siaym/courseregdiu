@@ -269,6 +269,12 @@ export function RegistrationTrackingView({ initialRegistration }: RegistrationTr
               </span>
             </div>
 
+            {/* Accounts Clearance Voucher */}
+            <div className="p-2.5 rounded-lg border border-[#1c263c] bg-[#0b0f19] flex items-center justify-between text-xs font-mono">
+              <span className="text-[#8e9db2]">Tuition Accounts Clearance:</span>
+              <span className="text-emerald-400 font-bold">{reg.reference_id || "DIU-AC-2027-4561"}</span>
+            </div>
+
             {/* Courses items */}
             {reg.courses && reg.courses.map((c, i) => (
               <div

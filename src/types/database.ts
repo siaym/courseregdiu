@@ -420,6 +420,108 @@ export interface Database {
         };
         Relationships: [];
       };
+      batch_semester_courses: {
+        Row: {
+          id: string;
+          semester_id: string;
+          batch: string;
+          course_id: string;
+          created_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          semester_id: string;
+          batch: string;
+          course_id: string;
+          created_at?: string;
+          created_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          semester_id?: string;
+          batch?: string;
+          course_id?: string;
+          created_at?: string;
+          created_by?: string | null;
+        };
+        Relationships: [];
+      };
+      payment_clearances: {
+        Row: {
+          id: string;
+          student_id: string;
+          semester_id: string;
+          status: "awaiting_verification" | "cleared" | "not_cleared";
+          reference_code: string | null;
+          notes: string | null;
+          verified_by: string | null;
+          verified_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          student_id: string;
+          semester_id: string;
+          status?: "awaiting_verification" | "cleared" | "not_cleared";
+          reference_code?: string | null;
+          notes?: string | null;
+          verified_by?: string | null;
+          verified_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          student_id?: string;
+          semester_id?: string;
+          status?: "awaiting_verification" | "cleared" | "not_cleared";
+          reference_code?: string | null;
+          notes?: string | null;
+          verified_by?: string | null;
+          verified_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      payment_clearance_audit: {
+        Row: {
+          id: string;
+          clearance_id: string | null;
+          student_id: string;
+          semester_id: string;
+          previous_status: string | null;
+          new_status: string;
+          actor_id: string | null;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          clearance_id?: string | null;
+          student_id: string;
+          semester_id: string;
+          previous_status?: string | null;
+          new_status: string;
+          actor_id?: string | null;
+          notes?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          clearance_id?: string | null;
+          student_id?: string;
+          semester_id?: string;
+          previous_status?: string | null;
+          new_status?: string;
+          actor_id?: string | null;
+          notes?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {

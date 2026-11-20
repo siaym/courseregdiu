@@ -10,16 +10,25 @@ import {
   Mail,
   Info,
   CheckCircle2,
+  ShieldCheck,
+  Clock,
 } from "lucide-react";
 import {
   ACTIVE_MOCK_SEMESTER_LABEL,
   ACTIVE_MOCK_REGISTRATION_WINDOW,
   MOCK_ADVISOR_PROFILE,
 } from "@/lib/mock/data";
+import type { Database } from "@/types/database";
+import type { PaymentClearanceRecord } from "@/lib/payment/payment-service";
 
 type StudentLifecycleState = "draft" | "submitted" | "approved";
 
-export function StudentHomeView() {
+interface StudentHomeViewProps {
+  profile?: Database["public"]["Tables"]["profiles"]["Row"];
+  paymentClearance?: PaymentClearanceRecord | null;
+}
+
+export function StudentHomeView({ profile, paymentClearance }: StudentHomeViewProps) {
   const [activeState, setActiveState] = React.useState<StudentLifecycleState>("draft");
   const [showInfoModal, setShowInfoModal] = React.useState(false);
 
@@ -48,7 +57,7 @@ export function StudentHomeView() {
       {/* Greeting Header (Exact match to Mockup 1) */}
       <div className="space-y-1">
         <h1 className="text-3xl font-bold tracking-tight text-white">
-          Welcome back,
+          Welcome back{profile?.full_name ? `, ${profile.full_name}` : ""},
         </h1>
         <p className="text-sm text-[#8e9db2]">
           Your registration is ready to continue.
@@ -91,8 +100,8 @@ export function StudentHomeView() {
         </div>
       </div>
 
-      {/* Two-Column Middle Section (Exact match to Mockup 1) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Three-Column Middle Section */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Card 1: Registration Status */}
         <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-6 flex flex-col justify-between space-y-4">
           <div className="text-xs font-medium text-[#8e9db2]">
@@ -146,7 +155,58 @@ export function StudentHomeView() {
           </div>
         </div>
 
-        {/* Card 2: Your Advisor */}
+        {/* Card 2: Tuition Accounts Clearance */}
+        <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-6 flex flex-col justify-between space-y-4">
+          <div className="text-xs font-medium text-[#8e9db2]">
+            Tuition Accounts Status
+          </div>
+
+          <div className="flex items-start gap-4">
+            {(!paymentClearance || paymentClearance.status === "awaiting_verification") && (
+              <>
+                <Clock className="h-10 w-10 text-amber-400 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <div className="text-lg font-bold text-amber-400">
+                    Awaiting Verification
+                  </div>
+                  <p className="text-xs text-[#8e9db2] leading-relaxed">
+                    Voucher: {paymentClearance?.referenceCode || "DIU-AC-2027-4561"}
+                  </p>
+                </div>
+              </>
+            )}
+
+            {paymentClearance?.status === "cleared" && (
+              <>
+                <ShieldCheck className="h-10 w-10 text-emerald-400 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <div className="text-lg font-bold text-emerald-400">
+                    Payment Cleared
+                  </div>
+                  <p className="text-xs text-[#8e9db2] leading-relaxed">
+                    Verified by Accounts ({paymentClearance.referenceCode || "DIU-AC-2027-4561"}).
+                  </p>
+                </div>
+              </>
+            )}
+
+            {paymentClearance?.status === "not_cleared" && (
+              <>
+                <AlertCircle className="h-10 w-10 text-rose-400 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <div className="text-lg font-bold text-rose-400">
+                    Financial Hold
+                  </div>
+                  <p className="text-xs text-[#8e9db2] leading-relaxed">
+                    Tuition hold: Contact Finance & Accounts office.
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Card 3: Your Advisor */}
         <div className="bg-[#121827] border border-[#1c263c] rounded-2xl p-6 flex flex-col justify-between space-y-4">
           <div className="text-xs font-medium text-[#8e9db2]">
             Your Advisor

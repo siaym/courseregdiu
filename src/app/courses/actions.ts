@@ -11,6 +11,7 @@ import {
 import type { Database } from "@/types/database";
 import {
   MOCK_CURRENT_SEMESTER,
+  ACTIVE_MOCK_SEMESTER_LABEL,
   MOCK_ADVISOR_PROFILE,
   MOCK_ADVISEE_QUEUE,
   MOCK_SECTIONS,
@@ -18,6 +19,8 @@ import {
   type StudentRegistrationApplication,
   type ExtendedSection,
 } from "@/lib/mock/data";
+import { isCourseEligibleForBatch, normalizeBatch } from "@/lib/curriculum/batch-course-service";
+import { getStudentPaymentClearance } from "@/lib/payment/payment-service";
 
 export interface RegistrationSubmitResult {
   success: boolean;
@@ -74,18 +77,51 @@ export async function submitStudentRegistration(
     };
   }
 
-  // 3. Duplicate submission prevention & Reference Generation
+  // 3. Validate against duplicate courses in registration payload
+  const seenCourseIds = new Set<string>();
+  for (const c of courses) {
+    if (seenCourseIds.has(c.courseId)) {
+      return {
+        success: false,
+        error: `Duplicate course error: ${c.courseCode} cannot be selected multiple times in a single term.`,
+      };
+    }
+    seenCourseIds.add(c.courseId);
+  }
+
+  // 4. Server-Side Enforcement: Verify each course is strictly configured for student's batch & semester
+  const studentBatch = normalizeBatch(profile.batch || "60");
+  for (const c of courses) {
+    const isEligible = await isCourseEligibleForBatch(
+      MOCK_CURRENT_SEMESTER.id,
+      studentBatch,
+      c.courseId
+    );
+    if (!isEligible) {
+      return {
+        success: false,
+        error: `Course eligibility error: ${c.courseCode} is not configured for Batch ${studentBatch} in ${ACTIVE_MOCK_SEMESTER_LABEL}.`,
+      };
+    }
+  }
+
+  // 5. Query verified payment clearance status from authoritative finance/accounts records
+  const paymentRecord = await getStudentPaymentClearance(profile.id, MOCK_CURRENT_SEMESTER.id);
+  const isPaymentCleared = paymentRecord ? paymentRecord.status === "cleared" : false;
+  const paymentRefCode = paymentRecord?.referenceCode || `REG-2027-SP-${Math.floor(1000 + Math.random() * 9000)}`;
+
+  // 6. Duplicate submission prevention & Reference Generation
   const registrationId = `reg-app-${profile.id.replace(/[^a-zA-Z0-9]/g, "-")}`;
   const now = new Date();
   const submittedAt = now.toISOString();
-  const referenceId = `REG-2027-SP-${Math.floor(1000 + Math.random() * 9000)}`;
+  const referenceId = paymentRefCode;
 
-  // 4. Calculate metrics
+  // 7. Calculate metrics
   const totalCredits = courses.reduce((sum, c) => sum + c.credits, 0);
   const generalCourseCount = courses.filter((c) => c.courseType === "general").length;
   const retakeCourseCount = courses.filter((c) => c.courseType === "retake").length;
 
-  // 5. Build application object
+  // 8. Build application object
   const newApplication: StudentRegistrationApplication = {
     registration: {
       id: registrationId,
@@ -96,7 +132,7 @@ export async function submitStudentRegistration(
       advisor_id: MOCK_ADVISOR_PROFILE.id,
       reviewed_at: null,
       advisor_notes: null,
-      payment_cleared: true,
+      payment_cleared: isPaymentCleared,
       payment_reference: referenceId,
       previous_section: previousSection,
       desired_section: desiredSection,
@@ -218,7 +254,7 @@ export async function submitStudentRegistration(
       advisor_id: profile.id === MOCK_ADVISOR_PROFILE.id ? null : MOCK_ADVISOR_PROFILE.id,
       previous_section: previousSection,
       desired_section: desiredSection,
-      payment_cleared: true,
+      payment_cleared: isPaymentCleared,
       payment_reference: referenceId,
       updated_at: submittedAt,
     };
@@ -231,11 +267,15 @@ export async function submitStudentRegistration(
   }
 
   // 9. Revalidate dependent paths
-  revalidatePath("/courses");
-  revalidatePath("/dashboard");
-  revalidatePath("/student/tracking");
-  revalidatePath("/advisor");
-  revalidatePath(`/advisor/review/${registrationId}`);
+  try {
+    revalidatePath("/courses");
+    revalidatePath("/dashboard");
+    revalidatePath("/student/tracking");
+    revalidatePath("/advisor");
+    revalidatePath(`/advisor/review/${registrationId}`);
+  } catch {
+    // Outside active Next.js request context (e.g. test environment)
+  }
 
   return {
     success: true,

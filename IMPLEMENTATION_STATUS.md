@@ -1,15 +1,42 @@
 # IMPLEMENTATION STATUS — DIU Course Registration Platform
 
-> **Milestones**: Phase 0 Complete (100%) | Phase 1 Complete (100%) | Phase 1.5 Simplification (100%) | P0 Security Remediation Complete (100%) | Final Auth Policy Complete (100%) | P0 Security Hardening Complete (100%) | Student Guided Registration Workflow Complete (100%) | Advisor Portal UI/UX & Content Design Overhaul Complete (100%) | **Supabase Cloud URL Resolver & Next.js 16 Proxy Migration Complete (100%)**  
+> **Milestones**: Phase 0 Complete (100%) | Phase 1 Complete (100%) | Phase 1.5 Simplification (100%) | P0 Security Remediation Complete (100%) | Final Auth Policy Complete (100%) | P0 Security Hardening Complete (100%) | Student Guided Registration Workflow Complete (100%) | Advisor Portal UI/UX & Content Design Overhaul Complete (100%) | Supabase Cloud URL Resolver Complete (100%) | **Batch Course Configuration, Payment Clearance & Global UI/UX Redesign Complete (100%)**  
 > **Build Status**: Passing (`next build` & `eslint` exit code 0, 0 errors, 0 warnings)  
-> **Test Status**: Passing (`npm test` — **32/32** test cases pass across 4 test suites, 0 failures)  
-> **Total Routes**: 22 Routes Compiled (Static & Dynamic SSR)  
+> **Test Status**: Passing (`npm test` — **43/43** test cases pass across 5 test suites, 0 failures)  
+> **Total Routes**: 24 Routes Compiled (Static & Dynamic SSR)  
 > **Active Term**: Unified to **Spring 2027** (`Apr 14 – Apr 20, 2027`) Across All Views  
 > **Last Verification**: November 2026  
 
 ---
 
 ## 1. Executive Summary
+
+### Batch Course Configuration, Payment Clearance & Global UI/UX Redesign (ui-ux-pro-max)
+1. **Student Course Selection Redesign (`/courses`)**:
+   - Eliminated extraneous "All Departments" and "All Academic Levels" dropdown filters.
+   - Enforced cohort batch gating: students see only the courses authorized for their specific batch (e.g. Batch 69 sees Batch 69 courses, Batch 60 sees Batch 60 courses) in active semester `Spring 2027`.
+   - Single prominent debounced course search by code or title with instant keyboard reset.
+   - Independent General / Retake classification per selected course (all initially defaulted to General).
+   - Removed routine/room/faculty noise from the course selection list and sidebar cart.
+   - Fixed seat capacity caps: 50 seats for theory courses, 25 seats for laboratory courses.
+   - Server-side batch course validation in `submitStudentRegistration` rejecting unconfigured courses and duplicate submissions.
+
+2. **Admin Batch Course Studio (`/admin/curriculum`)**:
+   - Interactive semester and cohort batch selector (Batch 69, Batch 60, Batch 70, Batch 59).
+   - Live roster of configured courses for each batch with credit load tracking.
+   - Searchable master catalog to add courses with server action persistence.
+   - One-click course removal from batch configuration.
+
+3. **Authoritative Tuition Payment Clearance Workflow (`/admin/payments`)**:
+   - Decoupled self-declared payment checks from official Admin verification.
+   - 3 distinct statuses: `Awaiting Verification`, `Cleared`, `Not Cleared` (Financial Hold).
+   - Admin Payment Clearance Center with search, status filtering tabs, update dialog with mandatory administrative audit notes.
+   - Immutable audit log (`payment_clearance_audit`) tracking every status modification with actor ID, timestamp, and notes.
+   - Real-time clearance badges across Student Dashboard, Courses Workspace, Tracking view, and Advisor Review Studio.
+
+4. **Dedicated University Administration Portal (`/admin`)**:
+   - Live operational dashboard displaying batch curriculum stats, payment clearance metrics, and quick links to admin modules.
+   - Clean enterprise dark layout with Swiss Modernism design tokens from `ui-ux-pro-max`.
 
 ### Advisor Portal UI/UX and Content Design Overhaul
 Engineered a comprehensive design overhaul elevating the Advisor Portal into a high-density, professional university administration system:

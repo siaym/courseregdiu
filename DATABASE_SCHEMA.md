@@ -273,3 +273,12 @@ All tables have `ROW LEVEL SECURITY` explicitly enabled:
 - **`audit_logs`**:
   - `INSERT`: Admins and backend service role only.
   - `SELECT`: Admins and department heads only.
+- **`batch_semester_courses`**:
+  - `SELECT`: Authenticated users (students reading courses for their batch/semester, advisors, admins).
+  - `INSERT/UPDATE/DELETE`: Admins and department heads only.
+- **`payment_clearances`**:
+  - `SELECT`: Authenticated students reading their own clearance (`student_id = auth.uid()`), assigned advisors reviewing advisees, and admins.
+  - `INSERT/UPDATE/DELETE`: Admins and authorized finance personnel only.
+- **`payment_clearance_audit`**:
+  - `SELECT`: Admins and authorized finance personnel only.
+  - `INSERT`: Automated database triggers or Admin actions only; immutable log (no UPDATE/DELETE).
