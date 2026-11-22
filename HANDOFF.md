@@ -38,10 +38,11 @@ The **Batch Course Configuration, Authoritative Payment Clearance & Global UI/UX
    - Live operational dashboard displaying batch curriculum stats, payment clearance metrics, and quick links to admin modules.
    - Clean enterprise dark layout with Swiss Modernism design tokens from `ui-ux-pro-max`.
 
-5. **Advisor Review Studio Hierarchy Optimization (`/advisor/review/[id]`)**:
+5. **Advisor Review Studio Hierarchy Optimization & Robustness (`/advisor/review/[id]`)**:
    - Redesigned **1. Student Information** to prioritize DIU Student ID (prominent badge), student name, department & batch, followed directly by primary contact channels (institutional email, phone number, and verified alternative email).
    - Removed extraneous `Passed: Total Cr` and `Proposed: Max Cr` statistic boxes from the student header.
    - Promoted **Payment Information** to **Section 2** (immediately after Student Information), providing immediate visibility into tuition accounts clearance before reviewing cohort sections (`Section 3`), course selections (`Section 4`), and submitting determinations (`Section 5`).
+   - Fixed undefined section runtime error by reconciling lab subgroup section IDs (`60_A1`, `69_D1`) in advisee queue data and adding defensive fallbacks across credit calculation and section reassignments.
 
 6. **Student Academic Section Details Redesign & Live Seat Monitor (`/courses` Step 1)**:
    - **Laboratory Subgroup Option (`Lab D1` / `Lab D2`, Cap 25)**: Modeled DIU policy where 50-student theory cohorts (e.g. `69_D`) split into two 25-capacity lab subgroups (`Lab D1` and `Lab D2`). Provided interactive subgroup selection cards in Step 1 and 1-click toggles in Step 2 Course Selection.
