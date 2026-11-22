@@ -1515,9 +1515,9 @@ export const MOCK_STUDENT_ACTIVE_REGISTRATION: RegistrationRow = {
 
 export const MOCK_STUDENT_CART_SECTIONS: ExtendedSection[] = [
   MOCK_SECTIONS.find((s) => s.id === "sec-cse221-a")!, // CSE221 60_A (3.0 cr)
-  MOCK_SECTIONS.find((s) => s.id === "sec-cse222-a")!, // CSE222 60_A_L (1.5 cr)
+  MOCK_SECTIONS.find((s) => s.id === "sec-cse222-60a1")!, // CSE222 60_A1 (1.5 cr)
   MOCK_SECTIONS.find((s) => s.id === "sec-cse225-a")!, // CSE225 60_A (3.0 cr)
-  MOCK_SECTIONS.find((s) => s.id === "sec-cse226-a")!, // CSE226 60_A_L (1.5 cr)
+  MOCK_SECTIONS.find((s) => s.id === "sec-cse226-60a1")!, // CSE226 60_A1 (1.5 cr)
   MOCK_SECTIONS.find((s) => s.id === "sec-cse311-a")!, // CSE311 59_A (3.0 cr)
 ];
 
@@ -1571,8 +1571,8 @@ export const MOCK_ADVISEE_QUEUE: StudentRegistrationApplication[] = [
         course_type: "general",
       },
       {
-        item: { id: "item-102", registration_id: "reg-app-001", section_id: "sec-cse222-a", course_type: "general", status: "enrolled", created_at: "2027-04-14T14:30:00Z" },
-        section: MOCK_SECTIONS.find((s) => s.id === "sec-cse222-a")!,
+        item: { id: "item-102", registration_id: "reg-app-001", section_id: "sec-cse222-60a1", course_type: "general", status: "enrolled", created_at: "2027-04-14T14:30:00Z" },
+        section: MOCK_SECTIONS.find((s) => s.id === "sec-cse222-60a1")!,
         course: MOCK_COURSES.find((c) => c.code === "CSE222")!,
         course_type: "general",
       },
@@ -1820,8 +1820,8 @@ export const MOCK_ADVISEE_QUEUE: StudentRegistrationApplication[] = [
         course_type: "general",
       },
       {
-        item: { id: "item-502", registration_id: "reg-app-siyam", section_id: "sec-cse222-69dl", course_type: "general", status: "enrolled", created_at: "2027-04-14T15:00:00Z" },
-        section: MOCK_SECTIONS.find((s) => s.id === "sec-cse222-69dl") || MOCK_SECTIONS[1],
+        item: { id: "item-502", registration_id: "reg-app-siyam", section_id: "sec-cse222-69d1", course_type: "general", status: "enrolled", created_at: "2027-04-14T15:00:00Z" },
+        section: MOCK_SECTIONS.find((s) => s.id === "sec-cse222-69d1") || MOCK_SECTIONS[1],
         course: MOCK_COURSES.find((c) => c.code === "CSE222")!,
         course_type: "general",
       },

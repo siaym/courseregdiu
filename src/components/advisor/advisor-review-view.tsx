@@ -115,7 +115,7 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
     if (!newSection) return;
 
     setItems((prev) =>
-      prev.map((it) => (it.section.id === currentSectionId ? { ...it, section: newSection } : it))
+      prev.map((it) => (it.section?.id === currentSectionId ? { ...it, section: newSection } : it))
     );
 
     // Call server action
@@ -204,7 +204,7 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
     }
   };
 
-  const totalCredits = items.reduce((sum, it) => sum + (it.section.credits || it.course.credits || 3.0), 0);
+  const totalCredits = items.reduce((sum, it) => sum + (it.section?.credits || it.course?.credits || 3.0), 0);
   const creditRules = getCreditLimitByCgpa(application.student.cgpa);
   const isOverloaded = totalCredits > creditRules.maxCredits;
 
@@ -534,7 +534,7 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
                       </td>
 
                       <td className="py-3 px-3 text-center font-mono text-slate-200">
-                        {(it.section.credits || it.course.credits).toFixed(1)}
+                        {(it.section?.credits || it.course?.credits || 3.0).toFixed(1)}
                       </td>
 
                       {/* Course Classification */}
@@ -569,8 +569,8 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
                       <td className="py-3 px-4 text-right">
                         {availableSections.length > 1 ? (
                           <select
-                            value={it.section.id}
-                            onChange={(e) => handleReassignSection(it.course.id, it.section.id, e.target.value)}
+                            value={it.section?.id || availableSections[0]?.id || ""}
+                            onChange={(e) => handleReassignSection(it.course.id, it.section?.id || "", e.target.value)}
                             className="max-w-[240px] ml-auto text-xs font-mono bg-[#121827] border border-[#1c263c] rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500 cursor-pointer"
                           >
                             {availableSections.map((s) => {
@@ -584,7 +584,7 @@ export function AdvisorReviewView({ registrationId }: AdvisorReviewViewProps) {
                           </select>
                         ) : (
                           <span className="font-mono text-xs text-slate-300 px-2 py-1 rounded bg-[#121827] border border-[#1c263c]">
-                            Sec {it.section.section_name} (Fixed)
+                            Sec {it.section?.section_name || availableSections[0]?.section_name || "A"} (Fixed)
                           </span>
                         )}
                       </td>
