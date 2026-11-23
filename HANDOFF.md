@@ -4,15 +4,21 @@
 > **To**: Incoming Engineering Agent / Phase 2 Full-Stack Team  
 > **Repository**: `courseregdiu` (`https://github.com/siaym/courseregdiu`)  
 > **Handover Date**: November 2026  
-> **Milestone Status**: Phase 1.5 Complete (100%) | P0 Security Remediation Complete (100%) | Final Auth Policy Complete (100%) | **Production Security Hardening & Fail-Closed Architecture Complete (100%)** | Advisor Portal UI/UX Overhaul & 3-Category Application Center Complete (100%) | Supabase Cloud URL Resolver Complete (100%) | **Batch Course Configuration, Payment Clearance & Global UI/UX Redesign Complete (100%)** | Ready for Remote Supabase Production Migration  
+> **Milestone Status**: Phase 1.5 Complete (100%) | P0 Security Remediation Complete (100%) | Final Auth Policy Complete (100%) | Production Security Hardening & Fail-Closed Architecture Complete (100%) | **Dynamic Email Authentication & Admin Toggle Controls Complete (100%)** | Advisor Portal UI/UX Overhaul & 3-Category Application Center Complete (100%) | Supabase Cloud URL Resolver Complete (100%) | **Batch Course Configuration, Payment Clearance & Global UI/UX Redesign Complete (100%)** | Ready for Remote Supabase Production Migration  
 
 ---
 
 ## 1. Handover Summary
 
-The **Production Security Hardening, Fail-Closed Architecture & Global Audit Remediation** cycle has been completed with full automated test coverage (51/51 tests passing) and zero build warnings:
+The **Dynamic Email Authentication, Admin Sign-In Feature Flags & Production Hardening** cycle has been completed with full automated test coverage (63/63 tests passing across 7 test suites) and zero build warnings:
 
-0. **Production Security & Fail-Closed Isolation (P0 & P1)**:
+0. **Dynamic Email Authentication & Admin Toggle Controls**:
+   - **Multi-Method Login Screen (`/login`)**: Integrated Email Authentication alongside institutional Google OAuth (`@diu.edu.bd`). Provides both 6-digit One-Time Passcode (OTP / Magic Link) and password sign-in tabs.
+   - **Admin Portal Feature Controls (`/admin`)**: Interactive toggle card (`AdminAuthSettingsCard`) in the Administration Portal allowing administrators to turn Email Authentication **ON** or **OFF** at will with instantaneous server action propagation (`toggleEmailAuthAction`).
+   - **Fail-Closed Policy Enforcement**: When Email Authentication is turned OFF, all server-side email authentication actions (`requestEmailOtpAction`, `verifyEmailOtpAction`, `signInWithEmailPasswordAction`) fail closed and reject attempts with descriptive feedback.
+   - **Institutional Email Authorization Guarantee**: Every email login attempt authoritatively resolves through `resolveEmailAuthorization`, strictly verifying that only `@diu.edu.bd` accounts or Admin-authorized alternative personal emails are permitted. Deactivated accounts are rejected.
+   - **Faculty Demo Mode Bypass Controls**: Admin toggle allowing developer / faculty presentation demo bypass to be enabled or disabled dynamically without changing code.
+   - **Dedicated Regression Suite (`tests/email-auth-and-admin-toggle.test.mjs`)**: 12/12 automated test scenarios covering system settings inspection, admin toggles, fail-closed enforcement when disabled, authorized OTP dispatch, and production demo isolation. Total project test suite expanded to 63/63 passing tests.
    - **Dev Cookie Impersonation Elimination**: In `src/lib/auth/roles.ts` and `src/lib/supabase/middleware.ts`, when `process.env.NODE_ENV === "production"`, `diu_session_role` is strictly ignored. Only verified Supabase users (`supabase.auth.getUser()`) with database authorization profiles can access protected routes.
    - **Mock Authorization Fallback Removal**: In `src/lib/auth/email-authorization.ts`, database query failures and outages in production fail closed (`authorized: false, reason: "DATABASE_UNAVAILABLE"`) and never inspect development mock data.
    - **Fail-Closed Mutations**: Onboarding profile creation (`src/app/onboarding/actions.ts`), course registration submission (`src/app/courses/actions.ts`), and advisor reviews (`src/app/advisor/actions.ts`) reject submissions if database writes fail in production.

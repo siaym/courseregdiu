@@ -32,3 +32,30 @@ export const profileUpdateSchema = z.object({
 });
 
 export type ProfileUpdateInput = z.infer<typeof profileUpdateSchema>;
+
+// Email Login Schemas
+export const requestOtpSchema = z.object({
+  email: z.string().email("Please provide a valid email address."),
+});
+
+export type RequestOtpInput = z.infer<typeof requestOtpSchema>;
+
+export const verifyOtpSchema = z.object({
+  email: z.string().email("Please provide a valid email address."),
+  token: z.string().regex(/^\d{6}$/, "One-time passcode must be exactly 6 digits."),
+});
+
+export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
+
+export const emailPasswordLoginSchema = z.object({
+  email: z.string().email("Please provide a valid email address."),
+  password: z.string().min(6, "Password must be at least 6 characters."),
+});
+
+export type EmailPasswordLoginInput = z.infer<typeof emailPasswordLoginSchema>;
+
+export const toggleSettingSchema = z.object({
+  enabled: z.boolean(),
+});
+
+export type ToggleSettingInput = z.infer<typeof toggleSettingSchema>;

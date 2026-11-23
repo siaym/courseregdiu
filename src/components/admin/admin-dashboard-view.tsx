@@ -11,6 +11,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { ACTIVE_MOCK_SEMESTER_LABEL } from "@/lib/mock/data";
+import { AdminAuthSettingsCard } from "@/components/admin/admin-auth-settings-card";
 
 interface AdminDashboardViewProps {
   stats: {
@@ -23,9 +24,13 @@ interface AdminDashboardViewProps {
     };
     authorizedAlternativeEmails: number;
   };
+  systemSettings?: {
+    emailAuthEnabled: boolean;
+    demoBypassEnabled: boolean;
+  };
 }
 
-export function AdminDashboardView({ stats }: AdminDashboardViewProps) {
+export function AdminDashboardView({ stats, systemSettings }: AdminDashboardViewProps) {
   return (
     <div className="space-y-6 text-slate-100 max-w-7xl mx-auto py-2">
       {/* Header */}
@@ -122,6 +127,12 @@ export function AdminDashboardView({ stats }: AdminDashboardViewProps) {
           </div>
         </Link>
       </div>
+
+      {/* Authentication & Sign-In Controls (Email Auth Toggle & Demo Mode) */}
+      <AdminAuthSettingsCard
+        initialEmailAuthEnabled={systemSettings?.emailAuthEnabled ?? true}
+        initialDemoBypassEnabled={systemSettings?.demoBypassEnabled ?? true}
+      />
 
       {/* Core Operational Modules Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">

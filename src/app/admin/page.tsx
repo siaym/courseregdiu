@@ -3,10 +3,14 @@ import { requireAdmin } from "@/lib/auth/roles";
 import { AdminDashboardView } from "@/components/admin/admin-dashboard-view";
 import { getBatchSemesterCourses } from "@/lib/curriculum/batch-course-service";
 import { listPaymentClearances } from "@/lib/payment/payment-service";
+import { getAllSystemSettings } from "@/lib/settings/system-settings";
 import { MOCK_AUTHORIZED_EMAILS } from "@/lib/mock/data";
 
 export default async function AdminPage() {
   const { user, profile } = await requireAdmin("/admin");
+
+  // Fetch system settings for runtime feature toggles
+  const systemSettings = await getAllSystemSettings();
 
   // Calculate live statistics
   const batches = ["69", "60", "70", "59"];
@@ -34,7 +38,7 @@ export default async function AdminPage() {
 
   return (
     <AppShell user={user} profile={profile}>
-      <AdminDashboardView stats={stats} />
+      <AdminDashboardView stats={stats} systemSettings={systemSettings} />
     </AppShell>
   );
 }

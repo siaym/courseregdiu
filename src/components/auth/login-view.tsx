@@ -1,24 +1,43 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { GraduationCap, ShieldAlert, AlertCircle, ArrowRight, UserCheck, Sparkles, UserPlus } from "lucide-react";
+import {
+  GraduationCap,
+  ShieldAlert,
+  AlertCircle,
+  ArrowRight,
+  UserCheck,
+  Sparkles,
+  UserPlus,
+  ShieldCheck,
+} from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
+import { EmailSignInForm } from "@/components/auth/email-sign-in-form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getCurrentUser, getCurrentProfile } from "@/lib/auth/roles";
+import { isEmailAuthEnabled } from "@/lib/settings/system-settings";
 import { setDevSession } from "@/app/login/actions";
 
 export interface LoginPageProps {
   searchParams?: Promise<{
     error?: string;
     returnTo?: string;
-  }>;
+    auth?: string;
+    view?: string;
+  }> | {
+    error?: string;
+    returnTo?: string;
+    auth?: string;
+    view?: string;
+  };
+  emailAuthEnabled?: boolean;
 }
 
 /**
- * Preserved Full Login Page Component.
- * Retained in full for production Google OAuth (@diu.edu.bd) and local dev session testing.
+ * Universal Login Page Component supporting Google OAuth (@diu.edu.bd)
+ * and runtime-controlled Email Authentication (OTP / Password).
  */
-export async function PreservedLoginPage({ searchParams }: LoginPageProps = {}) {
+export async function LoginPageView({ searchParams, emailAuthEnabled: propEmailAuth }: LoginPageProps = {}) {
   const params = searchParams ? await searchParams : {};
   const error = params.error;
   const returnTo = params.returnTo || "/dashboard";
@@ -34,6 +53,7 @@ export async function PreservedLoginPage({ searchParams }: LoginPageProps = {}) 
   }
 
   const isDevMode = process.env.NODE_ENV !== "production";
+  const emailAuthActive = propEmailAuth !== undefined ? propEmailAuth : await isEmailAuthEnabled();
 
   return (
     <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-[#0b0f19] text-slate-100">
@@ -81,7 +101,7 @@ export async function PreservedLoginPage({ searchParams }: LoginPageProps = {}) 
             <AlertCircle className="h-4 w-4" />
             <AlertTitle className="text-xs font-semibold">Authentication Cancelled</AlertTitle>
             <AlertDescription className="text-xs text-rose-300">
-              The Google OAuth authorization was cancelled or encountered a handshake error. Please try again.
+              The authentication handshake was cancelled or encountered an error. Please try again.
             </AlertDescription>
           </Alert>
         )}
@@ -89,15 +109,48 @@ export async function PreservedLoginPage({ searchParams }: LoginPageProps = {}) 
         {/* Primary Institutional Login Card */}
         <Card className="border-[#1c263c] bg-[#121827] shadow-xl">
           <CardHeader className="space-y-1 pb-4">
-            <CardTitle className="text-base font-semibold text-white">
-              Institutional Sign In
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-semibold text-white">
+                Institutional Sign In
+              </CardTitle>
+              {emailAuthActive && (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-800 text-emerald-400 font-semibold">
+                  Google + Email Auth Active
+                </span>
+              )}
+            </div>
             <CardDescription className="text-xs text-[#8e9db2]">
-              Authenticate via DIU single sign-on using your university Google account.
+              Authenticate using your university Google account or authorized DIU email.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Primary Option: Google OAuth */}
             <GoogleSignInButton redirectTo={returnTo} />
+
+            {/* Email Authentication Section (Admin Controlled) */}
+            {emailAuthActive ? (
+              <div className="space-y-3 pt-2">
+                <div className="relative my-2">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-[#1c263c]" />
+                  </div>
+                  <div className="relative flex justify-center text-[10px] uppercase">
+                    <span className="bg-[#121827] px-2 text-[#8e9db2] font-semibold tracking-wider">
+                      Or sign in with email
+                    </span>
+                  </div>
+                </div>
+
+                <EmailSignInForm redirectTo={returnTo} />
+              </div>
+            ) : (
+              <div className="pt-2 text-center text-[11px] text-[#8e9db2] border-t border-[#1c263c]/60">
+                <span className="inline-flex items-center gap-1.5 text-slate-400">
+                  <ShieldCheck className="h-3 w-3 text-emerald-400" />
+                  Institutional Google SSO (@diu.edu.bd) exclusively active.
+                </span>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -233,3 +286,6 @@ export async function PreservedLoginPage({ searchParams }: LoginPageProps = {}) 
     </div>
   );
 }
+
+// Preserve backwards compatibility
+export const PreservedLoginPage = LoginPageView;

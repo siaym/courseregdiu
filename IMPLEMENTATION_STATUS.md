@@ -1,8 +1,8 @@
 # IMPLEMENTATION STATUS — DIU Course Registration Platform
 
-> **Milestones**: Phase 0 Complete (100%) | Phase 1 Complete (100%) | Phase 1.5 Simplification (100%) | P0 Security Remediation Complete (100%) | Final Auth Policy Complete (100%) | **Production Security Hardening & Fail-Closed Architecture Complete (100%)** | Student Guided Registration Workflow Complete (100%) | Advisor Portal UI/UX & Content Design Overhaul Complete (100%) | Supabase Cloud URL Resolver Complete (100%) | **Batch Course Configuration, Payment Clearance & Global UI/UX Redesign Complete (100%)**  
+> **Milestones**: Phase 0 Complete (100%) | Phase 1 Complete (100%) | Phase 1.5 Simplification (100%) | P0 Security Remediation Complete (100%) | Final Auth Policy Complete (100%) | Production Security Hardening & Fail-Closed Architecture Complete (100%) | **Dynamic Email Authentication & Admin Sign-In Feature Flags Complete (100%)** | Student Guided Registration Workflow Complete (100%) | Advisor Portal UI/UX & Content Design Overhaul Complete (100%) | Supabase Cloud URL Resolver Complete (100%) | **Batch Course Configuration, Payment Clearance & Global UI/UX Redesign Complete (100%)**  
 > **Build Status**: Passing (`next build` & `eslint` exit code 0, 0 errors, 0 warnings)  
-> **Test Status**: Passing (`npm test` — **51/51** test cases pass across 6 test suites, 0 failures)  
+> **Test Status**: Passing (`npm test` — **63/63** test cases pass across 7 test suites, 0 failures)  
 > **Total Routes**: 26 Routes Compiled (Static & Dynamic SSR)  
 > **Active Term**: Unified to **Spring 2027** (`Apr 14 – Apr 20, 2027`) Across All Views  
 > **Last Verification**: November 2026  
@@ -10,6 +10,23 @@
 ---
 
 ## 1. Executive Summary
+
+### Dynamic Email Authentication & Admin Toggle Controls
+1. **Multi-Method Institutional Login Workspace (`/login`)**:
+   - Institutional Google OAuth (`@diu.edu.bd`) primary sign-in button.
+   - Dynamic Email Sign-In form featuring tabbed One-Time Passcode (6-digit OTP / Magic Link) and password authentication.
+   - Informative institutional security indicators showing active authentication policies.
+2. **Admin Portal Authentication & Feature Controls (`/admin`)**:
+   - `AdminAuthSettingsCard` component embedded directly on the university administration portal overview.
+   - 1-click interactive toggle allowing administrators to turn Email Authentication **ON** or **OFF** at will.
+   - Faculty Demo Mode Bypass toggle allowing rapid presentation demo mode to be turned on or off from the UI without code changes.
+   - Quick preview link to inspect the live login screen in another tab (`/login?auth=true`).
+3. **Fail-Closed Policy Enforcement & Email Verification**:
+   - When Email Authentication is turned OFF, server actions reject email sign-in requests immediately.
+   - All email sign-ins validate against `resolveEmailAuthorization`, restricting access strictly to `@diu.edu.bd` accounts or Admin-authorized alternative personal emails.
+   - Deactivated email identities are immediately rejected.
+4. **Dedicated Automated Regression Suite (`tests/email-auth-and-admin-toggle.test.mjs`)**:
+   - 12 comprehensive automated test scenarios verifying settings defaults, admin toggles, unauthorized rejections, deactivated rejections, OTP verification, and production demo isolation.
 
 ### Production Security Hardening & Fail-Closed Architecture (P0 & P1)
 1. **Elimination of Development-Session Cookie Impersonation in Production**:
