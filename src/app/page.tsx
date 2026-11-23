@@ -4,7 +4,7 @@ import { getCurrentUser, getCurrentProfile } from "@/lib/auth/roles";
 export default async function HomePage() {
   const user = await getCurrentUser();
   if (!user) {
-    redirect("/login");
+    redirect("/dashboard");
   }
 
   const profile = await getCurrentProfile(user);
@@ -14,10 +14,6 @@ export default async function HomePage() {
 
   if (profile?.role === "advisor" || profile?.role === "department_head") {
     redirect("/advisor");
-  }
-
-  if (profile?.role === "student" && !profile?.onboarding_completed) {
-    redirect("/onboarding");
   }
 
   redirect("/dashboard");

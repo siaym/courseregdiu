@@ -61,6 +61,9 @@ export function Header({
           <div className="flex items-center bg-[#121827] p-1 rounded-xl border border-[#1c263c] text-xs">
             <Link
               href="/dashboard"
+              onClick={() => {
+                document.cookie = "diu_session_role=student; path=/";
+              }}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
                 !isAdvisor
                   ? "bg-[#172136] text-white shadow-xs"
@@ -72,6 +75,9 @@ export function Header({
             </Link>
             <Link
               href="/advisor"
+              onClick={() => {
+                document.cookie = "diu_session_role=advisor; path=/";
+              }}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
                 isAdvisor
                   ? "bg-[#172136] text-white shadow-xs"

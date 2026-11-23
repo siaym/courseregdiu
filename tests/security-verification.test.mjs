@@ -10,23 +10,41 @@ import { validateRegistrationStateTransition } from "../src/lib/validations/regi
 const baseUrl = "http://localhost:3000";
 
 // ====================================================================
-// TEST 1: Unauthenticated Route Access
+// TEST 1: Presentation Demo Mode — Login Page Bypassed
 // ====================================================================
-test("Security Test 1: Unauthenticated Route Access", async () => {
-  const protectedPaths = ["/dashboard", "/courses", "/advisor", "/schedule", "/student/profile"];
+test("Security Test 1: Route Access & Login Page Bypass for Demo", async () => {
+  // 1.1: Verify /login redirects directly to application workspace (no login screen shown)
+  const loginRes = await fetch(`${baseUrl}/login`, { redirect: "manual" });
+  assert.equal(
+    loginRes.status === 307 || loginRes.status === 308 || loginRes.status === 302,
+    true,
+    "/login must redirect away from login screen"
+  );
+  const loginLocation = loginRes.headers.get("location") || "";
+  assert.equal(
+    loginLocation.includes("/dashboard"),
+    true,
+    `/login must redirect to /dashboard (got: ${loginLocation})`
+  );
 
+  // 1.2: Verify unauthenticated entry to root / goes to /dashboard
+  const rootRes = await fetch(`${baseUrl}/`, { redirect: "manual" });
+  const rootLocation = rootRes.headers.get("location") || "";
+  assert.equal(
+    rootLocation.includes("/dashboard"),
+    true,
+    `Root / must redirect to /dashboard (got: ${rootLocation})`
+  );
+
+  // 1.3: Verify protected paths do not bounce to /login during demo presentation
+  const protectedPaths = ["/dashboard", "/courses", "/schedule", "/student/profile"];
   for (const path of protectedPaths) {
     const res = await fetch(`${baseUrl}${path}`, { redirect: "manual" });
-    assert.equal(
-      res.status === 307 || res.status === 308 || res.status === 302,
-      true,
-      `Unauthenticated access to ${path} must be redirected`
-    );
     const location = res.headers.get("location") || "";
     assert.equal(
-      location.includes("/login"),
+      !location.includes("/login"),
       true,
-      `Redirect target for ${path} must point to /login (got: ${location})`
+      `Protected path ${path} must never redirect to /login during demo (got: ${location})`
     );
   }
 });

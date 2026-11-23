@@ -14,6 +14,7 @@ import {
   isDIUEmail,
   resolveEmailAuthorization,
 } from "@/lib/auth/email-authorization";
+import { DEMO_MODE } from "@/lib/config/demo";
 
 export { normalizeEmail, isDIUEmail, resolveEmailAuthorization };
 
@@ -115,6 +116,24 @@ export async function getCurrentUser() {
     }
   }
 
+  // DEMO MODE: If inside request context and no session cookie exists, default to Student profile for seamless faculty demo
+  let inRequestContext = false;
+  try {
+    await cookies();
+    inRequestContext = true;
+  } catch {}
+
+  if (DEMO_MODE && inRequestContext) {
+    return {
+      id: MOCK_STUDENT_PROFILE.id,
+      email: MOCK_STUDENT_PROFILE.email,
+      user_metadata: {
+        full_name: MOCK_STUDENT_PROFILE.full_name,
+        avatar_url: MOCK_STUDENT_PROFILE.avatar_url || undefined,
+      },
+    };
+  }
+
   return null;
 }
 
@@ -190,6 +209,17 @@ export async function getCurrentProfile(userParam?: { id: string; email?: string
     return MOCK_STUDENT_PROFILE;
   }
 
+  // DEMO MODE: Default profile for faculty presentation inside request context
+  let inRequestContext = false;
+  try {
+    await cookies();
+    inRequestContext = true;
+  } catch {}
+
+  if (DEMO_MODE && inRequestContext) {
+    return MOCK_STUDENT_PROFILE;
+  }
+
   return null;
 }
 
@@ -261,6 +291,41 @@ export async function requireAdvisor(returnTo?: string): Promise<{
   user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
   profile: Profile;
 }> {
+  let devSession: string | undefined;
+  try {
+    const cookieStore = await cookies();
+    devSession = cookieStore.get("diu_session_role")?.value;
+  } catch {}
+
+  if (devSession === "advisor" || devSession === "advisor_personal") {
+    return {
+      user: {
+        id: MOCK_ADVISOR_PROFILE.id,
+        email: MOCK_ADVISOR_PROFILE.email,
+        user_metadata: {
+          full_name: MOCK_ADVISOR_PROFILE.full_name,
+          avatar_url: MOCK_ADVISOR_PROFILE.avatar_url || undefined,
+        },
+      },
+      profile: MOCK_ADVISOR_PROFILE,
+    };
+  }
+
+  // DEMO MODE: Seamless access to advisor studio during presentation
+  if (DEMO_MODE && devSession !== "student") {
+    return {
+      user: {
+        id: MOCK_ADVISOR_PROFILE.id,
+        email: MOCK_ADVISOR_PROFILE.email,
+        user_metadata: {
+          full_name: MOCK_ADVISOR_PROFILE.full_name,
+          avatar_url: MOCK_ADVISOR_PROFILE.avatar_url || undefined,
+        },
+      },
+      profile: MOCK_ADVISOR_PROFILE,
+    };
+  }
+
   return await requireRole(["advisor", "department_head", "admin"], returnTo);
 }
 

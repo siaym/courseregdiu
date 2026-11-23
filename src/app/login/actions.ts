@@ -54,5 +54,5 @@ export async function clearSession() {
   cookieStore.delete("diu_session_role");
   cookieStore.delete("diu_onboarded_student_data");
 
-  redirect("/login");
+  redirect("/dashboard");
 }

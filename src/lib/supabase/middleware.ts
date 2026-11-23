@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/types/database";
 
 import { getSupabaseUrl, getSupabasePublishableKey, isSupabaseConfigured } from "./config";
+import { DEMO_MODE } from "@/lib/config/demo";
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({
@@ -97,15 +98,11 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/admin") ||
     pathname.startsWith("/onboarding");
 
-  // 1. Unauthenticated users cannot access protected routes
-  if (isProtectedPath && !isAuthenticated) {
+  // 1. Deactivated advisor account is ALWAYS intercepted and blocked
+  if (devSessionRole === "advisor_deactivated") {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
-    if (devSessionRole === "advisor_deactivated") {
-      redirectUrl.searchParams.set("error", "advisor_deactivated");
-    } else {
-      redirectUrl.searchParams.set("returnTo", pathname);
-    }
+    redirectUrl.searchParams.set("error", "advisor_deactivated");
     return NextResponse.redirect(redirectUrl);
   }
 
@@ -128,6 +125,50 @@ export async function updateSession(request: NextRequest) {
       redirectUrl.pathname = "/unauthorized";
       return NextResponse.redirect(redirectUrl);
     }
+  }
+
+  // 4. DEMO MODE: Bypasses login page so presentation demo flows seamlessly without authentication barriers
+  if (DEMO_MODE) {
+    // If /login is requested without error param, redirect directly to active workspace
+    if (pathname === "/login") {
+      if (!request.nextUrl.searchParams.has("error")) {
+        const redirectUrl = request.nextUrl.clone();
+        if (devSessionRole === "admin") {
+          redirectUrl.pathname = "/admin/emails";
+        } else if (devSessionRole === "advisor" || devSessionRole === "advisor_personal") {
+          redirectUrl.pathname = "/advisor";
+        } else {
+          redirectUrl.pathname = "/dashboard";
+        }
+        return NextResponse.redirect(redirectUrl);
+      }
+    }
+
+    // Unauthenticated requests automatically receive demo student session cookie and proceed
+    if (isProtectedPath && !isAuthenticated) {
+      const response = NextResponse.next();
+      response.cookies.set("diu_session_role", "student", {
+        path: "/",
+        httpOnly: false,
+        sameSite: "lax",
+      });
+      return response;
+    }
+
+    return response;
+  }
+
+  // Fallback for non-demo mode:
+  // 1. Unauthenticated users cannot access protected routes
+  if (isProtectedPath && !isAuthenticated) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/login";
+    if (devSessionRole === "advisor_deactivated") {
+      redirectUrl.searchParams.set("error", "advisor_deactivated");
+    } else {
+      redirectUrl.searchParams.set("returnTo", pathname);
+    }
+    return NextResponse.redirect(redirectUrl);
   }
 
   // 4. Un-onboarded first-time students are strictly redirected to /onboarding
