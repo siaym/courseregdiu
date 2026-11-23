@@ -1,4 +1,5 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { UserRole } from "@/types/database";
 import {
   MOCK_STUDENT_PROFILE,
@@ -55,28 +56,104 @@ export async function resolveEmailAuthorization(
     return { authorized: false, reason: "EMPTY_EMAIL" };
   }
 
-  // 1. Check live database if Supabase client is operational
-  try {
-    const supabase = await getSupabaseServerClient();
-    const queryResult = (await supabase
-      .from("authorized_emails")
-      .select("*, profile:profiles(*)")
-      .eq("email", normEmail)
-      .maybeSingle()) as {
-        data: (AuthorizedEmailRow & { profile: ProfileRow | null }) | null;
-        error: unknown;
-      };
-    const authRecord = queryResult.data;
-    const error = queryResult.error;
+  const isProduction = process.env.NODE_ENV === "production";
+  const supabaseConfigured = isSupabaseConfigured();
 
-    if (!error && authRecord) {
-      const profile = authRecord.profile;
-      if (!authRecord.is_active) {
+  // 1. Authoritative PostgreSQL Database Verification
+  if (supabaseConfigured || isProduction) {
+    try {
+      const supabase = await getSupabaseServerClient();
+      const queryResult = (await supabase
+        .from("authorized_emails")
+        .select("*, profile:profiles(*)")
+        .eq("email", normEmail)
+        .maybeSingle()) as {
+          data: (AuthorizedEmailRow & { profile: ProfileRow | null }) | null;
+          error: unknown;
+        };
+      const authRecord = queryResult.data;
+      const error = queryResult.error;
+
+      // CRITICAL SECURITY DIRECTIVE (P0): In production, database query errors must FAIL CLOSED immediately
+      if (error) {
+        if (isProduction) {
+          console.error("[EmailAuthorization] Production database error during lookup:", error);
+          return { authorized: false, reason: "DATABASE_UNAVAILABLE" };
+        }
+        // In non-production local dev, fall through to dev mock registry if remote table is not yet migrated
+      } else if (authRecord) {
+        const profile = authRecord.profile;
+        if (!authRecord.is_active) {
+          return {
+            authorized: false,
+            profileId: authRecord.profile_id,
+            role: profile?.role,
+            emailType: authRecord.email_type,
+            isActive: false,
+            reason: "DEACTIVATED",
+          };
+        }
+
         return {
-          authorized: false,
+          authorized: true,
           profileId: authRecord.profile_id,
           role: profile?.role,
           emailType: authRecord.email_type,
+          isActive: true,
+          profile: profile || undefined,
+        };
+      } else {
+        // Database lookup succeeded cleanly with no record
+        if (isDIUEmail(normEmail)) {
+          return {
+            authorized: true,
+            role: "student",
+            emailType: "primary_diu",
+            isActive: true,
+          };
+        }
+
+        if (isProduction) {
+          return {
+            authorized: false,
+            reason: "UNREGISTERED_PERSONAL_EMAIL",
+          };
+        }
+      }
+    } catch (err) {
+      if (isProduction) {
+        console.error("[EmailAuthorization] Production database connection exception:", err);
+        return { authorized: false, reason: "DATABASE_UNAVAILABLE" };
+      }
+      // In non-production local dev, fall through to dev mock registry
+    }
+  }
+
+  // 2. Check dev mock authorized emails registry (strictly in offline local development/tests)
+  if (!isProduction) {
+    const mockAuth = MOCK_AUTHORIZED_EMAILS.find(
+      (item) => normalizeEmail(item.email) === normEmail
+    );
+
+    if (mockAuth) {
+      // Find matching profile in mock records
+      let mockProfile: ProfileRow | undefined;
+      if (mockAuth.profile_id === MOCK_STUDENT_PROFILE.id || mockAuth.profile_id === "prof-student-01") {
+        mockProfile = MOCK_STUDENT_PROFILE;
+      } else if (mockAuth.profile_id === MOCK_ADVISOR_PROFILE.id) {
+        mockProfile = MOCK_ADVISOR_PROFILE;
+      } else if (mockAuth.profile_id === MOCK_ADMIN_PROFILE.id) {
+        mockProfile = MOCK_ADMIN_PROFILE;
+      } else if (mockAuth.profile_id === MOCK_FIRST_TIME_STUDENT_PROFILE.id) {
+        mockProfile = MOCK_FIRST_TIME_STUDENT_PROFILE;
+      }
+
+      if (!mockAuth.is_active) {
+        return {
+          authorized: false,
+          profileId: mockAuth.profile_id,
+          role: mockProfile?.role,
+          emailType: mockAuth.email_type,
           isActive: false,
           reason: "DEACTIVATED",
         };
@@ -84,54 +161,13 @@ export async function resolveEmailAuthorization(
 
       return {
         authorized: true,
-        profileId: authRecord.profile_id,
-        role: profile?.role,
-        emailType: authRecord.email_type,
-        isActive: true,
-        profile: profile || undefined,
-      };
-    }
-  } catch {
-    // Fall through to dev mock registry
-  }
-
-  // 2. Check dev mock authorized emails registry
-  const mockAuth = MOCK_AUTHORIZED_EMAILS.find(
-    (item) => normalizeEmail(item.email) === normEmail
-  );
-
-  if (mockAuth) {
-    // Find matching profile in mock records
-    let mockProfile: ProfileRow | undefined;
-    if (mockAuth.profile_id === MOCK_STUDENT_PROFILE.id || mockAuth.profile_id === "prof-student-01") {
-      mockProfile = MOCK_STUDENT_PROFILE;
-    } else if (mockAuth.profile_id === MOCK_ADVISOR_PROFILE.id) {
-      mockProfile = MOCK_ADVISOR_PROFILE;
-    } else if (mockAuth.profile_id === MOCK_ADMIN_PROFILE.id) {
-      mockProfile = MOCK_ADMIN_PROFILE;
-    } else if (mockAuth.profile_id === MOCK_FIRST_TIME_STUDENT_PROFILE.id) {
-      mockProfile = MOCK_FIRST_TIME_STUDENT_PROFILE;
-    }
-
-    if (!mockAuth.is_active) {
-      return {
-        authorized: false,
         profileId: mockAuth.profile_id,
         role: mockProfile?.role,
         emailType: mockAuth.email_type,
-        isActive: false,
-        reason: "DEACTIVATED",
+        isActive: true,
+        profile: mockProfile,
       };
     }
-
-    return {
-      authorized: true,
-      profileId: mockAuth.profile_id,
-      role: mockProfile?.role,
-      emailType: mockAuth.email_type,
-      isActive: true,
-      profile: mockProfile,
-    };
   }
 
   // 3. Fallback for default student eligibility (@diu.edu.bd)

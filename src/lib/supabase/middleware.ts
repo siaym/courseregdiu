@@ -84,8 +84,9 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
-  // Check development test session cookie if in dev environment
-  const devSessionRole = request.cookies.get("diu_session_role")?.value;
+  // Check development test session cookie strictly in non-production environments
+  const isProduction = process.env.NODE_ENV === "production";
+  const devSessionRole = isProduction ? undefined : request.cookies.get("diu_session_role")?.value;
   const isAuthenticated = Boolean(user || (devSessionRole && devSessionRole !== "advisor_deactivated"));
   const pathname = request.nextUrl.pathname;
 

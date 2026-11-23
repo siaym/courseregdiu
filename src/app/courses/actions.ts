@@ -258,8 +258,21 @@ export async function submitStudentRegistration(
     if (registrationId && registrationId.length === 36) {
       registrationRecord.id = registrationId;
     }
-    await supabase.from("registrations").upsert(registrationRecord);
-  } catch {
+    const { error: upsertError } = await supabase.from("registrations").upsert(registrationRecord);
+    if (upsertError && process.env.NODE_ENV === "production") {
+      return {
+        success: false,
+        error: `Database error: Failed to record course registration (${upsertError.message}).`,
+      };
+    }
+  } catch (err: unknown) {
+    if (process.env.NODE_ENV === "production") {
+      const errMsg = err instanceof Error ? err.message : "Database write failed";
+      return {
+        success: false,
+        error: `Database error: Failed to record course registration application (${errMsg}).`,
+      };
+    }
     // Safe fallback to mock store in dev
   }
 

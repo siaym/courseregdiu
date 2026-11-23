@@ -4,13 +4,20 @@
 > **To**: Incoming Engineering Agent / Phase 2 Full-Stack Team  
 > **Repository**: `courseregdiu` (`https://github.com/siaym/courseregdiu`)  
 > **Handover Date**: November 2026  
-> **Milestone Status**: Phase 1.5 Complete (100%) | P0 Security Remediation Complete (100%) | Final Auth Policy Complete (100%) | P0 Security Hardening Complete (100%) | Advisor Portal UI/UX Overhaul & 3-Category Application Center Complete (100%) | Supabase Cloud URL Resolver Complete (100%) | **Batch Course Configuration, Payment Clearance & Global UI/UX Redesign Complete (100%)** | Ready for Remote Supabase Production Migration  
+> **Milestone Status**: Phase 1.5 Complete (100%) | P0 Security Remediation Complete (100%) | Final Auth Policy Complete (100%) | **Production Security Hardening & Fail-Closed Architecture Complete (100%)** | Advisor Portal UI/UX Overhaul & 3-Category Application Center Complete (100%) | Supabase Cloud URL Resolver Complete (100%) | **Batch Course Configuration, Payment Clearance & Global UI/UX Redesign Complete (100%)** | Ready for Remote Supabase Production Migration  
 
 ---
 
 ## 1. Handover Summary
 
-The **Batch Course Configuration, Authoritative Payment Clearance & Global UI/UX Overhaul** cycle has been completed with full automated test coverage and zero build warnings:
+The **Production Security Hardening, Fail-Closed Architecture & Global Audit Remediation** cycle has been completed with full automated test coverage (51/51 tests passing) and zero build warnings:
+
+0. **Production Security & Fail-Closed Isolation (P0 & P1)**:
+   - **Dev Cookie Impersonation Elimination**: In `src/lib/auth/roles.ts` and `src/lib/supabase/middleware.ts`, when `process.env.NODE_ENV === "production"`, `diu_session_role` is strictly ignored. Only verified Supabase users (`supabase.auth.getUser()`) with database authorization profiles can access protected routes.
+   - **Mock Authorization Fallback Removal**: In `src/lib/auth/email-authorization.ts`, database query failures and outages in production fail closed (`authorized: false, reason: "DATABASE_UNAVAILABLE"`) and never inspect development mock data.
+   - **Fail-Closed Mutations**: Onboarding profile creation (`src/app/onboarding/actions.ts`), course registration submission (`src/app/courses/actions.ts`), and advisor reviews (`src/app/advisor/actions.ts`) reject submissions if database writes fail in production.
+   - **Advisor Assignment Isolation**: Advisors can only review or modify sections for registrations assigned to them.
+   - **Automated Regression Suite**: Created `tests/production-security-audit.test.mjs` verifying production guard behaviors across 7 core security tests. Total test suite expanded to 51/51 passing tests.
 
 1. **Student Course Selection Workspace (`/courses`)**:
    - Removed "All Departments" and "All Academic Levels" dropdown filters.

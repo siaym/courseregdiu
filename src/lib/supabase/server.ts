@@ -4,7 +4,12 @@ import type { Database } from "@/types/database";
 import { getSupabaseUrl, getSupabasePublishableKey } from "./config";
 
 export async function getSupabaseServerClient() {
-  const cookieStore = await cookies();
+  let cookieStore: Awaited<ReturnType<typeof cookies>> | null = null;
+  try {
+    cookieStore = await cookies();
+  } catch {
+    // Outside request context (e.g. background job, CLI scripts, test runners)
+  }
 
   const supabaseUrl = getSupabaseUrl();
   const supabaseKey = getSupabasePublishableKey();
@@ -12,12 +17,13 @@ export async function getSupabaseServerClient() {
   return createServerClient<Database>(supabaseUrl, supabaseKey, {
     cookies: {
       getAll() {
-        return cookieStore.getAll();
+        return cookieStore ? cookieStore.getAll() : [];
       },
       setAll(cookiesToSet) {
+        if (!cookieStore) return;
         try {
           cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options);
+            cookieStore!.set(name, value, options);
           });
         } catch {
           // The `setAll` method was called from a Server Component.

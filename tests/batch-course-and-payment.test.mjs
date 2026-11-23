@@ -228,6 +228,7 @@ test("Scenario 11: Payment status for one semester does not affect another semes
 });
 
 test("Scenario 12: Student manually marks payment as Paid or Unpaid on registration submission", async () => {
+  process.env.NODE_TEST_ROLE = "student";
   const paidPayload = {
     previousSection: "60_A",
     desiredSection: "60_B",

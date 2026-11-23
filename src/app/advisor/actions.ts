@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { getCurrentUser, getCurrentProfile } from "@/lib/auth/roles";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { getCurrentUser, getCurrentProfile, requireAssignedRegistration } from "@/lib/auth/roles";
 import {
   MOCK_ADVISEE_QUEUE,
   MOCK_SECTIONS,
@@ -45,6 +46,17 @@ export async function finalizeAdvisorReviewAction({
       success: false,
       error: "Unauthorized: Only assigned academic advisors and department heads can finalize reviews.",
     };
+  }
+
+  // Enforce advisor-student assignment isolation
+  if (profile.role === "advisor") {
+    const isAssigned = await requireAssignedRegistration(profile, registrationId);
+    if (!isAssigned) {
+      return {
+        success: false,
+        error: "Forbidden: You are not assigned as the academic advisor for this student's application.",
+      };
+    }
   }
 
   const targetStatus: RegistrationStatus = action === "approve" ? "approved" : "rejected";
@@ -90,7 +102,7 @@ export async function finalizeAdvisorReviewAction({
   // 3. Supabase Cloud update
   try {
     const supabase = await getSupabaseServerClient();
-    await supabase
+    const { error: updateError } = await supabase
       .from("registrations")
       .update({
         status: targetStatus,
@@ -99,8 +111,21 @@ export async function finalizeAdvisorReviewAction({
         updated_at: now,
       })
       .eq("id", registrationId);
-  } catch {
-    // fallback
+
+    if (updateError && (process.env.NODE_ENV === "production" || isSupabaseConfigured())) {
+      return {
+        success: false,
+        error: `Database error: Failed to record advisor determination (${updateError.message}).`,
+      };
+    }
+  } catch (err: unknown) {
+    if (process.env.NODE_ENV === "production" || isSupabaseConfigured()) {
+      const errMsg = err instanceof Error ? err.message : "Database write failed";
+      return {
+        success: false,
+        error: `Database error: Failed to record advisor determination (${errMsg}).`,
+      };
+    }
   }
 
   revalidatePath("/advisor");
@@ -137,6 +162,16 @@ export async function reassignAdviseeSectionAction({
       success: false,
       error: "Unauthorized: Advisor privileges required.",
     };
+  }
+
+  if (profile.role === "advisor") {
+    const isAssigned = await requireAssignedRegistration(profile, registrationId);
+    if (!isAssigned) {
+      return {
+        success: false,
+        error: "Forbidden: You are not assigned as the academic advisor for this student's application.",
+      };
+    }
   }
 
   const newSection = MOCK_SECTIONS.find((s) => s.id === newSectionId);

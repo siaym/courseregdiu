@@ -52,7 +52,14 @@ export async function getCurrentUser() {
       return user;
     }
   } catch {
-    // Fall through to dev session check
+    // Fall through to dev session check in non-production
+  }
+
+  // CRITICAL SECURITY DIRECTIVE (P0):
+  // Development impersonation and mock fallbacks are STRICTLY PROHIBITED in production.
+  // In production, an authenticated session unconditionally requires a cryptographically verified Supabase token.
+  if (process.env.NODE_ENV === "production") {
+    return null;
   }
 
   // Check development server session cookie if running locally with placeholder credentials
@@ -162,7 +169,14 @@ export async function getCurrentProfile(userParam?: { id: string; email?: string
 
     if (profile) return profile;
   } catch {
-    // Fall through to dev profile
+    // Fall through to dev profile in non-production
+  }
+
+  // CRITICAL SECURITY DIRECTIVE (P0):
+  // Development impersonation and mock fallbacks are STRICTLY PROHIBITED in production.
+  // In production, an authenticated profile must exist in the live PostgreSQL database.
+  if (process.env.NODE_ENV === "production") {
+    return null;
   }
 
   let devSession: string | undefined;
@@ -291,6 +305,11 @@ export async function requireAdvisor(returnTo?: string): Promise<{
   user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
   profile: Profile;
 }> {
+  // Production strictly enforces live database role verification
+  if (process.env.NODE_ENV === "production") {
+    return await requireRole(["advisor", "department_head", "admin"], returnTo);
+  }
+
   let devSession: string | undefined;
   try {
     const cookieStore = await cookies();

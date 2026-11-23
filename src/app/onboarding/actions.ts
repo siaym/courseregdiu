@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { getCurrentUser } from "@/lib/auth/roles";
 import { MOCK_STUDENT_PROFILE } from "@/lib/mock/data";
 import {
@@ -89,6 +90,13 @@ export async function submitStudentOnboarding(
       .neq("id", user.id)
       .maybeSingle();
 
+    if (queryError && (process.env.NODE_ENV === "production" || isSupabaseConfigured())) {
+      return {
+        success: false,
+        error: "Database error: Unable to verify student ID uniqueness. Please try again.",
+      };
+    }
+
     if (!queryError && duplicateProfile) {
       return {
         success: false,
@@ -111,16 +119,29 @@ export async function submitStudentOnboarding(
       const { error: updateError } = await (profilesTable.update as unknown as (data: typeof profileUpdate) => { eq: (col: string, val: string) => Promise<{ error: Error | null }> })(profileUpdate).eq("id", user.id);
 
       if (updateError) {
+        if (process.env.NODE_ENV === "production" || isSupabaseConfigured()) {
+          return {
+            success: false,
+            error: `Database error: Failed to save onboarding profile (${updateError.message}).`,
+          };
+        }
         throw new Error(updateError.message);
       }
     }
-  } catch {
+  } catch (err: unknown) {
+    if (process.env.NODE_ENV === "production" || isSupabaseConfigured()) {
+      const errMsg = err instanceof Error ? err.message : "Database write failed";
+      return {
+        success: false,
+        error: `Database error: Unable to complete onboarding (${errMsg}).`,
+      };
+    }
     // If Supabase is using placeholder credentials in local development, record server cookie
     if (cookieStore) {
       cookieStore.set(
         "diu_onboarded_student_data",
         JSON.stringify({ fullName, diuId, batch, onboardingCompleted: true }),
-        { httpOnly: true, secure: process.env.NODE_ENV === "production", path: "/" }
+        { httpOnly: true, secure: false, path: "/" }
       );
     }
   }

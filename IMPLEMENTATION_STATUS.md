@@ -1,15 +1,33 @@
 # IMPLEMENTATION STATUS — DIU Course Registration Platform
 
-> **Milestones**: Phase 0 Complete (100%) | Phase 1 Complete (100%) | Phase 1.5 Simplification (100%) | P0 Security Remediation Complete (100%) | Final Auth Policy Complete (100%) | P0 Security Hardening Complete (100%) | Student Guided Registration Workflow Complete (100%) | Advisor Portal UI/UX & Content Design Overhaul Complete (100%) | Supabase Cloud URL Resolver Complete (100%) | **Batch Course Configuration, Payment Clearance & Global UI/UX Redesign Complete (100%)**  
+> **Milestones**: Phase 0 Complete (100%) | Phase 1 Complete (100%) | Phase 1.5 Simplification (100%) | P0 Security Remediation Complete (100%) | Final Auth Policy Complete (100%) | **Production Security Hardening & Fail-Closed Architecture Complete (100%)** | Student Guided Registration Workflow Complete (100%) | Advisor Portal UI/UX & Content Design Overhaul Complete (100%) | Supabase Cloud URL Resolver Complete (100%) | **Batch Course Configuration, Payment Clearance & Global UI/UX Redesign Complete (100%)**  
 > **Build Status**: Passing (`next build` & `eslint` exit code 0, 0 errors, 0 warnings)  
-> **Test Status**: Passing (`npm test` — **43/43** test cases pass across 5 test suites, 0 failures)  
-> **Total Routes**: 24 Routes Compiled (Static & Dynamic SSR)  
+> **Test Status**: Passing (`npm test` — **51/51** test cases pass across 6 test suites, 0 failures)  
+> **Total Routes**: 26 Routes Compiled (Static & Dynamic SSR)  
 > **Active Term**: Unified to **Spring 2027** (`Apr 14 – Apr 20, 2027`) Across All Views  
 > **Last Verification**: November 2026  
 
 ---
 
 ## 1. Executive Summary
+
+### Production Security Hardening & Fail-Closed Architecture (P0 & P1)
+1. **Elimination of Development-Session Cookie Impersonation in Production**:
+   - `src/lib/auth/roles.ts`: In production (`process.env.NODE_ENV === "production"`), `getCurrentUser()` strictly queries `supabase.auth.getUser()`, verifies email authorization via `resolveEmailAuthorization()`, and never inspects `diu_session_role` or returns mock users.
+   - `getCurrentProfile()` in production strictly resolves against the live database `profiles` table.
+   - `requireAdvisor()` in production strictly resolves role permissions (`advisor`, `department_head`, `admin`).
+   - `src/lib/supabase/middleware.ts`: `devSessionRole` is completely ignored in production; unauthenticated requests to protected paths redirect strictly to `/login`.
+   - `src/lib/config/demo.ts`: `isDemoMode()` dynamically evaluates `DEMO_MODE` to `false` unconditionally when `process.env.NODE_ENV === "production"`.
+
+2. **Elimination of Mock Authorization Fallbacks (Fail-Closed Architecture)**:
+   - `src/lib/auth/email-authorization.ts`: When `process.env.NODE_ENV === "production"`, database lookup errors and client exceptions fail closed immediately (`authorized: false, reason: "DATABASE_UNAVAILABLE"`). In-memory mock data is never inspected in production.
+   - Student onboarding (`src/app/onboarding/actions.ts`), course registration submission (`src/app/courses/actions.ts`), and advisor reviews/reassignments (`src/app/advisor/actions.ts`) fail closed in production if database operations fail.
+
+3. **Advisor Assignment Isolation Enforcement**:
+   - `src/app/advisor/actions.ts`: Review determinations (`finalizeAdvisorReviewAction`) and section reassignments (`reassignAdviseeSectionAction`) strictly verify that the target registration is assigned to the authenticated advisor before permitting mutations.
+
+4. **Dedicated Security Regression Suite (`tests/production-security-audit.test.mjs`)**:
+   - 7 dedicated automated tests covering production cookie impersonation rejection, requireAdmin denial, DEMO_MODE production isolation, database outage fail-closed handling, deactivated email rejection, advisor assignment enforcement, and onboarding unauthenticated rejection. All 51 suite tests pass.
 
 ### Batch Course Configuration, Payment Clearance & Global UI/UX Redesign (ui-ux-pro-max)
 1. **Student Course Selection Redesign (`/courses`)**:
