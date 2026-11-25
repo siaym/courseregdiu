@@ -31,7 +31,10 @@ import {
 } from "@/lib/mock/data";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { submitStudentRegistration } from "@/app/courses/actions";
+import {
+  submitStudentRegistration,
+  getBatchCoursesForStudentAction,
+} from "@/app/courses/actions";
 import type { Database } from "@/types/database";
 import type { PaymentClearanceRecord } from "@/lib/payment/payment-service";
 import {
@@ -70,6 +73,9 @@ interface UnifiedCoursesWorkspaceProps {
     retakeCourseCount: number;
   } | null;
   eligibleCourses?: ExtendedCourse[];
+  allCatalogCourses?: ExtendedCourse[];
+  semesters?: Array<{ id: string; label: string; isActive: boolean }>;
+  activeSemesterId?: string;
   studentBatch?: string;
   activeSemesterName?: string;
   paymentClearance?: PaymentClearanceRecord | null;
@@ -79,10 +85,36 @@ export function UnifiedCoursesWorkspace({
   initialProfile,
   initialActiveRegistration,
   eligibleCourses = [],
-  studentBatch = "60",
+  allCatalogCourses = [],
+  semesters = [],
+  activeSemesterId = "",
+  studentBatch = "72",
   activeSemesterName = ACTIVE_MOCK_SEMESTER_LABEL,
 }: UnifiedCoursesWorkspaceProps) {
   const profile = initialProfile || MOCK_STUDENT_PROFILE;
+
+  const [selectedBatch, setSelectedBatch] = React.useState(() => {
+    const raw = studentBatch || (profile as { batch?: string })?.batch || "72";
+    const m = String(raw).match(/\d+/);
+    return m ? m[0] : "72";
+  });
+  const [selectedSemesterId, setSelectedSemesterId] = React.useState(
+    () => activeSemesterId || semesters.find((s) => s.isActive)?.id || semesters[0]?.id || ""
+  );
+  const [batchConfiguredCourses, setBatchConfiguredCourses] = React.useState<ExtendedCourse[]>(eligibleCourses);
+  const [loadingBatchCourses, setLoadingBatchCourses] = React.useState(false);
+  const [showFullCatalog, setShowFullCatalog] = React.useState(eligibleCourses.length === 0);
+
+  const selectedSemesterName = React.useMemo(() => {
+    return semesters.find((s) => s.id === selectedSemesterId)?.label || activeSemesterName;
+  }, [semesters, selectedSemesterId, activeSemesterName]);
+
+  const activeCoursePool = React.useMemo(() => {
+    if (batchConfiguredCourses.length > 0 && !showFullCatalog) {
+      return batchConfiguredCourses;
+    }
+    return allCatalogCourses.length > 0 ? allCatalogCourses : batchConfiguredCourses;
+  }, [batchConfiguredCourses, allCatalogCourses, showFullCatalog]);
 
   // Step state: 1 = Section Info, 2 = Course Selection, 3 = Review & Submit, 4 = Submitted Receipt
   const [currentStep, setCurrentStep] = React.useState<1 | 2 | 3 | 4>(() => {
@@ -114,11 +146,7 @@ export function UnifiedCoursesWorkspace({
   }, [desiredSection]);
 
   // Batch detection helper
-  const detectedBatch = React.useMemo(() => {
-    const raw = studentBatch || (profile as { batch?: string })?.batch || "69";
-    const m = String(raw).match(/\d+/);
-    return m ? m[0] : "69";
-  }, [studentBatch, profile]);
+  const detectedBatch = selectedBatch;
 
   // Batch cohort suggestions for Desired Section
   const batchCohortSuggestions = React.useMemo(() => {
@@ -459,10 +487,35 @@ export function UnifiedCoursesWorkspace({
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  // Available sections lookup helper
-  const getCourseSections = React.useCallback((courseId: string) => {
-    return MOCK_SECTIONS.filter((s) => s.course_id === courseId);
-  }, []);
+  // Available sections lookup helper (with dynamic section fallback for DB curriculum courses)
+  const getCourseSections = React.useCallback(
+    (courseId: string, courseRef?: ExtendedCourse): ExtendedSection[] => {
+      const mockMatches = MOCK_SECTIONS.filter((s) => s.course_id === courseId);
+      if (mockMatches.length > 0) return mockMatches;
+
+      const secBase = desiredSection.trim() || `${selectedBatch}_A`;
+      const isLab =
+        (courseRef?.title || "").toLowerCase().includes("lab") ||
+        (courseRef?.credits ?? 3.0) <= 1.5;
+      const sectionName = isLab ? `${secBase}${preferredLabSubgroup}` : secBase;
+      return [
+        {
+          id: `sec-${courseId}-${sectionName.toLowerCase()}`,
+          course_id: courseId,
+          section_name: sectionName,
+          semester_id: selectedSemesterId || "active",
+          capacity: isLab ? 25 : 40,
+          enrolled_count: 0,
+          credits: courseRef?.credits ?? 3.0,
+          room: "KT-505",
+          schedule: [],
+          instructor_name: "Assigned Faculty",
+          created_at: new Date().toISOString(),
+        },
+      ];
+    },
+    [desiredSection, preferredLabSubgroup, selectedBatch, selectedSemesterId]
+  );
 
   // Step 2: Selected Courses Cart
   const [selectedCourses, setSelectedCourses] = React.useState<SelectedCourseItem[]>(() => {
@@ -565,10 +618,10 @@ export function UnifiedCoursesWorkspace({
   const [categoryFilter, setCategoryFilter] = React.useState<string>("all");
   const [specializationFilter, setSpecializationFilter] = React.useState<string>("all");
 
-  // Filter ONLY against the student's eligible batch courses (normalizing hyphens/spaces)
+  // Filter against active pool (batch-configured courses if set, or full curriculum catalog)
   const filteredCourses = React.useMemo(() => {
     const q = debouncedSearch.trim().toLowerCase().replace(/[-\s]+/g, "");
-    return eligibleCourses.filter((course) => {
+    return activeCoursePool.filter((course) => {
       const cat = (course as { category?: string }).category || "CORE";
       const spec = (course as { specialization_group?: string | null }).specialization_group || "";
       if (categoryFilter !== "all" && cat !== categoryFilter) return false;
@@ -578,10 +631,10 @@ export function UnifiedCoursesWorkspace({
       const titleNorm = course.title.toLowerCase().replace(/[-\s]+/g, "");
       return codeNorm.includes(q) || titleNorm.includes(q);
     });
-  }, [debouncedSearch, eligibleCourses, categoryFilter, specializationFilter]);
+  }, [debouncedSearch, activeCoursePool, categoryFilter, specializationFilter]);
 
-  // Section Step 1 Validation
-  const handleProceedFromSections = () => {
+  // Section Step 1 Validation + Auto-load Batch/Semester Courses
+  const handleProceedFromSections = async () => {
     const prevTrimmed = previousSection.trim();
     const desiredTrimmed = desiredSection.trim();
 
@@ -591,7 +644,39 @@ export function UnifiedCoursesWorkspace({
     }
 
     setSectionError(null);
-    setCurrentStep(2);
+    setLoadingBatchCourses(true);
+    try {
+      const res = await getBatchCoursesForStudentAction({
+        semesterId: selectedSemesterId,
+        batch: selectedBatch,
+      });
+      if (res.success) {
+        const configured = res.courses || [];
+        setBatchConfiguredCourses(configured);
+        if (configured.length > 0) {
+          setShowFullCatalog(false);
+          setSelectedCourses((prev) => {
+            const existingIds = new Set(prev.map((p) => p.course.id));
+            const additions: SelectedCourseItem[] = [];
+            for (const co of configured) {
+              if (existingIds.has(co.id)) continue;
+              const sec = getCourseSections(co.id, co)[0];
+              if (sec) {
+                additions.push({ course: co, section: sec, courseType: "general" });
+              }
+            }
+            return additions.length > 0 ? [...prev, ...additions] : prev;
+          });
+        } else {
+          setShowFullCatalog(true);
+        }
+      }
+    } catch {
+      // Keep existing pool on transient error
+    } finally {
+      setLoadingBatchCourses(false);
+      setCurrentStep(2);
+    }
   };
 
   // Add Course to Selection (guarantees no duplicates)
@@ -605,7 +690,7 @@ export function UnifiedCoursesWorkspace({
       return;
     }
 
-    const available = getCourseSections(course.id);
+    const available = getCourseSections(course.id, course);
     const isLab = course.title.toLowerCase().includes("lab") || (course.credits ?? 1.5) <= 1.5;
     const targetSubgroupName = `${desiredSection.trim()}${preferredLabSubgroup}`.toUpperCase();
     const targetSection =
@@ -691,6 +776,8 @@ export function UnifiedCoursesWorkspace({
 
     try {
       const payload = {
+        semesterId: selectedSemesterId,
+        batch: selectedBatch,
         previousSection: previousSection.trim(),
         desiredSection: desiredSection.trim(),
         courses: selectedCourses.map((c) => ({
@@ -913,6 +1000,74 @@ export function UnifiedCoursesWorkspace({
                 <span className="font-medium">{sectionError}</span>
               </div>
             )}
+
+            {/* Batch & Semester Selection */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#0b0f19] border border-[#1c263c] rounded-xl p-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-white">
+                  Target Semester <span className="text-rose-400">*</span>
+                </label>
+                <select
+                  value={selectedSemesterId}
+                  onChange={(e) => setSelectedSemesterId(e.target.value)}
+                  className="w-full h-10 rounded-lg border border-[#1c263c] bg-[#121827] px-3 text-xs font-medium text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  {(semesters.length > 0
+                    ? semesters
+                    : [{ id: selectedSemesterId || "active", label: activeSemesterName, isActive: true }]
+                  ).map((sem) => (
+                    <option key={sem.id} value={sem.id}>
+                      {sem.label} {sem.isActive ? "(Active)" : ""}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-[#8e9db2]">
+                  Select the semester you are registering for (e.g. Spring 2027).
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-white">
+                  Your Batch <span className="text-rose-400">*</span>
+                </label>
+                <select
+                  value={selectedBatch}
+                  onChange={(e) => setSelectedBatch(e.target.value)}
+                  className="w-full h-10 rounded-lg border border-[#1c263c] bg-[#121827] px-3 text-xs font-medium text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  {Array.from(
+                    new Set([
+                      selectedBatch,
+                      "72",
+                      "71",
+                      "70",
+                      "69",
+                      "68",
+                      "67",
+                      "66",
+                      "65",
+                      "64",
+                      "63",
+                      "62",
+                      "61",
+                      "60",
+                      "59",
+                      "58",
+                      "57",
+                      "56",
+                      "55",
+                    ])
+                  ).map((b) => (
+                    <option key={b} value={b}>
+                      Batch {b}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-[#8e9db2]">
+                  Batch-configured courses auto-load; otherwise all curriculum subjects remain searchable.
+                </p>
+              </div>
+            </div>
 
             {/* Dual Column Form: Previous Section & Desired Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -1636,7 +1791,7 @@ export function UnifiedCoursesWorkspace({
                   Desired: {desiredSection}
                 </span>
                 <span className="hidden sm:inline-block text-[11px] text-slate-500 font-mono">
-                  • Configured for Batch {studentBatch}
+                  • Batch {selectedBatch} • {selectedSemesterName}
                 </span>
               </div>
               <button
@@ -1656,7 +1811,11 @@ export function UnifiedCoursesWorkspace({
                   type="text"
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
-                  placeholder={`Search eligible courses for Batch ${studentBatch} by code or title (e.g. CSE110, Data Structures)...`}
+                  placeholder={
+                    batchConfiguredCourses.length > 0 && !showFullCatalog
+                      ? `Search Batch ${selectedBatch} courses by code or title (e.g. CSE110, Data Structures)...`
+                      : `Search all CSE curriculum subjects by code or title (e.g. CSE110, Data Structures)...`
+                  }
                   className="w-full pl-10 pr-9 py-2 text-xs bg-[#0b0f19] border border-[#1c263c] rounded-lg text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
                 {searchInput && (
@@ -1700,18 +1859,43 @@ export function UnifiedCoursesWorkspace({
                 )}
               </div>
 
-              <div className="flex items-center justify-between text-[11px] text-[#8e9db2] px-0.5">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#8e9db2] px-0.5">
                 <span>
-                  Showing <strong>{filteredCourses.length}</strong> eligible course{filteredCourses.length !== 1 ? "s" : ""} configured for Batch {studentBatch} in {activeSemesterName}
+                  {loadingBatchCourses ? (
+                    "Loading batch courses..."
+                  ) : batchConfiguredCourses.length > 0 && !showFullCatalog ? (
+                    <>
+                      Showing <strong>{filteredCourses.length}</strong> batch-configured course
+                      {filteredCourses.length !== 1 ? "s" : ""} for Batch {selectedBatch} in {selectedSemesterName}
+                    </>
+                  ) : (
+                    <>
+                      Showing <strong>{filteredCourses.length}</strong> subject
+                      {filteredCourses.length !== 1 ? "s" : ""} from the curriculum catalog ({selectedSemesterName})
+                    </>
+                  )}
                 </span>
-                {searchInput && (
-                  <button
-                    onClick={() => setSearchInput("")}
-                    className="text-blue-400 hover:underline"
-                  >
-                    Clear Search
-                  </button>
-                )}
+                <div className="flex items-center gap-3">
+                  {batchConfiguredCourses.length > 0 && allCatalogCourses.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowFullCatalog((v) => !v)}
+                      className="text-emerald-400 hover:underline font-medium cursor-pointer"
+                    >
+                      {showFullCatalog
+                        ? `Show Batch ${selectedBatch} Courses (${batchConfiguredCourses.length})`
+                        : `Browse All Curriculum Subjects (${allCatalogCourses.length})`}
+                    </button>
+                  )}
+                  {searchInput && (
+                    <button
+                      onClick={() => setSearchInput("")}
+                      className="text-blue-400 hover:underline"
+                    >
+                      Clear Search
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 

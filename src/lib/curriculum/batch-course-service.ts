@@ -133,6 +133,7 @@ export async function getBatchSemesterCourses(
 
 /**
  * Checks whether a course is strictly configured and eligible for a student's batch & semester.
+ * If no batch-specific courses are configured yet for that cohort/semester, all active catalog courses are eligible.
  */
 export async function isCourseEligibleForBatch(
   semesterId: string,
@@ -140,9 +141,35 @@ export async function isCourseEligibleForBatch(
   courseIdOrCode: string
 ): Promise<boolean> {
   const courses = await getBatchSemesterCourses(semesterId, rawBatch);
+  if (courses.length === 0) {
+    return true;
+  }
   return courses.some(
     (c) => c.courseId === courseIdOrCode || c.course.code.toLowerCase() === courseIdOrCode.toLowerCase()
   );
+}
+
+/**
+ * Retrieves all active courses from the university curriculum catalog.
+ */
+export async function getAllActiveCatalogCourses(): Promise<ExtendedCourse[]> {
+  if (isSupabaseConfigured()) {
+    try {
+      const supabase = await getSupabaseServerClient();
+      const { data, error } = await supabase
+        .from("courses")
+        .select("*")
+        .eq("is_active", true)
+        .order("code", { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        return data as unknown as ExtendedCourse[];
+      }
+    } catch {
+      // Fallback to seeded catalog
+    }
+  }
+  return MOCK_COURSES.filter((c) => (c as { is_active?: boolean }).is_active !== false);
 }
 
 /**

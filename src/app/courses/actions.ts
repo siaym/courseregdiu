@@ -76,6 +76,28 @@ export async function searchEligibleStudentCoursesAction(payload: {
   return { success: true, courses: matched };
 }
 
+/**
+ * Fetches batch-configured courses for a student-selected semester & batch.
+ */
+export async function getBatchCoursesForStudentAction(payload: {
+  semesterId: string;
+  batch: string;
+}) {
+  const user = await getCurrentUser();
+  const profile = await getCurrentProfile(user);
+  if (!user || !profile) {
+    return { success: false, error: "Authentication required.", courses: [] };
+  }
+
+  const normBatch = normalizeBatch(payload.batch || profile.batch || "72");
+  const records = await getBatchSemesterCourses(payload.semesterId, normBatch);
+  return {
+    success: true,
+    courses: records.map((r) => r.course),
+    batch: normBatch,
+  };
+}
+
 export interface RegistrationSubmitResult {
   success: boolean;
   registrationId?: string;
@@ -91,7 +113,7 @@ export interface RegistrationSubmitResult {
  * and persistence in both Supabase and session store.
  */
 export async function submitStudentRegistration(
-  input: StudentRegistrationSubmitInput
+  input: StudentRegistrationSubmitInput & { semesterId?: string; batch?: string }
 ): Promise<RegistrationSubmitResult> {
   // 1. Zod schema validation
   const parseResult = studentRegistrationSubmitSchema.safeParse(input);
@@ -156,11 +178,14 @@ export async function submitStudentRegistration(
   if (!isMockCoursePayload || process.env.NODE_ENV === "production") {
     try {
       const supabase = await getSupabaseServerClient();
-      const { data: activeSem } = await supabase
-        .from("semesters")
-        .select("id, name, season, year")
-        .eq("is_active", true)
-        .maybeSingle();
+      const requestedSemesterId =
+        typeof (input as { semesterId?: unknown }).semesterId === "string"
+          ? (input as { semesterId: string }).semesterId.trim()
+          : "";
+      const semQuery = requestedSemesterId
+        ? supabase.from("semesters").select("id, name, season, year").eq("id", requestedSemesterId).maybeSingle()
+        : supabase.from("semesters").select("id, name, season, year").eq("is_active", true).maybeSingle();
+      const { data: activeSem } = await semQuery;
 
       if (activeSem) {
         const s = activeSem as { id: string; name?: string | null; season: string; year: number };
@@ -208,7 +233,11 @@ export async function submitStudentRegistration(
     }
   }
 
-  const studentBatch = normalizeBatch(profile.batch || "60");
+  const requestedBatch =
+    typeof (input as { batch?: unknown }).batch === "string"
+      ? (input as { batch: string }).batch.trim()
+      : "";
+  const studentBatch = normalizeBatch(requestedBatch || profile.batch || "60");
   const normalizedCourses = [];
   for (const c of courses) {
     const authCourse = authoritativeCourseMap.get(c.courseId);
