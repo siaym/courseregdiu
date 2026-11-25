@@ -25,7 +25,13 @@ import {
   updateAdvisorAction,
   toggleAdvisorActiveAction,
   getAdvisorDetailAction,
+  previewAdvisorRuleAction,
+  saveAdvisorRuleAction,
+  toggleAdvisorRuleActiveAction,
+  deleteAdvisorRuleAction,
   type AdvisorDetailPayload,
+  type AdvisorRulePreview,
+  type AdvisorAssignmentRuleRow,
 } from "@/app/admin/advisors/actions";
 import type {
   AdvisorDirectoryItem,
@@ -83,6 +89,23 @@ export function AdvisorManagementView({
   const [detailError, setDetailError] = React.useState<string | null>(null);
   const [detailData, setDetailData] = React.useState<AdvisorDetailPayload | null>(null);
 
+  // Rule Editor inside Detail Drawer
+  const [ruleModalOpen, setRuleModalOpen] = React.useState(false);
+  const [editingRuleId, setEditingRuleId] = React.useState<string | undefined>(undefined);
+  const [ruleForm, setRuleForm] = React.useState({
+    semesterId: semesters.find((s) => s.is_active)?.id || semesters[0]?.id || "",
+    batch: "",
+    assignmentType: "id_range" as "id_range" | "entire_batch" | "individual_student",
+    startStudentId: "",
+    endStudentId: "",
+    studentDiuId: "",
+    reason: "",
+  });
+  const [rulePreview, setRulePreview] = React.useState<AdvisorRulePreview | null>(null);
+  const [confirmOverwrite, setConfirmOverwrite] = React.useState(false);
+  const [ruleBusy, setRuleBusy] = React.useState(false);
+  const [ruleError, setRuleError] = React.useState<string | null>(null);
+
   const filtered = React.useMemo(() => {
     const q = search.trim().toLowerCase();
     return initialAdvisors.filter((adv) => {
@@ -95,7 +118,10 @@ export function AdvisorManagementView({
         adv.full_name.toLowerCase().includes(q) ||
         adv.email.toLowerCase().includes(q) ||
         (adv.designation || "").toLowerCase().includes(q) ||
-        (adv.employee_id || "").toLowerCase().includes(q)
+        (adv.employee_id || "").toLowerCase().includes(q) ||
+        adv.assignedBatches.some((b) => b.toLowerCase().includes(q)) ||
+        adv.searchableRanges.some((r) => r.toLowerCase().includes(q)) ||
+        adv.searchableStudentDiuIds.some((id) => id.toLowerCase().includes(q))
       );
     });
   }, [initialAdvisors, search, deptFilter, statusFilter, semesterFilter]);
@@ -191,6 +217,96 @@ export function AdvisorManagementView({
     setDetailData(res.data);
   };
 
+  const openRuleModal = (rule?: AdvisorAssignmentRuleRow) => {
+    setEditingRuleId(rule?.id);
+    setRuleForm({
+      semesterId: rule?.semester_id || semesters.find((s) => s.is_active)?.id || semesters[0]?.id || "",
+      batch: rule?.batch || "",
+      assignmentType: rule?.assignment_type || "id_range",
+      startStudentId: rule?.start_student_id || "",
+      endStudentId: rule?.end_student_id || "",
+      studentDiuId: "",
+      reason: rule ? "Corrected advisor assignment range" : "Added advisor assignment rule",
+    });
+    setRulePreview(null);
+    setConfirmOverwrite(false);
+    setRuleError(null);
+    setRuleModalOpen(true);
+  };
+
+  const handlePreviewRule = async () => {
+    if (!detailData) return;
+    setRuleError(null);
+    setRuleBusy(true);
+    const res = await previewAdvisorRuleAction({
+      advisorProfileId: detailData.advisor.id,
+      ...ruleForm,
+    });
+    setRuleBusy(false);
+    if (!res.success || !res.data) {
+      setRuleError(res.error || "Unable to preview rule.");
+      return;
+    }
+    setRulePreview(res.data);
+  };
+
+  const handleSaveRule = async () => {
+    if (!detailData) return;
+    setRuleError(null);
+    setRuleBusy(true);
+    const res = await saveAdvisorRuleAction({
+      ruleId: editingRuleId,
+      advisorProfileId: detailData.advisor.id,
+      ...ruleForm,
+      confirmOverwriteConflicts: confirmOverwrite,
+    });
+    setRuleBusy(false);
+    if (!res.success) {
+      setRuleError(res.error || "Failed to save rule.");
+      return;
+    }
+    setRuleModalOpen(false);
+    const refreshed = await getAdvisorDetailAction(detailData.advisor.id);
+    if (refreshed.success && refreshed.data) setDetailData(refreshed.data);
+    router.refresh();
+  };
+
+  const handleToggleRuleActive = async (ruleId: string, currentActive: boolean) => {
+    if (!detailData) return;
+    const reason = window.prompt(
+      currentActive
+        ? "Enter audit reason for deactivating this assignment rule:"
+        : "Enter audit reason for activating this assignment rule:"
+    );
+    if (!reason || reason.trim().length < 3) return;
+    const res = await toggleAdvisorRuleActiveAction({
+      ruleId,
+      isActive: !currentActive,
+      reason,
+    });
+    if (!res.success) {
+      setDetailError(res.error || "Failed to update rule status.");
+      return;
+    }
+    const refreshed = await getAdvisorDetailAction(detailData.advisor.id);
+    if (refreshed.success && refreshed.data) setDetailData(refreshed.data);
+    router.refresh();
+  };
+
+  const handleDeleteRule = async (ruleId: string) => {
+    if (!detailData) return;
+    const reason = window.prompt("Enter audit reason for removing this assignment rule:");
+    if (!reason || reason.trim().length < 3) return;
+    const res = await deleteAdvisorRuleAction({ ruleId, reason });
+    if (!res.success) {
+      setDetailError(res.error || "Failed to remove rule.");
+      return;
+    }
+    const refreshed = await getAdvisorDetailAction(detailData.advisor.id);
+    if (refreshed.success && refreshed.data) setDetailData(refreshed.data);
+    router.refresh();
+  };
+
   return (
     <div className="space-y-6 text-slate-100 max-w-7xl mx-auto py-2">
       {/* Header */}
@@ -241,7 +357,7 @@ export function AdvisorManagementView({
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name, email, designation, ID..."
+            placeholder="Search name, email, batch, student ID, range..."
             aria-label="Search advisors"
             className="w-full h-9 pl-9 pr-3 rounded-lg border border-[#1c263c] bg-[#0b0f19] text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
@@ -353,7 +469,7 @@ export function AdvisorManagementView({
                     </td>
                     <td className="px-4 py-3.5">
                       <div className="font-mono font-semibold text-white">
-                        {adv.assignedStudentCount} students
+                        {adv.assignmentRuleCount} rule{adv.assignmentRuleCount === 1 ? "" : "s"} • {adv.assignedStudentCount} student{adv.assignedStudentCount === 1 ? "" : "s"}
                       </div>
                       {adv.assignedBatches.length > 0 && (
                         <div className="text-slate-400 mt-0.5">
@@ -689,6 +805,69 @@ export function AdvisorManagementView({
                 </div>
 
                 <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="font-bold text-white">
+                      Batch &amp; Student ID Range Rules ({detailData.rules.length})
+                    </h4>
+                    <Button type="button" size="sm" variant="institution" onClick={() => openRuleModal()}>
+                      <Plus className="h-3.5 w-3.5 mr-1" />
+                      Add Range / Batch Rule
+                    </Button>
+                  </div>
+                  {detailData.rules.length === 0 ? (
+                    <p className="text-[#8e9db2]">No range or entire-batch rules configured yet.</p>
+                  ) : (
+                    <div className="rounded-xl border border-[#1c263c] overflow-hidden bg-[#0b0f19]">
+                      <table className="w-full text-left border-collapse">
+                        <thead className="bg-[#0f1523] border-b border-[#1c263c]">
+                          <tr>
+                            <th className="px-3 py-2 text-slate-400">Batch</th>
+                            <th className="px-3 py-2 text-slate-400">Type</th>
+                            <th className="px-3 py-2 text-slate-400">Start ID</th>
+                            <th className="px-3 py-2 text-slate-400">End ID</th>
+                            <th className="px-3 py-2 text-slate-400">Status</th>
+                            <th className="px-3 py-2 text-slate-400 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#1c263c]">
+                          {detailData.rules.map((r) => (
+                            <tr key={r.id}>
+                              <td className="px-3 py-2 font-mono text-white">{r.batch}</td>
+                              <td className="px-3 py-2 text-slate-300">{r.assignment_type}</td>
+                              <td className="px-3 py-2 font-mono text-emerald-400">{r.start_student_id || "—"}</td>
+                              <td className="px-3 py-2 font-mono text-emerald-400">{r.end_student_id || "—"}</td>
+                              <td className="px-3 py-2">
+                                {r.is_active ? (
+                                  <span className="text-emerald-400">Active</span>
+                                ) : (
+                                  <span className="text-rose-400">Inactive</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-right space-x-1 whitespace-nowrap">
+                                <Button type="button" size="sm" variant="outline" onClick={() => openRuleModal(r)}>
+                                  Edit
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => handleToggleRuleActive(r.id, r.is_active)}
+                                >
+                                  {r.is_active ? "Pause" : "Activate"}
+                                </Button>
+                                <Button type="button" size="sm" variant="destructive" onClick={() => handleDeleteRule(r.id)}>
+                                  Remove
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
                   <h4 className="font-bold text-white">
                     Currently Assigned Students ({detailData.assignedStudents.length})
                   </h4>
@@ -741,6 +920,154 @@ export function AdvisorManagementView({
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Rule Add / Edit + Conflict Preview Modal */}
+      {ruleModalOpen && detailData && (
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4">
+          <div className="w-full max-w-lg rounded-xl border border-[#1c263c] bg-[#121827] shadow-2xl overflow-hidden text-xs">
+            <div className="flex items-center justify-between border-b border-[#1c263c] px-5 py-4">
+              <h2 className="text-base font-bold text-white">
+                {editingRuleId ? "Edit Advisor Assignment Rule" : "Add Advisor Assignment Rule"}
+              </h2>
+              <button type="button" onClick={() => setRuleModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+              {ruleError && (
+                <div className="rounded-lg border border-[#881337] bg-[#2e1014] p-3 text-rose-200">
+                  {ruleError}
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-medium text-slate-200">Semester *</label>
+                  <select
+                    value={ruleForm.semesterId}
+                    onChange={(e) => setRuleForm({ ...ruleForm, semesterId: e.target.value })}
+                    className="w-full h-9 rounded-lg border border-[#1c263c] bg-[#0b0f19] px-3 text-white"
+                  >
+                    {semesters.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name || `${s.season} ${s.year}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="font-medium text-slate-200">Batch *</label>
+                  <input
+                    value={ruleForm.batch}
+                    onChange={(e) => setRuleForm({ ...ruleForm, batch: e.target.value })}
+                    placeholder="e.g. 62, 61, 60"
+                    className="w-full h-9 rounded-lg border border-[#1c263c] bg-[#0b0f19] px-3 text-white font-mono"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="font-medium text-slate-200">Assignment Type *</label>
+                <select
+                  value={ruleForm.assignmentType}
+                  onChange={(e) =>
+                    setRuleForm({
+                      ...ruleForm,
+                      assignmentType: e.target.value as "id_range" | "entire_batch" | "individual_student",
+                    })
+                  }
+                  className="w-full h-9 rounded-lg border border-[#1c263c] bg-[#0b0f19] px-3 text-white"
+                >
+                  <option value="id_range">Student ID Range</option>
+                  <option value="entire_batch">Entire Batch</option>
+                  <option value="individual_student">Individual Student</option>
+                </select>
+              </div>
+              {ruleForm.assignmentType === "id_range" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="font-medium text-slate-200">Start Student ID *</label>
+                    <input
+                      value={ruleForm.startStudentId}
+                      onChange={(e) => setRuleForm({ ...ruleForm, startStudentId: e.target.value })}
+                      placeholder="222-15-6495"
+                      className="w-full h-9 rounded-lg border border-[#1c263c] bg-[#0b0f19] px-3 text-white font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-medium text-slate-200">End Student ID *</label>
+                    <input
+                      value={ruleForm.endStudentId}
+                      onChange={(e) => setRuleForm({ ...ruleForm, endStudentId: e.target.value })}
+                      placeholder="222-15-6555"
+                      className="w-full h-9 rounded-lg border border-[#1c263c] bg-[#0b0f19] px-3 text-white font-mono"
+                    />
+                  </div>
+                </div>
+              )}
+              {ruleForm.assignmentType === "individual_student" && (
+                <div className="space-y-1">
+                  <label className="font-medium text-slate-200">Student DIU ID *</label>
+                  <input
+                    value={ruleForm.studentDiuId}
+                    onChange={(e) => setRuleForm({ ...ruleForm, studentDiuId: e.target.value })}
+                    placeholder="222-15-6500"
+                    className="w-full h-9 rounded-lg border border-[#1c263c] bg-[#0b0f19] px-3 text-white font-mono"
+                  />
+                </div>
+              )}
+              <div className="space-y-1">
+                <label className="font-medium text-slate-200">Audit Reason *</label>
+                <input
+                  value={ruleForm.reason}
+                  onChange={(e) => setRuleForm({ ...ruleForm, reason: e.target.value })}
+                  className="w-full h-9 rounded-lg border border-[#1c263c] bg-[#0b0f19] px-3 text-white"
+                />
+              </div>
+
+              {rulePreview && (
+                <div className="rounded-lg border border-[#1c263c] bg-[#0b0f19] p-3 space-y-2">
+                  <div className="font-semibold text-white">
+                    Preview: {rulePreview.matchedCount} existing student(s) matched
+                  </div>
+                  {rulePreview.conflictStudents.length > 0 && (
+                    <div className="space-y-2 text-amber-200">
+                      <div>
+                        <strong>{rulePreview.conflictStudents.length} conflict(s):</strong>{" "}
+                        {rulePreview.conflictStudents
+                          .slice(0, 5)
+                          .map((c) => `${c.diuId || c.fullName} (currently ${c.currentAdvisorName})`)
+                          .join(", ")}
+                      </div>
+                      <label className="flex items-start gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={confirmOverwrite}
+                          onChange={(e) => setConfirmOverwrite(e.target.checked)}
+                        />
+                        <span>Confirm reassigning these students from their current advisor</span>
+                      </label>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-[#1c263c]">
+                <Button type="button" variant="secondary" onClick={handlePreviewRule} isLoading={ruleBusy}>
+                  Preview Impact
+                </Button>
+                <Button
+                  type="button"
+                  variant="institution"
+                  isLoading={ruleBusy}
+                  disabled={!rulePreview || (rulePreview.conflictStudents.length > 0 && !confirmOverwrite)}
+                  onClick={handleSaveRule}
+                >
+                  Confirm &amp; Save
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -501,9 +501,62 @@ export async function commitRosterImportAction(payload: {
       }
     }
 
-    // 4. Create student assignments via transactional RPC
+    // 4. Persist advisor_assignment_rules (id_range, entire_batch, individual_student) + student assignments
+    let rulesCreated = 0;
     let assignmentsCreated = 0;
+
     if (payload.assignmentMode !== "advisors_only") {
+      // Persist rules per active row (ignoring exact duplicates via unique index)
+      for (const row of activeRows) {
+        const normEmail = row.email.trim().toLowerCase();
+        const advisorProfileId = advisorIdByEmail.get(normEmail);
+        if (!advisorProfileId) continue;
+
+        const batchVal = (row.batchNumber || row.batchLabel || "").trim();
+        if (!batchVal) continue;
+
+        if (row.parsedRange.isAllInBatch || payload.assignmentMode === "batch") {
+          const { error: ruleErr } = await (
+            supabase.from("advisor_assignment_rules") as unknown as {
+              insert: (p: Record<string, unknown>) => Promise<{ error: { code?: string; message: string } | null }>;
+            }
+          ).insert({
+            advisor_profile_id: advisorProfileId,
+            semester_id: payload.semesterId,
+            batch: batchVal,
+            assignment_type: "entire_batch",
+            is_active: true,
+            source: "excel_import",
+            import_batch_id: importBatchId,
+            created_by: adminUser.id,
+            updated_by: adminUser.id,
+          });
+          if (!ruleErr) rulesCreated++;
+        } else {
+          for (const rng of row.parsedRange.ranges) {
+            const { error: ruleErr } = await (
+              supabase.from("advisor_assignment_rules") as unknown as {
+                insert: (p: Record<string, unknown>) => Promise<{ error: { code?: string; message: string } | null }>;
+              }
+            ).insert({
+              advisor_profile_id: advisorProfileId,
+              semester_id: payload.semesterId,
+              batch: batchVal,
+              student_id_prefix: rng.prefix,
+              start_student_id: rng.startFull,
+              end_student_id: rng.endFull,
+              assignment_type: "id_range",
+              is_active: true,
+              source: "excel_import",
+              import_batch_id: importBatchId,
+              created_by: adminUser.id,
+              updated_by: adminUser.id,
+            });
+            if (!ruleErr) rulesCreated++;
+          }
+        }
+      }
+
       for (const match of payload.matchedStudents) {
         if (match.hasExistingAssignment && payload.commitMode !== "replace_batches") {
           // Never overwrite existing assignments by default
@@ -553,6 +606,7 @@ export async function commitRosterImportAction(payload: {
         fileName: payload.fileName,
         worksheetName: payload.worksheetName,
         advisorsProcessed,
+        rulesCreated,
         assignmentsCreated,
         commitMode: payload.commitMode,
         assignmentMode: payload.assignmentMode,

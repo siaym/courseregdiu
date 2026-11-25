@@ -36,8 +36,11 @@ export interface AdminOverviewData {
 export interface AdvisorDirectoryItem extends AdvisorProfileRow {
   authLinked: boolean;
   assignedStudentCount: number;
+  assignmentRuleCount: number;
   assignedBatches: string[];
   assignedSemesterIds: string[];
+  searchableRanges: string[];
+  searchableStudentDiuIds: string[];
 }
 
 export interface BatchDirectoryItem extends BatchRow {
@@ -241,13 +244,17 @@ export async function getAdvisorDirectoryData(): Promise<{
   try {
     const supabase = await getSupabaseServerClient();
 
-    const [advisorsRes, assignmentsRes, studentsRes, departmentsRes, semestersRes] = await Promise.all([
+    const [advisorsRes, assignmentsRes, rulesRes, studentsRes, departmentsRes, semestersRes] = await Promise.all([
       supabase.from("advisor_profiles").select("*").order("full_name", { ascending: true }),
       supabase
         .from("advisor_assignments")
         .select("id, advisor_id, advisor_profile_id, student_id, semester_id, is_active")
         .eq("is_active", true),
-      supabase.from("profiles").select("id, batch").eq("role", "student"),
+      supabase
+        .from("advisor_assignment_rules")
+        .select("id, advisor_profile_id, semester_id, batch, start_student_id, end_student_id, assignment_type, is_active")
+        .eq("is_active", true),
+      supabase.from("profiles").select("id, diu_id, batch").eq("role", "student"),
       supabase.from("departments").select("*").order("code", { ascending: true }),
       supabase.from("semesters").select("*").order("year", { ascending: false }),
     ]);
@@ -262,10 +269,20 @@ export async function getAdvisorDirectoryData(): Promise<{
       };
     }
 
-    const studentBatchMap = new Map<string, string>();
-    for (const s of (studentsRes.data || []) as { id: string; batch: string | null }[]) {
-      if (s.batch) studentBatchMap.set(s.id, s.batch);
+    const studentMap = new Map<string, { batch: string | null; diu_id: string | null }>();
+    for (const s of (studentsRes.data || []) as { id: string; diu_id: string | null; batch: string | null }[]) {
+      studentMap.set(s.id, { batch: s.batch, diu_id: s.diu_id });
     }
+
+    const rules = (rulesRes.error ? [] : rulesRes.data || []) as {
+      id: string;
+      advisor_profile_id: string;
+      semester_id: string;
+      batch: string;
+      start_student_id: string | null;
+      end_student_id: string | null;
+      assignment_type: string;
+    }[];
 
     const assignments = (assignmentsRes.data || []) as {
       id: string;
@@ -279,20 +296,38 @@ export async function getAdvisorDirectoryData(): Promise<{
       const matching = assignments.filter(
         (a) => a.advisor_profile_id === adv.id || (adv.profile_id && a.advisor_id === adv.profile_id)
       );
+      const advRules = rules.filter((r) => r.advisor_profile_id === adv.id);
       const batchSet = new Set<string>();
       const semSet = new Set<string>();
+      const diuIds: string[] = [];
+      const rangeStrings: string[] = [];
+
       for (const m of matching) {
         semSet.add(m.semester_id);
-        const batch = studentBatchMap.get(m.student_id);
-        if (batch) batchSet.add(batch);
+        const st = studentMap.get(m.student_id);
+        if (st?.batch) batchSet.add(st.batch);
+        if (st?.diu_id) diuIds.push(st.diu_id);
+      }
+
+      for (const r of advRules) {
+        semSet.add(r.semester_id);
+        if (r.batch) batchSet.add(r.batch);
+        if (r.start_student_id && r.end_student_id) {
+          rangeStrings.push(`${r.start_student_id} to ${r.end_student_id}`);
+        } else if (r.assignment_type === "entire_batch") {
+          rangeStrings.push(`Entire Batch ${r.batch}`);
+        }
       }
 
       return {
         ...adv,
         authLinked: Boolean(adv.profile_id),
         assignedStudentCount: matching.length,
+        assignmentRuleCount: advRules.length,
         assignedBatches: Array.from(batchSet).sort(),
         assignedSemesterIds: Array.from(semSet),
+        searchableRanges: rangeStrings,
+        searchableStudentDiuIds: diuIds,
       };
     });
 

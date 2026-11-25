@@ -176,12 +176,30 @@ test("Workbook Importer: inspects sheets, handles merged batch cells, multiline 
     true
   );
 
-  // Duplicate advisor email flagged (alice@diu.edu.bd appears on row 3 and row 5)
-  assert.equal(parsed.rows[0].validationStatus, "duplicate");
+  // Same advisor appearing across Batch 72 and Batch 71 is VALID (multiple batches/ranges allowed)
+  assert.equal(parsed.rows[0].validationStatus, "valid");
 
   // 'All' row flagged as batch-scoped
   assert.equal(parsed.rows[2].batchNumber, "71");
   assert.equal(parsed.rows[2].parsedRange.isAllInBatch, true);
+});
+
+test("Tolerant Importer: allows same advisor with multiple prefixes/batches, flags name mismatch and cross-advisor conflicts", async () => {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Fall 26Draft");
+  ws.addRow(["Semester Code", "SL", "Adviser Name", "Designation", "From ID- To ID", "Room Number", "Schedule", "Email", "Phone"]);
+  // Same advisor, two different prefixes & batches
+  ws.addRow(["62 Batch", "1", "Most. Sanjida Afrin", "Lecturer", "222-15-6495 to 222-15-6555", "AB4", "Sun", "sanjida.cse@diu.edu.bd", "01711000001"]);
+  ws.addRow(["61 Batch", "2", "Most. Sanjida Afrin", "Lecturer", "221-15-5232 to 221-15-5531", "AB4", "Mon", "sanjida.cse@diu.edu.bd", "01711000001"]);
+  // Different advisor overlapping 222-15-6500 to 222-15-6510 -> genuine conflict!
+  ws.addRow(["62 Batch", "3", "Other Advisor", "Lecturer", "222-15-6500 to 222-15-6510", "AB4", "Tue", "other@diu.edu.bd", "01711000002"]);
+
+  const buf = Buffer.from(await wb.xlsx.writeBuffer());
+  const parsed = await parseRosterWorksheet(buf, "multi.xlsx", "Fall 26Draft");
+
+  assert.equal(parsed.rows[1].validationStatus, "valid");
+  assert.equal(parsed.rows[0].validationStatus, "error");
+  assert.equal(parsed.rows[2].validationStatus, "error");
 });
 
 // ============================================================================

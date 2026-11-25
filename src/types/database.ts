@@ -994,6 +994,63 @@ export interface Database {
         };
         Relationships: [];
       };
+      advisor_assignment_rules: {
+        Row: {
+          id: string;
+          advisor_profile_id: string;
+          semester_id: string;
+          batch: string;
+          student_id_prefix: string | null;
+          start_student_id: string | null;
+          end_student_id: string | null;
+          student_id: string | null;
+          assignment_type: "id_range" | "individual_student" | "entire_batch";
+          is_active: boolean;
+          source: string;
+          import_batch_id: string | null;
+          created_by: string | null;
+          updated_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          advisor_profile_id: string;
+          semester_id: string;
+          batch: string;
+          student_id_prefix?: string | null;
+          start_student_id?: string | null;
+          end_student_id?: string | null;
+          student_id?: string | null;
+          assignment_type: "id_range" | "individual_student" | "entire_batch";
+          is_active?: boolean;
+          source?: string;
+          import_batch_id?: string | null;
+          created_by?: string | null;
+          updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          advisor_profile_id?: string;
+          semester_id?: string;
+          batch?: string;
+          student_id_prefix?: string | null;
+          start_student_id?: string | null;
+          end_student_id?: string | null;
+          student_id?: string | null;
+          assignment_type?: "id_range" | "individual_student" | "entire_batch";
+          is_active?: boolean;
+          source?: string;
+          import_batch_id?: string | null;
+          created_by?: string | null;
+          updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
