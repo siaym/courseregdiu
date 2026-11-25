@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { requireAdmin } from "@/lib/auth/roles";
 import { normalizeEmail } from "@/lib/auth/email-authorization";
 import {
@@ -353,7 +354,57 @@ export async function removeAlternativeEmailAction(
 export async function getAdminStudentEmailDirectoryAction() {
   await requireAdmin();
 
-  // Combine student profile directory
+  if (isSupabaseConfigured()) {
+    try {
+      const supabase = await getSupabaseServerClient();
+      const [studentsRes, authEmailsRes, auditRes] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id, full_name, diu_id, email, batch, department_code")
+          .eq("role", "student")
+          .order("full_name", { ascending: true }),
+        supabase
+          .from("authorized_emails")
+          .select("*")
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("email_authorization_audit")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(50),
+      ]);
+
+      if (!studentsRes.error) {
+        const students = (
+          (studentsRes.data || []) as Array<{
+            id: string;
+            full_name: string | null;
+            diu_id: string | null;
+            email: string;
+            batch: string | null;
+            department_code: string | null;
+          }>
+        ).map((s) => ({
+          profileId: s.id,
+          fullName: s.full_name || s.email,
+          diuId: s.diu_id || "Pending ID",
+          primaryEmail: s.email,
+          batch: s.batch || "Unassigned",
+          department: s.department_code || "CSE",
+        }));
+
+        return {
+          students,
+          authorizedEmails: (authEmailsRes.error ? [] : authEmailsRes.data || []) as AuthorizedEmailRow[],
+          auditLog: (auditRes.error ? [] : auditRes.data || []) as EmailAuthorizationAuditRow[],
+        };
+      }
+    } catch {
+      // Fallback only when DB is unreachable in non-production
+    }
+  }
+
+  // Fallback for local mock/test environments without Supabase
   const students = [
     {
       profileId: MOCK_STUDENT_PROFILE.id,
