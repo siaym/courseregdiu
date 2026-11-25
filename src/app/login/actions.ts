@@ -324,7 +324,11 @@ export async function signInWithEmailPasswordAction(
       });
 
       if (error || !data.user) {
-        return { success: false, error: "Invalid email or password." };
+        const msg = error?.message || "Invalid email or password.";
+        return {
+          success: false,
+          error: msg === "Invalid login credentials" ? "Invalid email or password." : msg,
+        };
       }
 
       const authResult = await resolveEmailAuthorization(email);
