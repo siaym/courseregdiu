@@ -313,19 +313,9 @@ export async function signInWithEmailPasswordAction(
     };
   }
 
-  // 2. Email Authorization Check
-  const authResult = await resolveEmailAuthorization(email);
-  if (!authResult.authorized) {
-    return {
-      success: false,
-      error: "This email identity is not authorized for portal access.",
-    };
-  }
-
+  // 2. Supabase Auth Password Sign In (in production, authenticate first so RLS allows reading own authorized_emails row)
   const isProd = process.env.NODE_ENV === "production";
-
-  // 3. Supabase Auth Password Sign In
-  if (isSupabaseConfigured()) {
+  if (isSupabaseConfigured() && isProd) {
     try {
       const supabase = await getSupabaseServerClient();
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -334,10 +324,60 @@ export async function signInWithEmailPasswordAction(
       });
 
       if (error || !data.user) {
-        if (isProd) {
-          return { success: false, error: "Invalid email or password." };
-        }
-      } else {
+        return { success: false, error: "Invalid email or password." };
+      }
+
+      const authResult = await resolveEmailAuthorization(email);
+      if (!authResult.authorized) {
+        await supabase.auth.signOut();
+        return {
+          success: false,
+          error:
+            authResult.reason === "DEACTIVATED"
+              ? "This account authorization has been deactivated. Please contact DIU Administration."
+              : "This email identity is not authorized for portal access.",
+        };
+      }
+
+      const targetProfileId = authResult.profileId || data.user.id;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role, onboarding_completed")
+        .eq("id", targetProfileId)
+        .maybeSingle();
+
+      const landing = resolveLandingPath(
+        profile?.role || authResult.role,
+        profile?.onboarding_completed,
+        returnTo
+      );
+
+      return { success: true, redirectTo: landing };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Service error";
+      return { success: false, error: `Authentication failed: ${msg}` };
+    }
+  }
+
+  // 3. Dev / Test Email Authorization Check
+  const authResult = await resolveEmailAuthorization(email);
+  if (!authResult.authorized) {
+    return {
+      success: false,
+      error: "This email identity is not authorized for portal access.",
+    };
+  }
+
+  // 4. Dev Supabase Auth Password Sign In
+  if (isSupabaseConfigured()) {
+    try {
+      const supabase = await getSupabaseServerClient();
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (!error && data.user) {
         const { data: profile } = await supabase
           .from("profiles")
           .select("role, onboarding_completed")
@@ -352,11 +392,8 @@ export async function signInWithEmailPasswordAction(
 
         return { success: true, redirectTo: landing };
       }
-    } catch (err: unknown) {
-      if (isProd) {
-        const msg = err instanceof Error ? err.message : "Service error";
-        return { success: false, error: `Authentication failed: ${msg}` };
-      }
+    } catch {
+      // Fallback to dev session
     }
   }
 
