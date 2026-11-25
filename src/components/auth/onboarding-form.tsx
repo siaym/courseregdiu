@@ -59,9 +59,9 @@ export function OnboardingForm({
 
       // Redirect to the Student Dashboard workspace
       setTimeout(() => {
-        router.push("/dashboard?onboarded=true");
+        router.replace("/dashboard?onboarded=true");
         router.refresh();
-      }, 1000);
+      }, 600);
     } catch (err: unknown) {
       setIsSubmitting(false);
       const message = err instanceof Error ? err.message : "An unexpected error occurred during submission.";

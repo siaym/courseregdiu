@@ -1,20 +1,21 @@
-import { redirect } from "next/navigation";
 import { getCurrentUser, getCurrentProfile } from "@/lib/auth/roles";
+import { LandingView } from "@/components/landing/landing-view";
 
 export default async function HomePage() {
   const user = await getCurrentUser();
+
   if (!user) {
-    redirect("/dashboard");
+    return <LandingView isAuthenticated={false} dashboardHref="/login" />;
   }
 
   const profile = await getCurrentProfile(user);
+  let dashboardHref = "/dashboard";
+
   if (profile?.role === "admin") {
-    redirect("/admin/emails");
+    dashboardHref = "/admin/emails";
+  } else if (profile?.role === "advisor" || profile?.role === "department_head") {
+    dashboardHref = "/advisor";
   }
 
-  if (profile?.role === "advisor" || profile?.role === "department_head") {
-    redirect("/advisor");
-  }
-
-  redirect("/dashboard");
+  return <LandingView isAuthenticated={true} dashboardHref={dashboardHref} />;
 }

@@ -6,6 +6,14 @@ import { getSupabaseUrl, getSupabasePublishableKey, isSupabaseConfigured } from 
 import { DEMO_MODE } from "@/lib/config/demo";
 
 export async function updateSession(request: NextRequest) {
+  // If Supabase OAuth falls back to the Site URL (`/?code=...`), forward to `/auth/callback`
+  // so the PKCE authorization code is exchanged for a session.
+  if (request.nextUrl.pathname === "/" && request.nextUrl.searchParams.has("code")) {
+    const callbackUrl = request.nextUrl.clone();
+    callbackUrl.pathname = "/auth/callback";
+    return NextResponse.redirect(callbackUrl);
+  }
+
   let response = NextResponse.next({
     request: {
       headers: request.headers,

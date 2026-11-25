@@ -27,13 +27,12 @@ test("Security Test 1: Route Access & Login Page Bypass for Demo", async () => {
     `/login must redirect to /dashboard (got: ${loginLocation})`
   );
 
-  // 1.2: Verify unauthenticated entry to root / goes to /dashboard
+  // 1.2: Verify root / renders the DIU institutional landing page (HTTP 200)
   const rootRes = await fetch(`${baseUrl}/`, { redirect: "manual" });
-  const rootLocation = rootRes.headers.get("location") || "";
   assert.equal(
-    rootLocation.includes("/dashboard"),
-    true,
-    `Root / must redirect to /dashboard (got: ${rootLocation})`
+    rootRes.status,
+    200,
+    `Root / must render landing page with 200 (got: ${rootRes.status})`
   );
 
   // 1.3: Verify protected paths do not bounce to /login during demo presentation

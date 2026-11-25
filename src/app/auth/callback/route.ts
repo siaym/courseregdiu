@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveEmailAuthorization } from "@/lib/auth/email-authorization";
 
@@ -43,9 +44,23 @@ export function validateSafeRedirect(target: string | null | undefined): string 
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
+  const origin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : requestUrl.origin;
+
   const code = requestUrl.searchParams.get("code");
-  const rawNext = requestUrl.searchParams.get("next");
+  const cookieStore = await cookies();
+  const cookieNext = cookieStore.get("diu_auth_next")?.value;
+  const rawNext = requestUrl.searchParams.get("next") ?? (cookieNext ? decodeURIComponent(cookieNext) : null);
   const safeNext = validateSafeRedirect(rawNext);
+
+  const redirectWithCleanup = (targetUrl: URL) => {
+    const res = NextResponse.redirect(targetUrl);
+    if (cookieNext !== undefined) {
+      res.cookies.set("diu_auth_next", "", { path: "/", maxAge: 0 });
+    }
+    return res;
+  };
 
   if (code) {
     const supabase = await getSupabaseServerClient();
@@ -59,19 +74,19 @@ export async function GET(request: Request) {
 
       if (!user || !user.email) {
         await supabase.auth.signOut();
-        const unauthorizedRedirect = new URL("/login", requestUrl.origin);
+        const unauthorizedRedirect = new URL("/login", origin);
         unauthorizedRedirect.searchParams.set("error", "oauth_failed");
-        return NextResponse.redirect(unauthorizedRedirect);
+        return redirectWithCleanup(unauthorizedRedirect);
       }
 
       const authResult = await resolveEmailAuthorization(user.email);
       if (!authResult.authorized) {
         // Immediately terminate unauthorized or deactivated session
         await supabase.auth.signOut();
-        const unauthorizedRedirect = new URL("/login", requestUrl.origin);
+        const unauthorizedRedirect = new URL("/login", origin);
         const errParam = authResult.reason === "DEACTIVATED" ? "email_revoked" : "unauthorized_email";
         unauthorizedRedirect.searchParams.set("error", errParam);
-        return NextResponse.redirect(unauthorizedRedirect);
+        return redirectWithCleanup(unauthorizedRedirect);
       }
 
       // 2. Resolve canonical profile (both DIU and alternative emails resolve to the same profile)
@@ -83,21 +98,21 @@ export async function GET(request: Request) {
         .maybeSingle();
 
       if (profile && (profile as { role?: string; onboarding_completed?: boolean }).role === "student" && !(profile as { onboarding_completed?: boolean }).onboarding_completed) {
-        return NextResponse.redirect(new URL("/onboarding", requestUrl.origin));
+        return redirectWithCleanup(new URL("/onboarding", origin));
       }
 
       // 3. Admin default landing route
       if (profile && (profile as { role?: string }).role === "admin" && safeNext === "/dashboard") {
-        return NextResponse.redirect(new URL("/admin/emails", requestUrl.origin));
+        return redirectWithCleanup(new URL("/admin/emails", origin));
       }
 
       // 4. Safe internal redirect
-      return NextResponse.redirect(new URL(safeNext, requestUrl.origin));
+      return redirectWithCleanup(new URL(safeNext, origin));
     }
   }
 
   // Return to login with error parameter if code exchange failed
-  const errorRedirect = new URL("/login", requestUrl.origin);
+  const errorRedirect = new URL("/login", origin);
   errorRedirect.searchParams.set("error", "oauth_failed");
-  return NextResponse.redirect(errorRedirect);
+  return redirectWithCleanup(errorRedirect);
 }

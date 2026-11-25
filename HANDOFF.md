@@ -1,10 +1,10 @@
-# HANDOFF — Production Security & Identity Hardening to Phase 2 Transition
+# HANDOFF — Admin Panel, Advisor Roster Importer & Assignment Management
 
-> **From**: Lead Software Architect & Founding Engineer  
-> **To**: Incoming Engineering Agent / Phase 2 Full-Stack Team  
+> **From**: Lead Software Architect & Full-Stack Engineer  
+> **To**: Repository Owner / Database Administrator  
 > **Repository**: `courseregdiu` (`https://github.com/siaym/courseregdiu`)  
 > **Handover Date**: November 2026  
-> **Milestone Status**: Phase 1.5 Complete (100%) | P0 Security Remediation Complete (100%) | Final Auth Policy Complete (100%) | Production Security Hardening & Fail-Closed Architecture Complete (100%) | Dynamic Email Authentication & Admin Toggle Controls Complete (100%) | Advisor Portal UI/UX Overhaul & 3-Category Application Center Complete (100%) | **Supabase Cloud Remote Database Push & Verification Complete (100%)** | Batch Course Configuration, Payment Clearance & Global UI/UX Redesign Complete (100%)  
+> **Pending Manual Action**: Apply `supabase/migrations/20261125000000_admin_panel_foundation.sql` to remote Supabase (`gbobcwnumspimegiqzom`) after review. Remote database was NOT modified automatically.
 
 ---
 

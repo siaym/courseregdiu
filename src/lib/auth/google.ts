@@ -11,12 +11,23 @@ export interface GoogleAuthOptions {
  */
 export async function signInWithGoogle(options?: GoogleAuthOptions) {
   const supabase = getSupabaseBrowserClient();
-  const origin = typeof window !== "undefined" ? window.location.origin : (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
+  const origin =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const callbackUrl = new URL("/auth/callback", origin);
 
-  if (options?.redirectTo) {
-    callbackUrl.searchParams.set("next", options.redirectTo);
+  // Store post-login redirect target in a short-lived cookie instead of query params
+  // so `redirectTo` remains an exact URL match in Supabase's Redirect URLs allowlist.
+  if (typeof document !== "undefined") {
+    if (options?.redirectTo) {
+      document.cookie = `diu_auth_next=${encodeURIComponent(options.redirectTo)}; path=/; max-age=300; SameSite=Lax`;
+    } else {
+      document.cookie = "diu_auth_next=; path=/; max-age=0; SameSite=Lax";
+    }
   }
+
+  const allowedDomain = (process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN || "diu.edu.bd").trim();
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
@@ -25,7 +36,7 @@ export async function signInWithGoogle(options?: GoogleAuthOptions) {
       queryParams: {
         access_type: "offline",
         prompt: "select_account",
-        hd: process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN || "diu.edu.bd",
+        hd: allowedDomain,
       },
     },
   });

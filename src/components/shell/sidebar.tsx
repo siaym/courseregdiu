@@ -15,6 +15,12 @@ import {
   ShieldCheck,
   Layers,
   Mail,
+  UserCheck,
+  FileSpreadsheet,
+  GitBranch,
+  Calendar,
+  ScrollText,
+  Settings,
 } from "lucide-react";
 import { DiuLogo } from "@/components/brand/diu-logo";
 import type { UserRole } from "@/types/database";
@@ -53,11 +59,17 @@ export function Sidebar({ role, isOpen, onClose }: SidebarProps) {
   ];
 
   const adminLinks: NavItem[] = [
-    { title: "Dashboard", href: "/admin", icon: Home },
-    { title: "Batch Courses", href: "/admin/curriculum", icon: Layers },
-    { title: "Payment Clearances", href: "/admin/payments", icon: ShieldCheck },
-    { title: "Email Auth", href: "/admin/emails", icon: Mail },
-    { title: "Advisor Portal", href: "/advisor", icon: Users },
+    { title: "Overview", href: "/admin", icon: Home },
+    { title: "Advisor Management", href: "/admin/advisors", icon: UserCheck },
+    { title: "Student Assignments", href: "/admin/assignments", icon: GitBranch },
+    { title: "Advisor Roster Import", href: "/admin/import", icon: FileSpreadsheet },
+    { title: "Batch Management", href: "/admin/batches", icon: Users },
+    { title: "Curriculum Management", href: "/admin/curriculum", icon: Layers },
+    { title: "Payment Clearance", href: "/admin/payments", icon: ShieldCheck },
+    { title: "Email Authorization", href: "/admin/emails", icon: Mail },
+    { title: "Semester Management", href: "/admin/semesters", icon: Calendar },
+    { title: "Audit Logs", href: "/admin/audit", icon: ScrollText },
+    { title: "System Settings", href: "/admin/settings", icon: Settings },
   ];
 
   const links = isAdminRoute || role === "admin"
@@ -78,14 +90,14 @@ export function Sidebar({ role, isOpen, onClose }: SidebarProps) {
 
       <aside
         className={cn(
-          "fixed top-0 bottom-0 left-0 z-40 w-60 border-r border-[#1c263c] bg-[#090d16] flex flex-col justify-between p-5 transition-transform duration-200 ease-in-out lg:translate-x-0",
+          "fixed top-0 bottom-0 left-0 z-40 w-60 border-r border-[#1c263c] bg-[#090d16] flex flex-col justify-between p-5 overflow-y-auto transition-transform duration-200 ease-in-out lg:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         {/* Top: Logo & Navigation */}
-        <div className="space-y-8">
+        <div className="space-y-6">
           {/* DIU Brand Logo */}
-          <Link href={isAdvisorRoute ? "/advisor" : "/dashboard"} className="block" onClick={onClose}>
+          <Link href={isAdminRoute || role === "admin" ? "/admin" : isAdvisorRoute ? "/advisor" : "/dashboard"} className="block" onClick={onClose}>
             <DiuLogo className="h-9 w-9" />
           </Link>
 
