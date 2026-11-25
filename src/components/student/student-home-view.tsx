@@ -13,46 +13,69 @@ import {
   ShieldCheck,
   Clock,
 } from "lucide-react";
-import {
-  ACTIVE_MOCK_SEMESTER_LABEL,
-  ACTIVE_MOCK_REGISTRATION_WINDOW,
-  MOCK_ADVISOR_PROFILE,
-} from "@/lib/mock/data";
-import type { Database } from "@/types/database";
+import type { Database, RegistrationStatus } from "@/types/database";
 import type { PaymentClearanceRecord } from "@/lib/payment/payment-service";
 
 type StudentLifecycleState = "draft" | "submitted" | "approved";
 
+export interface AssignedAdvisorSummary {
+  fullName: string;
+  email: string;
+  departmentCode: string | null;
+  roomNumber: string | null;
+}
+
 interface StudentHomeViewProps {
   profile?: Database["public"]["Tables"]["profiles"]["Row"];
   paymentClearance?: PaymentClearanceRecord | null;
+  assignedAdvisor?: AssignedAdvisorSummary | null;
+  activeSemesterLabel?: string;
+  registrationWindowLabel?: string;
+  registrationStatus?: RegistrationStatus | "not_submitted";
+  isDev?: boolean;
 }
 
-export function StudentHomeView({ profile, paymentClearance }: StudentHomeViewProps) {
-  const [activeState, setActiveState] = React.useState<StudentLifecycleState>("draft");
+export function StudentHomeView({
+  profile,
+  paymentClearance,
+  assignedAdvisor = null,
+  activeSemesterLabel = "No Active Semester",
+  registrationWindowLabel = "Schedule pending",
+  registrationStatus = "not_submitted",
+  isDev = false,
+}: StudentHomeViewProps) {
+  const initialState: StudentLifecycleState =
+    registrationStatus === "approved"
+      ? "approved"
+      : registrationStatus === "pending_advisor"
+      ? "submitted"
+      : "draft";
+  const [activeState, setActiveState] = React.useState<StudentLifecycleState>(initialState);
   const [showInfoModal, setShowInfoModal] = React.useState(false);
 
   return (
     <div className="space-y-6 text-slate-100 max-w-5xl mx-auto py-2">
-      {/* Dev Preview Helper (Quiet, non-intrusive) */}
-      <div className="flex items-center justify-between text-xs py-1.5 px-3 rounded-xl bg-[#121827] border border-[#1c263c] text-[#8e9db2]">
-        <span className="font-mono text-[11px]">Lifecycle Preview:</span>
-        <div className="flex items-center gap-1 font-mono text-[11px]">
-          {(["draft", "submitted", "approved"] as const).map((st) => (
-            <button
-              key={st}
-              onClick={() => setActiveState(st)}
-              className={`px-2.5 py-0.5 rounded-lg capitalize transition-colors ${
-                activeState === st
-                  ? "bg-[#172136] text-white font-medium shadow-xs"
-                  : "text-[#8e9db2] hover:text-white"
-              }`}
-            >
-              {st === "draft" ? "Not Submitted (Draft)" : st}
-            </button>
-          ))}
+      {/* Dev Preview Helper (Dev only) */}
+      {isDev && (
+        <div className="flex items-center justify-between text-xs py-1.5 px-3 rounded-xl bg-[#121827] border border-[#1c263c] text-[#8e9db2]">
+          <span className="font-mono text-[11px]">Lifecycle Preview:</span>
+          <div className="flex items-center gap-1 font-mono text-[11px]">
+            {(["draft", "submitted", "approved"] as const).map((st) => (
+              <button
+                key={st}
+                onClick={() => setActiveState(st)}
+                className={`px-2.5 py-0.5 rounded-lg capitalize transition-colors ${
+                  activeState === st
+                    ? "bg-[#172136] text-white font-medium shadow-xs"
+                    : "text-[#8e9db2] hover:text-white"
+                }`}
+              >
+                {st === "draft" ? "Not Submitted (Draft)" : st}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Greeting Header (Exact match to Mockup 1) */}
       <div className="space-y-1">
@@ -170,7 +193,9 @@ export function StudentHomeView({ profile, paymentClearance }: StudentHomeViewPr
                     Awaiting Verification
                   </div>
                   <p className="text-xs text-[#8e9db2] leading-relaxed">
-                    Voucher: {paymentClearance?.referenceCode || "DIU-AC-2027-4561"}
+                    {paymentClearance?.referenceCode
+                      ? `Voucher: ${paymentClearance.referenceCode}`
+                      : "Pending Accounts office verification"}
                   </p>
                 </div>
               </>
@@ -184,7 +209,7 @@ export function StudentHomeView({ profile, paymentClearance }: StudentHomeViewPr
                     Payment Cleared
                   </div>
                   <p className="text-xs text-[#8e9db2] leading-relaxed">
-                    Verified by Accounts ({paymentClearance.referenceCode || "DIU-AC-2027-4561"}).
+                    Verified by Accounts{paymentClearance.referenceCode ? ` (${paymentClearance.referenceCode})` : ""}.
                   </p>
                 </div>
               </>
@@ -212,32 +237,48 @@ export function StudentHomeView({ profile, paymentClearance }: StudentHomeViewPr
             Your Advisor
           </div>
 
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              {/* Avatar Silhouette */}
-              <div className="w-11 h-11 rounded-full bg-[#1e293b] border border-[#334155] flex items-center justify-center text-slate-300 shrink-0">
-                <UserIcon className="h-6 w-6 text-slate-300" />
+          {assignedAdvisor ? (
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-11 h-11 rounded-full bg-[#1e293b] border border-[#334155] flex items-center justify-center text-slate-300 shrink-0">
+                  <UserIcon className="h-6 w-6 text-slate-300" />
+                </div>
+
+                <div>
+                  <div className="text-sm font-bold text-white">
+                    {assignedAdvisor.fullName}
+                  </div>
+                  <div className="text-xs text-[#8e9db2]">
+                    {assignedAdvisor.departmentCode
+                      ? `Department of ${assignedAdvisor.departmentCode}`
+                      : "Assigned Faculty Advisor"}
+                  </div>
+                </div>
               </div>
 
+              <a
+                href={`mailto:${assignedAdvisor.email}?subject=DIU%20Course%20Registration%20Inquiry`}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0f172a] hover:bg-[#1e293b] border border-[#1e293c] text-white text-xs font-medium transition-colors shadow-xs"
+              >
+                <Mail className="h-3.5 w-3.5 text-slate-300" />
+                <span>Contact</span>
+              </a>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-full bg-[#1e293b] border border-[#334155] flex items-center justify-center text-slate-400 shrink-0">
+                <UserIcon className="h-5 w-5" />
+              </div>
               <div>
-                <div className="text-sm font-bold text-white">
-                  {MOCK_ADVISOR_PROFILE.full_name}
+                <div className="text-sm font-semibold text-slate-200">
+                  Not Yet Assigned
                 </div>
                 <div className="text-xs text-[#8e9db2]">
-                  Department of {MOCK_ADVISOR_PROFILE.department_code}
+                  Your department will assign an academic advisor for {activeSemesterLabel}.
                 </div>
               </div>
             </div>
-
-            {/* Contact Button */}
-            <a
-              href={`mailto:${MOCK_ADVISOR_PROFILE.email}?subject=DIU%20Course%20Registration%20Inquiry`}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0f172a] hover:bg-[#1e293b] border border-[#1e293c] text-white text-xs font-medium transition-colors shadow-xs"
-            >
-              <Mail className="h-3.5 w-3.5 text-slate-300" />
-              <span>Contact</span>
-            </a>
-          </div>
+          )}
         </div>
       </div>
 
@@ -249,7 +290,10 @@ export function StudentHomeView({ profile, paymentClearance }: StudentHomeViewPr
             <span className="font-semibold text-white">Important Information</span>
             <span className="hidden sm:inline text-slate-600">•</span>
             <span className="text-[#8e9db2]">
-              Registration window: <strong className="text-slate-200 font-medium">{ACTIVE_MOCK_REGISTRATION_WINDOW}</strong> | Current Semester: <strong className="text-slate-200 font-medium">{ACTIVE_MOCK_SEMESTER_LABEL}</strong>
+              Registration window:{" "}
+              <strong className="text-slate-200 font-medium">{registrationWindowLabel}</strong> |{" "}
+              Current Semester:{" "}
+              <strong className="text-slate-200 font-medium">{activeSemesterLabel}</strong>
             </span>
           </div>
         </div>
@@ -282,7 +326,7 @@ export function StudentHomeView({ profile, paymentClearance }: StudentHomeViewPr
             </div>
             <div className="space-y-3 text-[#8e9db2]">
               <p>
-                • <strong className="text-white">Active Advising Window:</strong> {ACTIVE_MOCK_REGISTRATION_WINDOW}. Submissions after this date require Department Head approval.
+                • <strong className="text-white">Active Advising Window:</strong> {registrationWindowLabel}. Submissions after this date require Department Head approval.
               </p>
               <p>
                 • <strong className="text-white">Credit Hour Limits:</strong> Regular full-time students are permitted to take up to 15.0 credits per standard DIU semester.

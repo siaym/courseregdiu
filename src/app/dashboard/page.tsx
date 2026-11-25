@@ -1,17 +1,131 @@
 import { AppShell } from "@/components/shell/app-shell";
 import { requireOnboarded } from "@/lib/auth/roles";
-import { StudentHomeView } from "@/components/student/student-home-view";
+import { StudentHomeView, type AssignedAdvisorSummary } from "@/components/student/student-home-view";
 import { getStudentPaymentClearance } from "@/lib/payment/payment-service";
-import { MOCK_CURRENT_SEMESTER } from "@/lib/mock/data";
+import { getSupabaseServerClient } from "@/lib/supabase/server";
+import type { RegistrationStatus } from "@/types/database";
 
 export default async function DashboardPage() {
   const { user, profile } = await requireOnboarded("/dashboard");
 
-  const paymentClearance = await getStudentPaymentClearance(profile.id, MOCK_CURRENT_SEMESTER.id);
+  let activeSemesterId = "";
+  let activeSemesterLabel = "No Active Semester";
+  let registrationWindowLabel = "Schedule pending";
+  let registrationStatus: RegistrationStatus | "not_submitted" = "not_submitted";
+  let assignedAdvisor: AssignedAdvisorSummary | null = null;
+
+  try {
+    const supabase = await getSupabaseServerClient();
+
+    const { data: activeSem } = await supabase
+      .from("semesters")
+      .select("id, name, season, year, registration_starts_at, registration_ends_at")
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (activeSem) {
+      const sem = activeSem as {
+        id: string;
+        name?: string | null;
+        season: string;
+        year: number;
+        registration_starts_at: string | null;
+        registration_ends_at: string | null;
+      };
+      activeSemesterId = sem.id;
+      activeSemesterLabel =
+        sem.name || `${sem.season.charAt(0).toUpperCase() + sem.season.slice(1)} ${sem.year}`;
+
+      if (sem.registration_starts_at && sem.registration_ends_at) {
+        const start = new Date(sem.registration_starts_at).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        });
+        const end = new Date(sem.registration_ends_at).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        });
+        registrationWindowLabel = `${start} – ${end}`;
+      }
+
+      const [regRes, asgRes] = await Promise.all([
+        supabase
+          .from("registrations")
+          .select("status")
+          .eq("student_id", profile.id)
+          .eq("semester_id", sem.id)
+          .maybeSingle(),
+        supabase
+          .from("advisor_assignments")
+          .select("advisor_id, advisor_profile_id")
+          .eq("student_id", profile.id)
+          .eq("semester_id", sem.id)
+          .eq("is_active", true)
+          .maybeSingle(),
+      ]);
+
+      if (regRes.data) {
+        registrationStatus = (regRes.data as { status: RegistrationStatus }).status;
+      }
+
+      const asg = asgRes.data as { advisor_id: string | null; advisor_profile_id: string | null } | null;
+      if (asg?.advisor_profile_id) {
+        const { data: advProf } = await supabase
+          .from("advisor_profiles")
+          .select("full_name, email, department_code, room_number")
+          .eq("id", asg.advisor_profile_id)
+          .maybeSingle();
+        if (advProf) {
+          const ap = advProf as {
+            full_name: string;
+            email: string;
+            department_code: string | null;
+            room_number: string | null;
+          };
+          assignedAdvisor = {
+            fullName: ap.full_name,
+            email: ap.email,
+            departmentCode: ap.department_code,
+            roomNumber: ap.room_number,
+          };
+        }
+      } else if (asg?.advisor_id) {
+        const { data: advUser } = await supabase
+          .from("profiles")
+          .select("full_name, email, department_code")
+          .eq("id", asg.advisor_id)
+          .maybeSingle();
+        if (advUser) {
+          const au = advUser as { full_name: string; email: string; department_code: string | null };
+          assignedAdvisor = {
+            fullName: au.full_name,
+            email: au.email,
+            departmentCode: au.department_code,
+            roomNumber: null,
+          };
+        }
+      }
+    }
+  } catch {
+    // Graceful degradation; never inject mock advisor or mock semester
+  }
+
+  const paymentClearance = activeSemesterId
+    ? await getStudentPaymentClearance(profile.id, activeSemesterId)
+    : null;
 
   return (
     <AppShell user={user} profile={profile}>
-      <StudentHomeView profile={profile} paymentClearance={paymentClearance} />
+      <StudentHomeView
+        profile={profile}
+        paymentClearance={paymentClearance}
+        assignedAdvisor={assignedAdvisor}
+        activeSemesterLabel={activeSemesterLabel}
+        registrationWindowLabel={registrationWindowLabel}
+        registrationStatus={registrationStatus}
+        isDev={process.env.NODE_ENV !== "production"}
+      />
     </AppShell>
   );
 }
