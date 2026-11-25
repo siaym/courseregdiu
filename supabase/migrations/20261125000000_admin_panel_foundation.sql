@@ -234,6 +234,7 @@ CREATE INDEX IF NOT EXISTS idx_advisor_assignments_advisor_id
 
 -- Update RLS on advisor_assignments so linked advisor_profiles & students can read safely
 DROP POLICY IF EXISTS "Advisors can view their own student assignments" ON public.advisor_assignments;
+DROP POLICY IF EXISTS "Advisors and students can view relevant advisor assignments" ON public.advisor_assignments;
 CREATE POLICY "Advisors and students can view relevant advisor assignments"
     ON public.advisor_assignments FOR SELECT
     TO authenticated
@@ -248,6 +249,7 @@ CREATE POLICY "Advisors and students can view relevant advisor assignments"
     );
 
 DROP POLICY IF EXISTS "Only admins and department heads can manage advisor assignments" ON public.advisor_assignments;
+DROP POLICY IF EXISTS "Only admins can manage advisor assignments" ON public.advisor_assignments;
 CREATE POLICY "Only admins can manage advisor assignments"
     ON public.advisor_assignments FOR ALL
     TO authenticated
@@ -506,3 +508,9 @@ $$;
 
 REVOKE ALL ON FUNCTION public.admin_assign_student_advisor(UUID, UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.admin_assign_student_advisor(UUID, UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT) TO authenticated;
+
+-- ----------------------------------------------------------------------------
+-- 9. FIX handle_new_user() SEARCH_PATH FOR SUPABASE AUTH ADMIN TRIGGER
+-- ----------------------------------------------------------------------------
+ALTER FUNCTION public.handle_new_user() SET search_path = public;
+
