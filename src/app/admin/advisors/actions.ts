@@ -490,6 +490,116 @@ function studentMatchesRuleBatch(studentBatch: string | null, targetBatch: strin
   return sb === tb || sb.startsWith(`${tb} `) || sb.startsWith(`${tb}st`) || sb.startsWith(`${tb}nd`) || sb.startsWith(`${tb}rd`) || sb.startsWith(`${tb}th`);
 }
 
+async function reconcileAdvisorRuleAssignments(params: {
+  supabase: Awaited<ReturnType<typeof getSupabaseServerClient>>;
+  advisorProfileId: string;
+  semesterId: string;
+  actorId: string;
+  reason: string;
+}): Promise<number> {
+  const { supabase, advisorProfileId, semesterId, actorId, reason } = params;
+
+  const { data: activeAssignments } = await supabase
+    .from("advisor_assignments")
+    .select("id, student_id, advisor_id, assignment_source, assignment_rule_type")
+    .eq("advisor_profile_id", advisorProfileId)
+    .eq("semester_id", semesterId)
+    .eq("is_active", true)
+    .in("assignment_rule_type", ["range", "batch"]);
+
+  const asgList = (activeAssignments || []) as {
+    id: string;
+    student_id: string;
+    advisor_id: string | null;
+    assignment_source: string;
+    assignment_rule_type: string;
+  }[];
+
+  if (asgList.length === 0) return 0;
+
+  const studentIds = asgList.map((a) => a.student_id);
+  const [rulesRes, studentsRes] = await Promise.all([
+    supabase
+      .from("advisor_assignment_rules")
+      .select("id, batch, start_student_id, end_student_id, student_id, assignment_type")
+      .eq("advisor_profile_id", advisorProfileId)
+      .eq("semester_id", semesterId)
+      .eq("is_active", true),
+    supabase.from("profiles").select("id, diu_id, batch").in("id", studentIds),
+  ]);
+
+  const activeRules = (rulesRes.data || []) as {
+    id: string;
+    batch: string;
+    start_student_id: string | null;
+    end_student_id: string | null;
+    student_id: string | null;
+    assignment_type: "id_range" | "entire_batch" | "individual_student";
+  }[];
+
+  const studentMap = new Map<string, { id: string; diu_id: string | null; batch: string | null }>();
+  for (const s of (studentsRes.data || []) as { id: string; diu_id: string | null; batch: string | null }[]) {
+    studentMap.set(s.id, s);
+  }
+
+  let removedCount = 0;
+  for (const asg of asgList) {
+    const st = studentMap.get(asg.student_id);
+    const stillMatches = st
+      ? activeRules.some((rule) => {
+          if (rule.assignment_type === "entire_batch") {
+            return studentMatchesRuleBatch(st.batch, rule.batch);
+          }
+          if (rule.assignment_type === "individual_student") {
+            return (
+              rule.student_id === st.id ||
+              (Boolean(rule.start_student_id) &&
+                Boolean(st.diu_id) &&
+                rule.start_student_id!.trim().toLowerCase() === st.diu_id!.trim().toLowerCase())
+            );
+          }
+          if (rule.start_student_id && rule.end_student_id && st.diu_id) {
+            const parsed = parseStudentIdExpression(`${rule.start_student_id} to ${rule.end_student_id}`);
+            return parsed.errors.length === 0 && doesStudentIdMatchParsedExpression(st.diu_id, parsed);
+          }
+          return false;
+        })
+      : false;
+
+    if (!stillMatches) {
+      await (
+        supabase.from("advisor_assignments") as unknown as {
+          update: (p: Record<string, unknown>) => { eq: (c: string, v: string) => Promise<unknown> };
+        }
+      )
+        .update({ is_active: false })
+        .eq("id", asg.id);
+
+      await (
+        supabase.from("advisor_assignment_history") as unknown as {
+          insert: (p: Record<string, unknown>) => Promise<unknown>;
+        }
+      ).insert({
+        assignment_id: asg.id,
+        student_id: asg.student_id,
+        semester_id: semesterId,
+        previous_advisor_profile_id: advisorProfileId,
+        new_advisor_profile_id: null,
+        previous_advisor_id: asg.advisor_id,
+        new_advisor_id: null,
+        action: "UNASSIGNED",
+        assignment_source: asg.assignment_source,
+        assignment_rule_type: asg.assignment_rule_type,
+        reason,
+        actor_id: actorId,
+      });
+      removedCount++;
+    }
+  }
+
+  return removedCount;
+}
+
 export async function previewAdvisorRuleAction(payload: {
   advisorProfileId: string;
   semesterId: string;
@@ -770,6 +880,16 @@ export async function saveAdvisorRuleAction(payload: {
       if (!rpcErr) assignedCount++;
     }
 
+    if (payload.ruleId) {
+      await reconcileAdvisorRuleAssignments({
+        supabase,
+        advisorProfileId: payload.advisorProfileId,
+        semesterId: payload.semesterId,
+        actorId: adminUser.id,
+        reason: payload.reason.trim(),
+      });
+    }
+
     revalidatePath("/admin/advisors");
     revalidatePath("/admin/assignments");
     revalidatePath("/admin");
@@ -799,7 +919,7 @@ export async function toggleAdvisorRuleActiveAction(payload: {
     const supabase = await getSupabaseServerClient();
     const { data: beforeRow } = await supabase
       .from("advisor_assignment_rules")
-      .select("is_active")
+      .select("is_active, advisor_profile_id, semester_id")
       .eq("id", payload.ruleId)
       .maybeSingle();
 
@@ -830,7 +950,19 @@ export async function toggleAdvisorRuleActiveAction(payload: {
       after_data: { is_active: payload.isActive },
     });
 
+    if (!payload.isActive && beforeRow) {
+      const br = beforeRow as { advisor_profile_id: string; semester_id: string };
+      await reconcileAdvisorRuleAssignments({
+        supabase,
+        advisorProfileId: br.advisor_profile_id,
+        semesterId: br.semester_id,
+        actorId: adminUser.id,
+        reason: payload.reason.trim(),
+      });
+    }
+
     revalidatePath("/admin/advisors");
+    revalidatePath("/admin/assignments");
     return { success: true, data: null };
   } catch (err: unknown) {
     return {
@@ -875,7 +1007,19 @@ export async function deleteAdvisorRuleAction(payload: {
       before_data: beforeRow,
     });
 
+    if (beforeRow) {
+      const br = beforeRow as { advisor_profile_id: string; semester_id: string };
+      await reconcileAdvisorRuleAssignments({
+        supabase,
+        advisorProfileId: br.advisor_profile_id,
+        semesterId: br.semester_id,
+        actorId: adminUser.id,
+        reason: payload.reason.trim(),
+      });
+    }
+
     revalidatePath("/admin/advisors");
+    revalidatePath("/admin/assignments");
     return { success: true, data: null };
   } catch (err: unknown) {
     return {
