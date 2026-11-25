@@ -34,6 +34,12 @@ import { Progress } from "@/components/ui/progress";
 import { submitStudentRegistration } from "@/app/courses/actions";
 import type { Database } from "@/types/database";
 import type { PaymentClearanceRecord } from "@/lib/payment/payment-service";
+import {
+  COURSE_CATEGORIES,
+  CATEGORY_LABELS,
+  SPECIALIZATION_GROUPS,
+  SPECIALIZATION_LABELS,
+} from "@/lib/validations/curriculum";
 
 export interface SelectedCourseItem {
   course: ExtendedCourse;
@@ -556,18 +562,23 @@ export function UnifiedCoursesWorkspace({
     return selectedCourses.filter((c) => c.courseType === "retake").length;
   }, [selectedCourses]);
 
-  // Filter ONLY against the student's eligible batch courses
-  const filteredCourses = React.useMemo(() => {
-    const q = debouncedSearch.trim().toLowerCase();
-    if (!q) return eligibleCourses;
+  const [categoryFilter, setCategoryFilter] = React.useState<string>("all");
+  const [specializationFilter, setSpecializationFilter] = React.useState<string>("all");
 
+  // Filter ONLY against the student's eligible batch courses (normalizing hyphens/spaces)
+  const filteredCourses = React.useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase().replace(/[-\s]+/g, "");
     return eligibleCourses.filter((course) => {
-      return (
-        course.code.toLowerCase().includes(q) ||
-        course.title.toLowerCase().includes(q)
-      );
+      const cat = (course as { category?: string }).category || "CORE";
+      const spec = (course as { specialization_group?: string | null }).specialization_group || "";
+      if (categoryFilter !== "all" && cat !== categoryFilter) return false;
+      if (specializationFilter !== "all" && spec !== specializationFilter) return false;
+      if (!q) return true;
+      const codeNorm = course.code.toLowerCase().replace(/[-\s]+/g, "");
+      const titleNorm = course.title.toLowerCase().replace(/[-\s]+/g, "");
+      return codeNorm.includes(q) || titleNorm.includes(q);
     });
-  }, [debouncedSearch, eligibleCourses]);
+  }, [debouncedSearch, eligibleCourses, categoryFilter, specializationFilter]);
 
   // Section Step 1 Validation
   const handleProceedFromSections = () => {
@@ -1655,6 +1666,37 @@ export function UnifiedCoursesWorkspace({
                   >
                     ✕
                   </button>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  aria-label="Filter courses by category"
+                  className="h-8 rounded-lg border border-[#1c263c] bg-[#0b0f19] px-2.5 text-xs text-slate-200"
+                >
+                  <option value="all">All Categories</option>
+                  {COURSE_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {CATEGORY_LABELS[c]}
+                    </option>
+                  ))}
+                </select>
+                {eligibleCourses.some((c) => Boolean((c as { specialization_group?: string | null }).specialization_group)) && (
+                  <select
+                    value={specializationFilter}
+                    onChange={(e) => setSpecializationFilter(e.target.value)}
+                    aria-label="Filter courses by specialization"
+                    className="h-8 rounded-lg border border-[#1c263c] bg-[#0b0f19] px-2.5 text-xs text-slate-200"
+                  >
+                    <option value="all">All Specializations</option>
+                    {SPECIALIZATION_GROUPS.map((s) => (
+                      <option key={s} value={s}>
+                        {SPECIALIZATION_LABELS[s]}
+                      </option>
+                    ))}
+                  </select>
                 )}
               </div>
 
