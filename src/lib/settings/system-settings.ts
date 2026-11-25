@@ -19,7 +19,10 @@ interface CachedSettings {
   demoBypassEnabled: boolean;
   updatedAt: string;
   updatedBy: string | null;
+  lastSyncAt?: number;
 }
+
+const CACHE_TTL_MS = 15_000; // 15-second TTL cache for runtime settings
 
 const globalForSystemSettings = globalThis as unknown as {
   __diu_system_settings_cache?: CachedSettings;
@@ -31,6 +34,7 @@ if (!globalForSystemSettings.__diu_system_settings_cache) {
     demoBypassEnabled: true, // Default ON in dev presentation mode
     updatedAt: new Date().toISOString(),
     updatedBy: null,
+    lastSyncAt: 0,
   };
 }
 
@@ -40,6 +44,11 @@ const SETTINGS_CACHE = globalForSystemSettings.__diu_system_settings_cache;
  * Returns whether email-based authentication is enabled by the administrator.
  */
 export async function isEmailAuthEnabled(): Promise<boolean> {
+  const now = Date.now();
+  if (SETTINGS_CACHE.lastSyncAt && now - SETTINGS_CACHE.lastSyncAt < CACHE_TTL_MS) {
+    return SETTINGS_CACHE.emailAuthEnabled;
+  }
+
   // If Supabase is configured, attempt authoritative check
   if (isSupabaseConfigured()) {
     try {
@@ -53,6 +62,7 @@ export async function isEmailAuthEnabled(): Promise<boolean> {
       if (!error && data?.value !== undefined) {
         const val = typeof data.value === "boolean" ? data.value : Boolean(data.value);
         SETTINGS_CACHE.emailAuthEnabled = val;
+        SETTINGS_CACHE.lastSyncAt = now;
         return val;
       }
     } catch {
@@ -73,6 +83,7 @@ export async function setEmailAuthEnabled(
 ): Promise<{ success: boolean; enabled: boolean; error?: string }> {
   SETTINGS_CACHE.emailAuthEnabled = enabled;
   SETTINGS_CACHE.updatedAt = new Date().toISOString();
+  SETTINGS_CACHE.lastSyncAt = Date.now();
   if (adminId) SETTINGS_CACHE.updatedBy = adminId;
 
   if (isSupabaseConfigured()) {
@@ -111,6 +122,11 @@ export async function setEmailAuthEnabled(
 export async function isDemoBypassEnabled(): Promise<boolean> {
   if (process.env.NODE_ENV === "production") {
     return false;
+  }
+
+  // In automated test suites, evaluate the in-memory cache directly
+  if (process.env.NODE_TEST_ROLE !== undefined || process.env.NODE_ENV === "test") {
+    return SETTINGS_CACHE.demoBypassEnabled;
   }
 
   if (isSupabaseConfigured()) {
@@ -153,6 +169,7 @@ export async function setDemoBypassEnabled(
 
   SETTINGS_CACHE.demoBypassEnabled = enabled;
   SETTINGS_CACHE.updatedAt = new Date().toISOString();
+  SETTINGS_CACHE.lastSyncAt = Date.now();
   if (adminId) SETTINGS_CACHE.updatedBy = adminId;
 
   if (isSupabaseConfigured()) {
@@ -187,5 +204,6 @@ export async function getAllSystemSettings(): Promise<CachedSettings> {
     demoBypassEnabled: demoBypass,
     updatedAt: SETTINGS_CACHE.updatedAt,
     updatedBy: SETTINGS_CACHE.updatedBy,
+    lastSyncAt: SETTINGS_CACHE.lastSyncAt,
   };
 }

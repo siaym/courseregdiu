@@ -4,15 +4,41 @@
 > **To**: Incoming Engineering Agent / Phase 2 Full-Stack Team  
 > **Repository**: `courseregdiu` (`https://github.com/siaym/courseregdiu`)  
 > **Handover Date**: November 2026  
-> **Milestone Status**: Phase 1.5 Complete (100%) | P0 Security Remediation Complete (100%) | Final Auth Policy Complete (100%) | Production Security Hardening & Fail-Closed Architecture Complete (100%) | **Dynamic Email Authentication & Admin Toggle Controls Complete (100%)** | Advisor Portal UI/UX Overhaul & 3-Category Application Center Complete (100%) | Supabase Cloud URL Resolver Complete (100%) | **Batch Course Configuration, Payment Clearance & Global UI/UX Redesign Complete (100%)** | Ready for Remote Supabase Production Migration  
+> **Milestone Status**: Phase 1.5 Complete (100%) | P0 Security Remediation Complete (100%) | Final Auth Policy Complete (100%) | Production Security Hardening & Fail-Closed Architecture Complete (100%) | Dynamic Email Authentication & Admin Toggle Controls Complete (100%) | Advisor Portal UI/UX Overhaul & 3-Category Application Center Complete (100%) | **Supabase Cloud Remote Database Push & Verification Complete (100%)** | Batch Course Configuration, Payment Clearance & Global UI/UX Redesign Complete (100%)  
 
 ---
 
 ## 1. Handover Summary
 
-The **Dynamic Email Authentication, Admin Sign-In Feature Flags & Production Hardening** cycle has been completed with full automated test coverage (63/63 tests passing across 7 test suites) and zero build warnings:
+The **Remote Supabase Cloud Migration, Schema Verification, Dynamic Email Authentication & Production Hardening** cycle has been completed with full automated test coverage (63/63 tests passing across 7 test suites) and zero build warnings:
 
-0. **Dynamic Email Authentication & Admin Toggle Controls**:
+0. **Remote Supabase Cloud Migration & Live Verification (`gbobcwnumspimegiqzom`)**:
+   - **Target Project**: Supabase project `gbobcwnumspimegiqzom` deployed in AWS Singapore (`aws-1-ap-southeast-1.pooler.supabase.com:5432`).
+   - **Applied Migrations**: All 11 migrations pushed and synchronized to date:
+     1. `20261118000000_phase0_init.sql`
+     2. `20261119000000_student_onboarding.sql`
+     3. `20261119110000_security_remediation_p0.sql`
+     4. `20261119123000_authorized_email_identities.sql`
+     5. `20261119140000_p0_security_and_identity_remediation.sql`
+     6. `20261119220000_student_registration_workflow.sql`
+     7. `20261119230000_diu_section_capacity_rules.sql`
+     8. `20261120000000_batch_semester_courses.sql`
+     9. `20261120010000_payment_clearance.sql`
+     10. `20261123180000_system_settings.sql`
+     11. `20261123230000_fix_rls_grants_and_seed_data.sql`
+   - **PostgreSQL RLS Infinite Recursion Elimination**: Resolved the recursive policy evaluation on `public.profiles` by declaring `get_current_profile_id()`, `get_current_user_role()`, `get_current_user_department()`, and `is_assigned_advisor_or_advisee()` with `SECURITY DEFINER SET search_path = public SET row_security = off`.
+   - **Schema Privilege Grants**: Granted `anon`, `authenticated`, and `service_role` appropriate schema and table permissions so PostgREST allows table queries through to RLS policies without returning `42501 permission denied`.
+   - **PostgREST Relationship Disambiguation (`PGRST201`)**: Explicitly specified `profile:profiles!authorized_emails_profile_id_fkey(*)` in `src/lib/auth/email-authorization.ts` to disambiguate multiple foreign keys to `profiles`.
+   - **Seeded Academic Master Data**:
+     - Departments: CSE, SWE, EEE, BBA, ENG.
+     - Active Semester: Spring 2027 (`a0000000-0000-0000-0000-000000000001`).
+     - Master Courses: 14 DIU subjects with credit distributions and prerequisite codes.
+     - Cohort Batch Configurations: Batch 69, Batch 60, Batch 59 course assignments.
+     - Section Offerings: Section 69_D, 69_K (Theory, 50 seats cap), Section 69_D1, 69_D2 (Lab, 25 seats cap), Section 60_A, 60_A1, 60_A2.
+     - System Settings: `email_auth_enabled` (true), `demo_bypass_enabled` (true).
+   - **15-Table Status Check**: All 15 database tables verified directly via `@supabase/supabase-js` returning status `OK`.
+
+1. **Dynamic Email Authentication & Admin Toggle Controls**:
    - **Multi-Method Login Screen (`/login`)**: Integrated Email Authentication alongside institutional Google OAuth (`@diu.edu.bd`). Provides both 6-digit One-Time Passcode (OTP / Magic Link) and password sign-in tabs.
    - **Admin Portal Feature Controls (`/admin`)**: Interactive toggle card (`AdminAuthSettingsCard`) in the Administration Portal allowing administrators to turn Email Authentication **ON** or **OFF** at will with instantaneous server action propagation (`toggleEmailAuthAction`).
    - **Fail-Closed Policy Enforcement**: When Email Authentication is turned OFF, all server-side email authentication actions (`requestEmailOtpAction`, `verifyEmailOtpAction`, `signInWithEmailPasswordAction`) fail closed and reject attempts with descriptive feedback.

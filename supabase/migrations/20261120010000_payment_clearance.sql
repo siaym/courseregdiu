@@ -81,7 +81,6 @@ CREATE POLICY "Advisors can view advisee payment_clearances"
             SELECT 1 FROM public.advisor_assignments aa
             WHERE aa.advisor_id = public.get_current_profile_id()
               AND aa.student_id = payment_clearances.student_id
-              AND aa.is_active = true
         )
     );
 

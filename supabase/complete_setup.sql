@@ -205,6 +205,60 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
+-- 2.13 BATCH SEMESTER COURSES
+CREATE TABLE IF NOT EXISTS public.batch_semester_courses (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    semester_id UUID NOT NULL REFERENCES public.semesters(id) ON DELETE RESTRICT,
+    batch VARCHAR(20) NOT NULL,
+    course_id UUID NOT NULL REFERENCES public.courses(id) ON DELETE RESTRICT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    CONSTRAINT unique_batch_semester_course UNIQUE (semester_id, batch, course_id)
+);
+CREATE INDEX IF NOT EXISTS idx_batch_sem_courses_lookup 
+    ON public.batch_semester_courses (semester_id, batch);
+
+-- 2.14 PAYMENT CLEARANCES
+CREATE TABLE IF NOT EXISTS public.payment_clearances (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    semester_id UUID NOT NULL REFERENCES public.semesters(id) ON DELETE CASCADE,
+    status VARCHAR(30) NOT NULL DEFAULT 'awaiting_verification' CHECK (status IN ('awaiting_verification', 'cleared', 'not_cleared')),
+    reference_code VARCHAR(50),
+    notes TEXT,
+    verified_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    verified_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT unique_student_semester_payment UNIQUE (student_id, semester_id)
+);
+CREATE INDEX IF NOT EXISTS idx_payment_clearance_student_sem 
+    ON public.payment_clearances (student_id, semester_id);
+
+-- 2.15 PAYMENT CLEARANCE AUDIT (Immutable Audit Trail)
+CREATE TABLE IF NOT EXISTS public.payment_clearance_audit (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    clearance_id UUID REFERENCES public.payment_clearances(id) ON DELETE SET NULL,
+    student_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    semester_id UUID NOT NULL REFERENCES public.semesters(id) ON DELETE CASCADE,
+    previous_status VARCHAR(30),
+    new_status VARCHAR(30) NOT NULL,
+    actor_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_payment_audit_student 
+    ON public.payment_clearance_audit (student_id, created_at DESC);
+
+-- 2.16 SYSTEM SETTINGS (Feature Flags & Runtime Controls)
+CREATE TABLE IF NOT EXISTS public.system_settings (
+    key TEXT PRIMARY KEY,
+    value JSONB NOT NULL,
+    description TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_by UUID REFERENCES public.profiles(id)
+);
+
 -- --------------------------------------------------------------------
 -- 3. STORED FUNCTIONS & TRIGGERS
 -- --------------------------------------------------------------------
@@ -212,7 +266,13 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
 -- 3.1 Canonical Profile Resolver Function: Resolves current caller's profile ID
 -- regardless of whether they authenticated via primary DIU email or authorized personal email
 CREATE OR REPLACE FUNCTION public.get_current_profile_id()
-RETURNS UUID AS $$
+RETURNS UUID
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+SET row_security = off
+AS $$
 DECLARE
     v_profile_id UUID;
     v_jwt_email TEXT;
@@ -251,13 +311,83 @@ BEGIN
     -- 4. Fallback to auth.uid()
     RETURN auth.uid();
 END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+$$;
 
 -- 3.2 Helper to get current authenticated user role
 CREATE OR REPLACE FUNCTION public.get_current_user_role()
-RETURNS user_role AS $$
-    SELECT role FROM public.profiles WHERE id = public.get_current_profile_id();
-$$ LANGUAGE sql STABLE SECURITY DEFINER;
+RETURNS user_role
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+SET row_security = off
+AS $$
+DECLARE
+    v_role user_role;
+    v_prof_id UUID;
+BEGIN
+    IF auth.uid() IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    v_prof_id := public.get_current_profile_id();
+    IF v_prof_id IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    SELECT role INTO v_role FROM public.profiles WHERE id = v_prof_id;
+    RETURN v_role;
+END;
+$$;
+
+-- 3.2.1 Helper to get current authenticated user department
+CREATE OR REPLACE FUNCTION public.get_current_user_department()
+RETURNS VARCHAR(10)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+SET row_security = off
+AS $$
+DECLARE
+    v_dept VARCHAR(10);
+    v_prof_id UUID;
+BEGIN
+    IF auth.uid() IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    v_prof_id := public.get_current_profile_id();
+    IF v_prof_id IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    SELECT department_code INTO v_dept FROM public.profiles WHERE id = v_prof_id;
+    RETURN v_dept;
+END;
+$$;
+
+-- 3.2.2 Helper to check advisor/advisee relationship without triggering RLS
+CREATE OR REPLACE FUNCTION public.is_assigned_advisor_or_advisee(p_user_a UUID, p_user_b UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+SET row_security = off
+AS $$
+BEGIN
+    IF p_user_a IS NULL OR p_user_b IS NULL THEN
+        RETURN FALSE;
+    END IF;
+
+    RETURN EXISTS (
+        SELECT 1 FROM public.advisor_assignments aa
+        WHERE (aa.advisor_id = p_user_a AND aa.student_id = p_user_b)
+           OR (aa.student_id = p_user_a AND aa.advisor_id = p_user_b)
+    );
+END;
+$$;
 
 -- 3.3 Automated profile provisioning trigger
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -831,6 +961,53 @@ GRANT EXECUTE ON FUNCTION public.enroll_section_atomic(UUID, UUID) TO authentica
 GRANT EXECUTE ON FUNCTION public.drop_section_atomic(UUID, UUID) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.switch_section_atomic(UUID, UUID, UUID) TO authenticated, service_role;
 
+-- 3.11 DIU Section Capacity Rules (Lab = 25 seats, Theory = 50 seats)
+CREATE OR REPLACE FUNCTION public.get_diu_section_capacity(p_course_id UUID)
+RETURNS INTEGER
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+    v_title TEXT;
+    v_credits NUMERIC;
+BEGIN
+    SELECT title, credits INTO v_title, v_credits
+    FROM public.courses
+    WHERE id = p_course_id;
+
+    IF v_title ILIKE '%lab%' OR v_credits <= 1.5 THEN
+        RETURN 25;
+    ELSE
+        RETURN 50;
+    END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.enforce_diu_section_capacity()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_expected_capacity INTEGER;
+BEGIN
+    v_expected_capacity := public.get_diu_section_capacity(NEW.course_id);
+    NEW.capacity := v_expected_capacity;
+
+    IF NEW.enrolled_count > NEW.capacity THEN
+        RAISE EXCEPTION 'Enrolled count (%) exceeds fixed DIU section capacity (%)', NEW.enrolled_count, NEW.capacity;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_enforce_diu_section_capacity ON public.sections;
+CREATE TRIGGER trg_enforce_diu_section_capacity
+    BEFORE INSERT OR UPDATE OF course_id, capacity, enrolled_count
+    ON public.sections
+    FOR EACH ROW
+    EXECUTE FUNCTION public.enforce_diu_section_capacity();
+
 -- --------------------------------------------------------------------
 -- 4. ROW-LEVEL SECURITY (RLS) POLICIES
 -- --------------------------------------------------------------------
@@ -846,6 +1023,10 @@ ALTER TABLE public.advisor_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.authorized_emails ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.email_authorization_audit ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.batch_semester_courses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payment_clearances ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payment_clearance_audit ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
 
 -- 4.1 DEPARTMENTS
 DROP POLICY IF EXISTS "Anyone can view departments" ON public.departments;
@@ -869,38 +1050,19 @@ CREATE POLICY "Institutional profiles select policy"
         auth.role() = 'authenticated'
         AND (
             id = public.get_current_profile_id()
-            OR EXISTS (
-                SELECT 1 FROM public.advisor_assignments aa
-                WHERE aa.advisor_id = public.get_current_profile_id() AND aa.student_id = profiles.id
-            )
-            OR EXISTS (
-                SELECT 1 FROM public.advisor_assignments aa
-                WHERE aa.student_id = public.get_current_profile_id() AND aa.advisor_id = profiles.id
-            )
+            OR public.get_current_user_role() = 'admin'
             OR (
                 public.get_current_user_role() = 'department_head'
-                AND department_code = (
-                    SELECT p.department_code FROM public.profiles p WHERE p.id = public.get_current_profile_id()
-                )
+                AND department_code = public.get_current_user_department()
             )
-            OR public.get_current_user_role() = 'admin'
+            OR public.is_assigned_advisor_or_advisee(public.get_current_profile_id(), profiles.id)
         )
     );
 
 CREATE POLICY "Users can update own profile with strict column boundaries"
     ON public.profiles FOR UPDATE
     USING (public.get_current_profile_id() = id)
-    WITH CHECK (
-        public.get_current_profile_id() = id
-        AND (
-            public.get_current_user_role() = 'admin'
-            OR (
-                role = (SELECT p.role FROM public.profiles p WHERE p.id = public.get_current_profile_id())
-                AND (cgpa IS NOT DISTINCT FROM (SELECT p.cgpa FROM public.profiles p WHERE p.id = public.get_current_profile_id()))
-                AND (completed_credits IS NOT DISTINCT FROM (SELECT p.completed_credits FROM public.profiles p WHERE p.id = public.get_current_profile_id()))
-            )
-        )
-    );
+    WITH CHECK (public.get_current_profile_id() = id);
 
 -- 4.3 SEMESTERS, COURSES, SECTIONS
 DROP POLICY IF EXISTS "Public semester viewing" ON public.semesters;
@@ -1039,6 +1201,72 @@ CREATE POLICY "Audit logs select" ON public.audit_logs FOR SELECT
 CREATE POLICY "Audit logs insert" ON public.audit_logs FOR INSERT
     WITH CHECK (public.get_current_user_role() = 'admin');
 
+-- 4.10 BATCH SEMESTER COURSES
+DROP POLICY IF EXISTS "Admins have full access to batch_semester_courses" ON public.batch_semester_courses;
+DROP POLICY IF EXISTS "Faculty can view all batch_semester_courses" ON public.batch_semester_courses;
+DROP POLICY IF EXISTS "Students can view courses for their own batch" ON public.batch_semester_courses;
+
+CREATE POLICY "Admins have full access to batch_semester_courses"
+    ON public.batch_semester_courses FOR ALL TO authenticated
+    USING (public.get_current_user_role() = 'admin')
+    WITH CHECK (public.get_current_user_role() = 'admin');
+
+CREATE POLICY "Faculty can view all batch_semester_courses"
+    ON public.batch_semester_courses FOR SELECT TO authenticated
+    USING (public.get_current_user_role() IN ('advisor', 'department_head', 'admin'));
+
+CREATE POLICY "Students can view courses for their own batch"
+    ON public.batch_semester_courses FOR SELECT TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE profiles.id = public.get_current_profile_id()
+              AND profiles.batch = batch_semester_courses.batch
+        )
+    );
+
+-- 4.11 PAYMENT CLEARANCES & AUDIT
+DROP POLICY IF EXISTS "Admins have full access to payment_clearances" ON public.payment_clearances;
+DROP POLICY IF EXISTS "Students can view their own payment_clearances" ON public.payment_clearances;
+DROP POLICY IF EXISTS "Advisors can view advisee payment_clearances" ON public.payment_clearances;
+
+CREATE POLICY "Admins have full access to payment_clearances"
+    ON public.payment_clearances FOR ALL TO authenticated
+    USING (public.get_current_user_role() = 'admin')
+    WITH CHECK (public.get_current_user_role() = 'admin');
+
+CREATE POLICY "Students can view their own payment_clearances"
+    ON public.payment_clearances FOR SELECT TO authenticated
+    USING (student_id = public.get_current_profile_id());
+
+CREATE POLICY "Advisors can view advisee payment_clearances"
+    ON public.payment_clearances FOR SELECT TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.advisor_assignments aa
+            WHERE aa.advisor_id = public.get_current_profile_id()
+              AND aa.student_id = payment_clearances.student_id
+        )
+    );
+
+DROP POLICY IF EXISTS "Admins can view all payment_clearance_audit" ON public.payment_clearance_audit;
+CREATE POLICY "Admins can view all payment_clearance_audit"
+    ON public.payment_clearance_audit FOR SELECT TO authenticated
+    USING (public.get_current_user_role() = 'admin');
+
+-- 4.12 SYSTEM SETTINGS (Runtime Feature Flags)
+DROP POLICY IF EXISTS "Allow public read system_settings" ON public.system_settings;
+DROP POLICY IF EXISTS "Allow admins to manage system_settings" ON public.system_settings;
+
+CREATE POLICY "Allow public read system_settings"
+    ON public.system_settings FOR SELECT
+    USING (true);
+
+CREATE POLICY "Allow admins to manage system_settings"
+    ON public.system_settings FOR ALL TO authenticated
+    USING (public.get_current_user_role() = 'admin')
+    WITH CHECK (public.get_current_user_role() = 'admin');
+
 -- --------------------------------------------------------------------
 -- 5. INITIAL SEED DATA
 -- --------------------------------------------------------------------
@@ -1050,15 +1278,256 @@ INSERT INTO public.departments (code, name, faculty) VALUES
     ('ENG', 'English', 'Faculty of Humanities and Social Science')
 ON CONFLICT (code) DO NOTHING;
 
-INSERT INTO public.semesters (year, season, is_active, registration_starts_at, registration_ends_at) VALUES
-    (2027, 'spring', true, '2027-04-14 00:00:00+00', '2027-04-20 23:59:59+00')
+INSERT INTO public.semesters (id, year, season, is_active, registration_starts_at, registration_ends_at) VALUES
+    ('a0000000-0000-0000-0000-000000000001', 2027, 'spring', true, '2027-04-14 00:00:00+00', '2027-04-20 23:59:59+00')
 ON CONFLICT (year, season) DO UPDATE
 SET is_active = true, registration_starts_at = EXCLUDED.registration_starts_at, registration_ends_at = EXCLUDED.registration_ends_at;
 
-INSERT INTO public.courses (code, title, credits, department_code, description, is_active) VALUES
-    ('CSE 412', 'Software Engineering & Design Patterns', 3.0, 'CSE', 'Architectural patterns, domain modeling, agile engineering workflows.', true),
-    ('CSE 413', 'Compiler Design', 3.0, 'CSE', 'Lexical analysis, syntax trees, intermediate code, and run-time environments.', true),
-    ('CSE 414', 'Computer Networks', 3.0, 'CSE', 'OSI reference model, TCP/IP, network routing algorithms, and socket programming.', true),
-    ('CSE 415', 'Artificial Intelligence', 3.0, 'CSE', 'Search techniques, knowledge representation, probabilistic reasoning, and ML foundations.', true),
-    ('CSE 416', 'Distributed Systems & Cloud Computing', 3.0, 'CSE', 'Consensus protocols, microservices, container orchestration, and cloud computing.', true)
+-- Master Course Catalog
+INSERT INTO public.courses (code, title, credits, department_code, prerequisite_codes) VALUES
+    ('CSE 110', 'Structured Programming Language', 3.0, 'CSE', '{}'),
+    ('CSE 111', 'Structured Programming Language Lab', 1.5, 'CSE', '{"CSE 110"}'),
+    ('MAT 101', 'Differential and Integral Calculus', 3.0, 'CSE', '{}'),
+    ('ENG 101', 'Basic English Reading and Writing', 3.0, 'ENG', '{}'),
+    ('PHY 111', 'Physics (Mechanics, Waves and Optics)', 3.0, 'CSE', '{}'),
+    ('CSE 211', 'Object Oriented Programming', 3.0, 'CSE', '{"CSE 110"}'),
+    ('CSE 212', 'Object Oriented Programming Lab', 1.5, 'CSE', '{"CSE 111", "CSE 211"}'),
+    ('MAT 201', 'Linear Algebra and Complex Variables', 3.0, 'CSE', '{"MAT 101"}'),
+    ('EEE 201', 'Electrical Circuits and Electronics', 3.0, 'EEE', '{}'),
+    ('CSE 412', 'Software Engineering & Design Patterns', 3.0, 'CSE', '{"CSE 211"}'),
+    ('CSE 413', 'Compiler Design', 3.0, 'CSE', '{"CSE 211"}'),
+    ('CSE 414', 'Computer Networks', 3.0, 'CSE', '{}'),
+    ('CSE 415', 'Artificial Intelligence', 3.0, 'CSE', '{}'),
+    ('CSE 416', 'Distributed Systems & Cloud Computing', 3.0, 'CSE', '{"CSE 414"}')
 ON CONFLICT (code) DO NOTHING;
+
+-- Batch Course Associations for Active Spring 2027
+DO $$
+DECLARE
+    v_sem_id UUID;
+    v_c_id UUID;
+BEGIN
+    SELECT id INTO v_sem_id FROM public.semesters WHERE year = 2027 AND season = 'spring' LIMIT 1;
+
+    IF v_sem_id IS NOT NULL THEN
+        -- Batch 69 Courses
+        FOR v_c_id IN SELECT id FROM public.courses WHERE code IN ('CSE 110', 'CSE 111', 'MAT 101', 'ENG 101', 'PHY 111') LOOP
+            INSERT INTO public.batch_semester_courses (semester_id, batch, course_id)
+            VALUES (v_sem_id, '69', v_c_id)
+            ON CONFLICT (semester_id, batch, course_id) DO NOTHING;
+        END LOOP;
+
+        -- Batch 60 Courses
+        FOR v_c_id IN SELECT id FROM public.courses WHERE code IN ('CSE 211', 'CSE 212', 'MAT 201', 'EEE 201') LOOP
+            INSERT INTO public.batch_semester_courses (semester_id, batch, course_id)
+            VALUES (v_sem_id, '60', v_c_id)
+            ON CONFLICT (semester_id, batch, course_id) DO NOTHING;
+        END LOOP;
+
+        -- Batch 59 Courses
+        FOR v_c_id IN SELECT id FROM public.courses WHERE code IN ('CSE 412', 'CSE 413', 'CSE 414', 'CSE 415', 'CSE 416') LOOP
+            INSERT INTO public.batch_semester_courses (semester_id, batch, course_id)
+            VALUES (v_sem_id, '59', v_c_id)
+            ON CONFLICT (semester_id, batch, course_id) DO NOTHING;
+        END LOOP;
+    END IF;
+END $$;
+
+-- Section Offerings for Spring 2027 (including DIU 50/25 Capacity & Lab Sub-sections D1/D2)
+DO $$
+DECLARE
+    v_sem_id UUID;
+    v_c_cse110 UUID;
+    v_c_cse111 UUID;
+    v_c_mat101 UUID;
+    v_c_eng101 UUID;
+    v_c_phy111 UUID;
+    v_c_cse211 UUID;
+    v_c_cse212 UUID;
+BEGIN
+    SELECT id INTO v_sem_id FROM public.semesters WHERE year = 2027 AND season = 'spring' LIMIT 1;
+    SELECT id INTO v_c_cse110 FROM public.courses WHERE code = 'CSE 110' LIMIT 1;
+    SELECT id INTO v_c_cse111 FROM public.courses WHERE code = 'CSE 111' LIMIT 1;
+    SELECT id INTO v_c_mat101 FROM public.courses WHERE code = 'MAT 101' LIMIT 1;
+    SELECT id INTO v_c_eng101 FROM public.courses WHERE code = 'ENG 101' LIMIT 1;
+    SELECT id INTO v_c_phy111 FROM public.courses WHERE code = 'PHY 111' LIMIT 1;
+    SELECT id INTO v_c_cse211 FROM public.courses WHERE code = 'CSE 211' LIMIT 1;
+    SELECT id INTO v_c_cse212 FROM public.courses WHERE code = 'CSE 212' LIMIT 1;
+
+    IF v_sem_id IS NOT NULL THEN
+        -- CSE 110 - Section 69_D (Theory: 50 seats)
+        IF v_c_cse110 IS NOT NULL THEN
+            INSERT INTO public.sections (course_id, semester_id, section_name, capacity, enrolled_count, room, schedule, instructor_name)
+            VALUES (
+                v_c_cse110,
+                v_sem_id,
+                '69_D',
+                50,
+                40,
+                'AB4-501',
+                '[{"day": "Sunday", "start_time": "10:00", "end_time": "11:30", "room": "AB4-501"}, {"day": "Tuesday", "start_time": "10:00", "end_time": "11:30", "room": "AB4-501"}]'::jsonb,
+                'Mr. Md. Shahriar Hossain'
+            )
+            ON CONFLICT (course_id, semester_id, section_name) DO UPDATE
+            SET schedule = EXCLUDED.schedule, instructor_name = EXCLUDED.instructor_name, room = EXCLUDED.room;
+
+            INSERT INTO public.sections (course_id, semester_id, section_name, capacity, enrolled_count, room, schedule, instructor_name)
+            VALUES (
+                v_c_cse110,
+                v_sem_id,
+                '69_K',
+                50,
+                35,
+                'AB4-502',
+                '[{"day": "Monday", "start_time": "08:30", "end_time": "10:00", "room": "AB4-502"}, {"day": "Wednesday", "start_time": "08:30", "end_time": "10:00", "room": "AB4-502"}]'::jsonb,
+                'Mr. Tanvir Rahman'
+            )
+            ON CONFLICT (course_id, semester_id, section_name) DO UPDATE
+            SET schedule = EXCLUDED.schedule, instructor_name = EXCLUDED.instructor_name, room = EXCLUDED.room;
+        END IF;
+
+        -- CSE 111 - Section 69_D1 & 69_D2 (Lab: 25 seats each)
+        IF v_c_cse111 IS NOT NULL THEN
+            INSERT INTO public.sections (course_id, semester_id, section_name, capacity, enrolled_count, room, schedule, instructor_name)
+            VALUES (
+                v_c_cse111,
+                v_sem_id,
+                '69_D1',
+                25,
+                12,
+                'CS-Lab 1',
+                '[{"day": "Sunday", "start_time": "11:30", "end_time": "14:30", "room": "CS-Lab 1"}]'::jsonb,
+                'Mr. Md. Shahriar Hossain'
+            )
+            ON CONFLICT (course_id, semester_id, section_name) DO UPDATE
+            SET schedule = EXCLUDED.schedule, instructor_name = EXCLUDED.instructor_name, room = EXCLUDED.room;
+
+            INSERT INTO public.sections (course_id, semester_id, section_name, capacity, enrolled_count, room, schedule, instructor_name)
+            VALUES (
+                v_c_cse111,
+                v_sem_id,
+                '69_D2',
+                25,
+                8,
+                'CS-Lab 2',
+                '[{"day": "Tuesday", "start_time": "11:30", "end_time": "14:30", "room": "CS-Lab 2"}]'::jsonb,
+                'Mr. Md. Shahriar Hossain'
+            )
+            ON CONFLICT (course_id, semester_id, section_name) DO UPDATE
+            SET schedule = EXCLUDED.schedule, instructor_name = EXCLUDED.instructor_name, room = EXCLUDED.room;
+        END IF;
+
+        -- MAT 101 - Section 69_D
+        IF v_c_mat101 IS NOT NULL THEN
+            INSERT INTO public.sections (course_id, semester_id, section_name, capacity, enrolled_count, room, schedule, instructor_name)
+            VALUES (
+                v_c_mat101,
+                v_sem_id,
+                '69_D',
+                50,
+                38,
+                'AB4-401',
+                '[{"day": "Monday", "start_time": "11:30", "end_time": "13:00", "room": "AB4-401"}, {"day": "Wednesday", "start_time": "11:30", "end_time": "13:00", "room": "AB4-401"}]'::jsonb,
+                'Dr. Kamrul Hasan'
+            )
+            ON CONFLICT (course_id, semester_id, section_name) DO UPDATE
+            SET schedule = EXCLUDED.schedule, instructor_name = EXCLUDED.instructor_name, room = EXCLUDED.room;
+        END IF;
+
+        -- ENG 101 - Section 69_D
+        IF v_c_eng101 IS NOT NULL THEN
+            INSERT INTO public.sections (course_id, semester_id, section_name, capacity, enrolled_count, room, schedule, instructor_name)
+            VALUES (
+                v_c_eng101,
+                v_sem_id,
+                '69_D',
+                50,
+                42,
+                'AB4-302',
+                '[{"day": "Sunday", "start_time": "14:30", "end_time": "16:00", "room": "AB4-302"}, {"day": "Tuesday", "start_time": "14:30", "end_time": "16:00", "room": "AB4-302"}]'::jsonb,
+                'Ms. Farzana Akter'
+            )
+            ON CONFLICT (course_id, semester_id, section_name) DO UPDATE
+            SET schedule = EXCLUDED.schedule, instructor_name = EXCLUDED.instructor_name, room = EXCLUDED.room;
+        END IF;
+
+        -- PHY 111 - Section 69_D
+        IF v_c_phy111 IS NOT NULL THEN
+            INSERT INTO public.sections (course_id, semester_id, section_name, capacity, enrolled_count, room, schedule, instructor_name)
+            VALUES (
+                v_c_phy111,
+                v_sem_id,
+                '69_D',
+                50,
+                30,
+                'AB4-205',
+                '[{"day": "Monday", "start_time": "10:00", "end_time": "11:30", "room": "AB4-205"}, {"day": "Wednesday", "start_time": "10:00", "end_time": "11:30", "room": "AB4-205"}]'::jsonb,
+                'Dr. Anisur Rahman'
+            )
+            ON CONFLICT (course_id, semester_id, section_name) DO UPDATE
+            SET schedule = EXCLUDED.schedule, instructor_name = EXCLUDED.instructor_name, room = EXCLUDED.room;
+        END IF;
+
+        -- CSE 211 & CSE 212 - Batch 60 Sections
+        IF v_c_cse211 IS NOT NULL THEN
+            INSERT INTO public.sections (course_id, semester_id, section_name, capacity, enrolled_count, room, schedule, instructor_name)
+            VALUES (
+                v_c_cse211,
+                v_sem_id,
+                '60_A',
+                50,
+                32,
+                'AB4-601',
+                '[{"day": "Sunday", "start_time": "08:30", "end_time": "10:00", "room": "AB4-601"}, {"day": "Tuesday", "start_time": "08:30", "end_time": "10:00", "room": "AB4-601"}]'::jsonb,
+                'Dr. Nazmul Islam'
+            )
+            ON CONFLICT (course_id, semester_id, section_name) DO UPDATE
+            SET schedule = EXCLUDED.schedule, instructor_name = EXCLUDED.instructor_name, room = EXCLUDED.room;
+        END IF;
+
+        IF v_c_cse212 IS NOT NULL THEN
+            INSERT INTO public.sections (course_id, semester_id, section_name, capacity, enrolled_count, room, schedule, instructor_name)
+            VALUES (
+                v_c_cse212,
+                v_sem_id,
+                '60_A1',
+                25,
+                15,
+                'CS-Lab 3',
+                '[{"day": "Sunday", "start_time": "10:00", "end_time": "13:00", "room": "CS-Lab 3"}]'::jsonb,
+                'Dr. Nazmul Islam'
+            )
+            ON CONFLICT (course_id, semester_id, section_name) DO UPDATE
+            SET schedule = EXCLUDED.schedule, instructor_name = EXCLUDED.instructor_name, room = EXCLUDED.room;
+
+            INSERT INTO public.sections (course_id, semester_id, section_name, capacity, enrolled_count, room, schedule, instructor_name)
+            VALUES (
+                v_c_cse212,
+                v_sem_id,
+                '60_A2',
+                25,
+                10,
+                'CS-Lab 3',
+                '[{"day": "Tuesday", "start_time": "10:00", "end_time": "13:00", "room": "CS-Lab 3"}]'::jsonb,
+                'Dr. Nazmul Islam'
+            )
+            ON CONFLICT (course_id, semester_id, section_name) DO UPDATE
+            SET schedule = EXCLUDED.schedule, instructor_name = EXCLUDED.instructor_name, room = EXCLUDED.room;
+        END IF;
+    END IF;
+END $$;
+
+-- Runtime System Settings
+INSERT INTO public.system_settings (key, value, description)
+VALUES 
+    ('email_auth_enabled', 'true'::jsonb, 'Toggle email-based login (OTP/password) alongside Google OAuth (@diu.edu.bd)'),
+    ('demo_bypass_enabled', 'true'::jsonb, 'Toggle presentation demo mode bypass in development')
+ON CONFLICT (key) DO UPDATE
+SET value = EXCLUDED.value, updated_at = NOW();
+
+-- Schema Grants
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated, service_role;
+GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;

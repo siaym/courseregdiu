@@ -65,7 +65,7 @@ export async function resolveEmailAuthorization(
       const supabase = await getSupabaseServerClient();
       const queryResult = (await supabase
         .from("authorized_emails")
-        .select("*, profile:profiles(*)")
+        .select("*, profile:profiles!authorized_emails_profile_id_fkey(*)")
         .eq("email", normEmail)
         .maybeSingle()) as {
           data: (AuthorizedEmailRow & { profile: ProfileRow | null }) | null;
@@ -105,6 +105,21 @@ export async function resolveEmailAuthorization(
       } else {
         // Database lookup succeeded cleanly with no record
         if (isDIUEmail(normEmail)) {
+          if (!isProduction) {
+            const mockAuth = MOCK_AUTHORIZED_EMAILS.find(
+              (item) => normalizeEmail(item.email) === normEmail
+            );
+            if (mockAuth) {
+              return {
+                authorized: true,
+                profileId: mockAuth.profile_id,
+                role: "student",
+                emailType: "primary_diu",
+                isActive: true,
+              };
+            }
+          }
+
           return {
             authorized: true,
             role: "student",

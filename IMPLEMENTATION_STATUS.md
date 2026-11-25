@@ -1,6 +1,6 @@
 # IMPLEMENTATION STATUS — DIU Course Registration Platform
 
-> **Milestones**: Phase 0 Complete (100%) | Phase 1 Complete (100%) | Phase 1.5 Simplification (100%) | P0 Security Remediation Complete (100%) | Final Auth Policy Complete (100%) | Production Security Hardening & Fail-Closed Architecture Complete (100%) | **Dynamic Email Authentication & Admin Sign-In Feature Flags Complete (100%)** | Student Guided Registration Workflow Complete (100%) | Advisor Portal UI/UX & Content Design Overhaul Complete (100%) | Supabase Cloud URL Resolver Complete (100%) | **Batch Course Configuration, Payment Clearance & Global UI/UX Redesign Complete (100%)**  
+> **Milestones**: Phase 0 Complete (100%) | Phase 1 Complete (100%) | Phase 1.5 Simplification (100%) | P0 Security Remediation Complete (100%) | Final Auth Policy Complete (100%) | Production Security Hardening & Fail-Closed Architecture Complete (100%) | Dynamic Email Authentication & Admin Sign-In Feature Flags Complete (100%) | Student Guided Registration Workflow Complete (100%) | Advisor Portal UI/UX & Content Design Overhaul Complete (100%) | **Supabase Cloud Remote Database Push & Schema Verification Complete (100%)** | Batch Course Configuration, Payment Clearance & Global UI/UX Redesign Complete (100%)  
 > **Build Status**: Passing (`next build` & `eslint` exit code 0, 0 errors, 0 warnings)  
 > **Test Status**: Passing (`npm test` — **63/63** test cases pass across 7 test suites, 0 failures)  
 > **Total Routes**: 26 Routes Compiled (Static & Dynamic SSR)  
@@ -10,6 +10,18 @@
 ---
 
 ## 1. Executive Summary
+
+### Remote Supabase Cloud Migration & Verification (`gbobcwnumspimegiqzom`)
+1. **Cloud Database Push**:
+   - Remote Supabase instance `gbobcwnumspimegiqzom` deployed on AWS Singapore (`aws-1-ap-southeast-1.pooler.supabase.com:5432`).
+   - All 11 migrations pushed cleanly through `supabase db push`.
+   - All 15 PostgreSQL tables verified via live `@supabase/supabase-js` client with zero errors.
+2. **RLS Recursion Elimination**:
+   - `public.profiles` infinite recursion completely resolved by hardening helper functions (`get_current_profile_id`, `get_current_user_role`, `get_current_user_department`, `is_assigned_advisor_or_advisee`) with `SECURITY DEFINER SET search_path = public SET row_security = off`.
+3. **Academic Catalog & Sections Seeded**:
+   - Active semester Spring 2027, 5 departments, 14 master courses, cohort batch assignments (Batches 69, 60, 59), and section offerings with DIU capacity rules (50 theory, 25 lab with D1/D2 subgroups).
+4. **PostgREST Disambiguation**:
+   - Disambiguated `authorized_emails` multiple foreign keys with `profile:profiles!authorized_emails_profile_id_fkey(*)`.
 
 ### Dynamic Email Authentication & Admin Toggle Controls
 1. **Multi-Method Institutional Login Workspace (`/login`)**:
