@@ -178,18 +178,9 @@ export async function verifyEmailOtpAction(
     };
   }
 
-  // 3. Email Authorization Check
-  const authResult = await resolveEmailAuthorization(email);
-  if (!authResult.authorized) {
-    return {
-      success: false,
-      error: "This email identity is not authorized for portal access.",
-    };
-  }
-
   const isProd = process.env.NODE_ENV === "production";
 
-  // 4. Live Supabase Auth Verification (Production or Configured Cloud)
+  // 3. Live Supabase Auth Verification (Production) — verify OTP first so RLS allows reading authorized_emails
   if (isSupabaseConfigured() && isProd) {
     try {
       const supabase = await getSupabaseServerClient();
@@ -206,11 +197,20 @@ export async function verifyEmailOtpAction(
         };
       }
 
-      // Resolve user profile for redirection
+      const authResult = await resolveEmailAuthorization(email);
+      if (!authResult.authorized) {
+        await supabase.auth.signOut();
+        return {
+          success: false,
+          error: "This email identity is not authorized for portal access.",
+        };
+      }
+
+      const targetProfileId = authResult.profileId || data.user.id;
       const { data: profile } = await supabase
         .from("profiles")
         .select("role, onboarding_completed")
-        .eq("id", data.user.id)
+        .eq("id", targetProfileId)
         .maybeSingle();
 
       const landing = resolveLandingPath(
@@ -227,6 +227,15 @@ export async function verifyEmailOtpAction(
       const msg = err instanceof Error ? err.message : "Service error";
       return { success: false, error: `Authentication error: ${msg}` };
     }
+  }
+
+  // 4. Dev / Test Email Authorization Check
+  const authResult = await resolveEmailAuthorization(email);
+  if (!authResult.authorized) {
+    return {
+      success: false,
+      error: "This email identity is not authorized for portal access.",
+    };
   }
 
   // 5. Development / Offline Test Verification
