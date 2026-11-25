@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -35,7 +36,7 @@ export interface AuthSessionResult {
 /**
  * Retrieves the currently authenticated user from Supabase or development session cookie.
  */
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async function getCurrentUser() {
   try {
     const supabase = await getSupabaseServerClient();
     const {
@@ -142,32 +143,40 @@ export async function getCurrentUser() {
   }
 
   return null;
-}
+});
 
 /**
  * Retrieves the user profile from Supabase profiles table, or development session.
  */
-export async function getCurrentProfile(userParam?: { id: string; email?: string } | null): Promise<Profile | null> {
+export const getCurrentProfile = cache(async function getCurrentProfile(
+  userParam?: { id: string; email?: string } | null
+): Promise<Profile | null> {
   const user = userParam || (await getCurrentUser());
   if (!user) return null;
 
   try {
     const supabase = await getSupabaseServerClient();
-    // Resolve canonical profile ID via multi-email identity lookup
-    const authCheck = await resolveEmailAuthorization(user.email);
+    // Run email authorization and direct profile lookup in parallel to save a serial round-trip
+    const [authCheck, directProfileRes] = await Promise.all([
+      resolveEmailAuthorization(user.email),
+      supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
+    ]);
+
     if (!authCheck.authorized) {
       return null;
     }
 
     const targetProfileId = authCheck.profileId || user.id;
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", targetProfileId)
-      .maybeSingle();
-
-    if (profile) return profile;
+    if (targetProfileId === user.id) {
+      if (directProfileRes.data) return directProfileRes.data;
+    } else {
+      const { data: linkedProfile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", targetProfileId)
+        .maybeSingle();
+      if (linkedProfile) return linkedProfile;
+    }
   } catch {
     // Fall through to dev profile in non-production
   }
@@ -235,7 +244,7 @@ export async function getCurrentProfile(userParam?: { id: string; email?: string
   }
 
   return null;
-}
+});
 
 /**
  * Server-side Authentication Guard.

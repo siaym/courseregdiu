@@ -22,8 +22,12 @@ export async function updateSession(request: NextRequest) {
 
   let user = null;
 
+  const isPrefetch =
+    request.headers.get("next-router-prefetch") === "1" ||
+    request.headers.get("purpose") === "prefetch";
+
   // Attempt to resolve real user session from Supabase if properly configured
-  if (isSupabaseConfigured()) {
+  if (isSupabaseConfigured() && !isPrefetch) {
     const supabaseUrl = getSupabaseUrl();
     const supabaseKey = getSupabasePublishableKey();
 
