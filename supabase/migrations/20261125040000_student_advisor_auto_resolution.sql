@@ -10,20 +10,30 @@
 --    advisor_assignment_rules (individual_student -> id_range -> entire_batch).
 -- ============================================================================
 
--- 1. Allow students to view their assigned advisor's profile details
+-- 1. Allow students to view their assigned advisor's profile details (via SECURITY DEFINER helper to avoid RLS recursion)
+CREATE OR REPLACE FUNCTION public.is_student_assigned_to_advisor_profile(p_advisor_profile_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.advisor_assignments aa
+        WHERE aa.advisor_profile_id = p_advisor_profile_id
+          AND aa.student_id = public.get_current_profile_id()
+          AND aa.is_active = true
+    );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.is_student_assigned_to_advisor_profile(UUID) TO authenticated;
+
 DROP POLICY IF EXISTS "Students can view their assigned advisor profile" ON public.advisor_profiles;
 CREATE POLICY "Students can view their assigned advisor profile"
     ON public.advisor_profiles FOR SELECT
     TO authenticated
-    USING (
-        EXISTS (
-            SELECT 1
-            FROM public.advisor_assignments aa
-            WHERE aa.advisor_profile_id = advisor_profiles.id
-              AND aa.student_id = public.get_current_profile_id()
-              AND aa.is_active = true
-        )
-    );
+    USING (public.is_student_assigned_to_advisor_profile(advisor_profiles.id));
 
 -- 2. Inclusive DIU Student ID range matcher
 CREATE OR REPLACE FUNCTION public.diu_id_in_rule_range(
