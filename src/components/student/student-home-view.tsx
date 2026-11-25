@@ -12,6 +12,8 @@ import {
   CheckCircle2,
   ShieldCheck,
   Clock,
+  Phone,
+  MapPin,
 } from "lucide-react";
 import type { Database, RegistrationStatus } from "@/types/database";
 import type { PaymentClearanceRecord } from "@/lib/payment/payment-service";
@@ -20,9 +22,12 @@ type StudentLifecycleState = "draft" | "submitted" | "approved";
 
 export interface AssignedAdvisorSummary {
   fullName: string;
+  designation?: string | null;
   email: string;
+  phone?: string | null;
   departmentCode: string | null;
   roomNumber: string | null;
+  schedule?: string | null;
 }
 
 interface StudentHomeViewProps {
@@ -238,31 +243,65 @@ export function StudentHomeView({
           </div>
 
           {assignedAdvisor ? (
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3.5">
-                <div className="w-11 h-11 rounded-full bg-[#1e293b] border border-[#334155] flex items-center justify-center text-slate-300 shrink-0">
-                  <UserIcon className="h-6 w-6 text-slate-300" />
+            <div className="space-y-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-full bg-[#1e293b] border border-[#334155] flex items-center justify-center text-slate-300 shrink-0">
+                    <UserIcon className="h-6 w-6 text-slate-300" />
+                  </div>
+
+                  <div>
+                    <div className="text-sm font-bold text-white">
+                      {assignedAdvisor.fullName}
+                    </div>
+                    <div className="text-xs text-[#8e9db2]">
+                      {[
+                        assignedAdvisor.designation,
+                        assignedAdvisor.departmentCode
+                          ? `Department of ${assignedAdvisor.departmentCode}`
+                          : "Assigned Faculty Advisor",
+                      ]
+                        .filter(Boolean)
+                        .join(" • ")}
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <div className="text-sm font-bold text-white">
-                    {assignedAdvisor.fullName}
-                  </div>
-                  <div className="text-xs text-[#8e9db2]">
-                    {assignedAdvisor.departmentCode
-                      ? `Department of ${assignedAdvisor.departmentCode}`
-                      : "Assigned Faculty Advisor"}
-                  </div>
-                </div>
+                <a
+                  href={`mailto:${assignedAdvisor.email}?subject=DIU%20Course%20Registration%20Inquiry`}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0f172a] hover:bg-[#1e293b] border border-[#1e293c] text-white text-xs font-medium transition-colors shadow-xs shrink-0"
+                >
+                  <Mail className="h-3.5 w-3.5 text-slate-300" />
+                  <span>Contact</span>
+                </a>
               </div>
 
-              <a
-                href={`mailto:${assignedAdvisor.email}?subject=DIU%20Course%20Registration%20Inquiry`}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0f172a] hover:bg-[#1e293b] border border-[#1e293c] text-white text-xs font-medium transition-colors shadow-xs"
-              >
-                <Mail className="h-3.5 w-3.5 text-slate-300" />
-                <span>Contact</span>
-              </a>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-3 border-t border-[#1c263c] text-xs text-slate-300">
+                <div className="flex items-center gap-2 font-mono min-w-0">
+                  <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  <span className="truncate">{assignedAdvisor.email}</span>
+                </div>
+                {assignedAdvisor.phone && (
+                  <div className="flex items-center gap-2 font-mono">
+                    <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    <a href={`tel:${assignedAdvisor.phone}`} className="hover:text-white transition-colors">
+                      {assignedAdvisor.phone}
+                    </a>
+                  </div>
+                )}
+                {assignedAdvisor.roomNumber && (
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    <span>Room: {assignedAdvisor.roomNumber}</span>
+                  </div>
+                )}
+                {assignedAdvisor.schedule && (
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    <span>{assignedAdvisor.schedule}</span>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div className="flex items-center gap-3.5">

@@ -90,21 +90,27 @@ export default async function DashboardPage() {
       if (asg?.advisor_profile_id) {
         const { data: advProf } = await supabase
           .from("advisor_profiles")
-          .select("full_name, email, department_code, room_number")
+          .select("full_name, designation, email, phone, department_code, room_number, schedule")
           .eq("id", asg.advisor_profile_id)
           .maybeSingle();
         if (advProf) {
           const ap = advProf as {
             full_name: string;
+            designation: string | null;
             email: string;
+            phone: string | null;
             department_code: string | null;
             room_number: string | null;
+            schedule: string | null;
           };
           assignedAdvisor = {
             fullName: ap.full_name,
+            designation: ap.designation,
             email: ap.email,
+            phone: ap.phone,
             departmentCode: ap.department_code,
             roomNumber: ap.room_number,
+            schedule: ap.schedule,
           };
         }
       } else if (asg?.advisor_id) {
@@ -117,9 +123,12 @@ export default async function DashboardPage() {
           const au = advUser as { full_name: string; email: string; department_code: string | null };
           assignedAdvisor = {
             fullName: au.full_name,
+            designation: null,
             email: au.email,
+            phone: null,
             departmentCode: au.department_code,
             roomNumber: null,
+            schedule: null,
           };
         }
       }
