@@ -176,6 +176,12 @@ export function AdvisorManagementView({
     }
 
     setFormOpen(false);
+    if (detailOpen && editingAdvisor && detailData?.advisor.id === editingAdvisor.id) {
+      const refreshed = await getAdvisorDetailAction(editingAdvisor.id);
+      if (refreshed.success && refreshed.data) {
+        setDetailData(refreshed.data);
+      }
+    }
     router.refresh();
   };
 
@@ -440,7 +446,13 @@ export function AdvisorManagementView({
                 filtered.map((adv) => (
                   <tr key={adv.id} className="hover:bg-[#172136]/50 transition-colors">
                     <td className="px-4 py-3.5">
-                      <div className="font-semibold text-white">{adv.full_name}</div>
+                      <button
+                        type="button"
+                        onClick={() => openDetail(adv)}
+                        className="font-semibold text-white hover:text-[#2dd4bf] hover:underline text-left cursor-pointer"
+                      >
+                        {adv.full_name}
+                      </button>
                       <div className="text-slate-400 mt-0.5">
                         {adv.designation || "Faculty Advisor"}
                         {adv.department_code ? ` • ${adv.department_code}` : ""}
@@ -774,11 +786,27 @@ export function AdvisorManagementView({
             {detailData && (
               <div className="space-y-6 text-xs">
                 <div className="rounded-xl border border-[#1c263c] bg-[#0b0f19] p-4 space-y-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <h3 className="text-base font-bold text-white">{detailData.advisor.full_name}</h3>
-                    <span className="font-mono text-slate-300">
-                      {detailData.advisor.profile_id ? "Auth Linked" : "Directory Only (Not Auth Linked)"}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-slate-300">
+                        {detailData.advisor.profile_id ? "Auth Linked" : "Directory Only (Not Auth Linked)"}
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const matchingAdv = initialAdvisors.find((a) => a.id === detailData.advisor.id);
+                          if (matchingAdv) {
+                            openEditModal(matchingAdv);
+                          }
+                        }}
+                      >
+                        <Edit3 className="h-3.5 w-3.5 mr-1" />
+                        Edit Info
+                      </Button>
+                    </div>
                   </div>
                   <p className="text-[#8e9db2]">
                     {detailData.advisor.designation || "Advisor"} •{" "}
