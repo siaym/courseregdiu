@@ -244,7 +244,7 @@ export async function getAdvisorDirectoryData(): Promise<{
   try {
     const supabase = await getSupabaseServerClient();
 
-    const [advisorsRes, assignmentsRes, rulesRes, studentsRes, departmentsRes, semestersRes] = await Promise.all([
+    const [advisorsRes, assignmentsRes, rulesRes, departmentsRes, semestersRes] = await Promise.all([
       supabase.from("advisor_profiles").select("*").order("full_name", { ascending: true }),
       supabase
         .from("advisor_assignments")
@@ -254,7 +254,6 @@ export async function getAdvisorDirectoryData(): Promise<{
         .from("advisor_assignment_rules")
         .select("id, advisor_profile_id, semester_id, batch, start_student_id, end_student_id, assignment_type, is_active")
         .eq("is_active", true),
-      supabase.from("profiles").select("id, diu_id, batch").eq("role", "student"),
       supabase.from("departments").select("*").order("code", { ascending: true }),
       supabase.from("semesters").select("*").order("year", { ascending: false }),
     ]);
@@ -269,9 +268,24 @@ export async function getAdvisorDirectoryData(): Promise<{
       };
     }
 
+    const assignments = (assignmentsRes.data || []) as {
+      id: string;
+      advisor_id: string | null;
+      advisor_profile_id: string | null;
+      student_id: string;
+      semester_id: string;
+    }[];
+
+    const assignedStudentIds = Array.from(new Set(assignments.map((a) => a.student_id).filter(Boolean)));
     const studentMap = new Map<string, { batch: string | null; diu_id: string | null }>();
-    for (const s of (studentsRes.data || []) as { id: string; diu_id: string | null; batch: string | null }[]) {
-      studentMap.set(s.id, { batch: s.batch, diu_id: s.diu_id });
+    if (assignedStudentIds.length > 0) {
+      const { data: studentsData } = await supabase
+        .from("profiles")
+        .select("id, diu_id, batch")
+        .in("id", assignedStudentIds);
+      for (const s of (studentsData || []) as { id: string; diu_id: string | null; batch: string | null }[]) {
+        studentMap.set(s.id, { batch: s.batch, diu_id: s.diu_id });
+      }
     }
 
     const rules = (rulesRes.error ? [] : rulesRes.data || []) as {
@@ -282,14 +296,6 @@ export async function getAdvisorDirectoryData(): Promise<{
       start_student_id: string | null;
       end_student_id: string | null;
       assignment_type: string;
-    }[];
-
-    const assignments = (assignmentsRes.data || []) as {
-      id: string;
-      advisor_id: string | null;
-      advisor_profile_id: string | null;
-      student_id: string;
-      semester_id: string;
     }[];
 
     const advisors: AdvisorDirectoryItem[] = ((advisorsRes.data || []) as AdvisorProfileRow[]).map((adv) => {
