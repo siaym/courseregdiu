@@ -19,7 +19,62 @@ import {
   type StudentRegistrationApplication,
   type ExtendedSection,
 } from "@/lib/mock/data";
-import { isCourseEligibleForBatch, normalizeBatch } from "@/lib/curriculum/batch-course-service";
+import {
+  isCourseEligibleForBatch,
+  getBatchSemesterCourses,
+  normalizeBatch,
+} from "@/lib/curriculum/batch-course-service";
+
+export async function searchEligibleStudentCoursesAction(payload: {
+  query?: string;
+  category?: string;
+  specialization?: string;
+}) {
+  const user = await getCurrentUser();
+  const profile = await getCurrentProfile(user);
+  if (!user || !profile) {
+    return { success: false, error: "Authentication required.", courses: [] };
+  }
+
+  let semesterId = MOCK_CURRENT_SEMESTER.id;
+  try {
+    const supabase = await getSupabaseServerClient();
+    const { data: activeSem } = await supabase
+      .from("semesters")
+      .select("id")
+      .eq("is_active", true)
+      .maybeSingle();
+    if (activeSem) semesterId = (activeSem as { id: string }).id;
+  } catch {
+    // Dev fallback
+  }
+
+  const studentBatch = normalizeBatch(profile.batch || "60");
+  const records = await getBatchSemesterCourses(semesterId, studentBatch);
+  const q = (payload.query || "").trim().toLowerCase().replace(/[-\s]+/g, "");
+
+  const matched = records
+    .map((r) => r.course as Database["public"]["Tables"]["courses"]["Row"])
+    .filter((c) => {
+      if (c.is_active === false) return false;
+      if (payload.category && payload.category !== "all" && (c.category || "CORE") !== payload.category) {
+        return false;
+      }
+      if (
+        payload.specialization &&
+        payload.specialization !== "all" &&
+        (c.specialization_group || "") !== payload.specialization
+      ) {
+        return false;
+      }
+      if (!q) return true;
+      const codeNorm = c.code.toLowerCase().replace(/[-\s]+/g, "");
+      const titleNorm = c.title.toLowerCase().replace(/[-\s]+/g, "");
+      return codeNorm.includes(q) || titleNorm.includes(q);
+    });
+
+  return { success: true, courses: matched };
+}
 
 export interface RegistrationSubmitResult {
   success: boolean;
@@ -88,20 +143,102 @@ export async function submitStudentRegistration(
     seenCourseIds.add(c.courseId);
   }
 
-  // 4. Server-Side Enforcement: Verify each course is strictly configured for student's batch & semester
+  // 4. Resolve active semester & verify each course against authoritative DB + batch eligibility
+  let activeSemesterId = MOCK_CURRENT_SEMESTER.id;
+  let activeSemesterLabel = ACTIVE_MOCK_SEMESTER_LABEL;
+  let assignedAdvisorId: string | null = profile.id === MOCK_ADVISOR_PROFILE.id ? null : MOCK_ADVISOR_PROFILE.id;
+  const authoritativeCourseMap = new Map<
+    string,
+    { id: string; code: string; title: string; credits: number; category: string; is_active?: boolean }
+  >();
+
+  const isMockCoursePayload = courses.some((c) => c.courseId.startsWith("course-"));
+  if (!isMockCoursePayload || process.env.NODE_ENV === "production") {
+    try {
+      const supabase = await getSupabaseServerClient();
+      const { data: activeSem } = await supabase
+        .from("semesters")
+        .select("id, name, season, year")
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (activeSem) {
+        const s = activeSem as { id: string; name?: string | null; season: string; year: number };
+        activeSemesterId = s.id;
+        activeSemesterLabel = s.name || `${s.season.charAt(0).toUpperCase() + s.season.slice(1)} ${s.year}`;
+
+        const { data: asg } = await supabase
+          .from("advisor_assignments")
+          .select("advisor_id")
+          .eq("student_id", profile.id)
+          .eq("semester_id", s.id)
+          .eq("is_active", true)
+          .maybeSingle();
+
+        assignedAdvisorId = (asg as { advisor_id: string | null } | null)?.advisor_id ?? null;
+      }
+
+      const { data: dbCourses } = await supabase
+        .from("courses")
+        .select("id, code, title, credits, category, is_active")
+        .in(
+          "id",
+          courses.map((c) => c.courseId)
+        );
+
+      for (const row of (dbCourses || []) as {
+        id: string;
+        code: string;
+        title: string;
+        credits: number;
+        category?: string;
+        is_active?: boolean;
+      }[]) {
+        authoritativeCourseMap.set(row.id, {
+          id: row.id,
+          code: row.code,
+          title: row.title,
+          credits: row.credits,
+          category: row.category || "CORE",
+          is_active: row.is_active,
+        });
+      }
+    } catch {
+      // Dev/test fallback
+    }
+  }
+
   const studentBatch = normalizeBatch(profile.batch || "60");
+  const normalizedCourses = [];
   for (const c of courses) {
+    const authCourse = authoritativeCourseMap.get(c.courseId);
+    if (authCourse && authCourse.is_active === false) {
+      return {
+        success: false,
+        error: `Course ${authCourse.code} is currently inactive and cannot be registered.`,
+      };
+    }
+
     const isEligible = await isCourseEligibleForBatch(
-      MOCK_CURRENT_SEMESTER.id,
+      activeSemesterId,
       studentBatch,
       c.courseId
     );
     if (!isEligible) {
       return {
         success: false,
-        error: `Course eligibility error: ${c.courseCode} is not configured for Batch ${studentBatch} in ${ACTIVE_MOCK_SEMESTER_LABEL}.`,
+        error: `Course eligibility error: ${authCourse?.code || c.courseCode} is not configured for Batch ${studentBatch} in ${activeSemesterLabel}.`,
       };
     }
+
+    // Never trust browser-submitted course code, title, or credits when authoritative DB record exists
+    normalizedCourses.push({
+      ...c,
+      courseCode: authCourse?.code ?? c.courseCode,
+      courseTitle: authCourse?.title ?? c.courseTitle,
+      credits: authCourse?.credits ?? c.credits,
+      category: authCourse?.category ?? "CORE",
+    });
   }
 
   // 5. Payment status: manually marked by the student after completing payment
@@ -113,10 +250,10 @@ export async function submitStudentRegistration(
   const now = new Date();
   const submittedAt = now.toISOString();
 
-  // 7. Calculate metrics
-  const totalCredits = courses.reduce((sum, c) => sum + c.credits, 0);
-  const generalCourseCount = courses.filter((c) => c.courseType === "general").length;
-  const retakeCourseCount = courses.filter((c) => c.courseType === "retake").length;
+  // 7. Calculate authoritative credit metrics
+  const totalCredits = normalizedCourses.reduce((sum, c) => sum + c.credits, 0);
+  const generalCourseCount = normalizedCourses.filter((c) => c.courseType === "general").length;
+  const retakeCourseCount = normalizedCourses.filter((c) => c.courseType === "retake").length;
 
   // 8. Build application object
   const newApplication: StudentRegistrationApplication = {
@@ -239,16 +376,15 @@ export async function submitStudentRegistration(
     // Outside cookie context
   }
 
-  // 8. Attempt Supabase Cloud persistence
+  // 8. Attempt Supabase Cloud persistence (with historical snapshots on registration_items)
   try {
     const supabase = await getSupabaseServerClient();
-    // Upsert registration record
     const registrationRecord: Database["public"]["Tables"]["registrations"]["Insert"] = {
       student_id: profile.id,
-      semester_id: MOCK_CURRENT_SEMESTER.id,
+      semester_id: activeSemesterId,
       status: "pending_advisor",
       submitted_at: submittedAt,
-      advisor_id: profile.id === MOCK_ADVISOR_PROFILE.id ? null : MOCK_ADVISOR_PROFILE.id,
+      advisor_id: assignedAdvisorId,
       previous_section: previousSection,
       desired_section: desiredSection,
       payment_cleared: isPaymentCleared,
@@ -258,12 +394,52 @@ export async function submitStudentRegistration(
     if (registrationId && registrationId.length === 36) {
       registrationRecord.id = registrationId;
     }
-    const { error: upsertError } = await supabase.from("registrations").upsert(registrationRecord);
+    const { data: savedReg, error: upsertError } = await (
+      supabase.from("registrations") as unknown as {
+        upsert: (r: typeof registrationRecord, opts?: { onConflict?: string }) => {
+          select: () => { maybeSingle: () => Promise<{ data: { id: string } | null; error: { message: string } | null }> };
+        };
+      }
+    )
+      .upsert(registrationRecord)
+      .select()
+      .maybeSingle();
+
     if (upsertError && process.env.NODE_ENV === "production") {
       return {
         success: false,
         error: `Database error: Failed to record course registration (${upsertError.message}).`,
       };
+    }
+
+    if (savedReg?.id) {
+      const itemSnapshots: Database["public"]["Tables"]["registration_items"]["Insert"][] =
+        normalizedCourses.map((c) => ({
+          registration_id: savedReg.id,
+          section_id: c.sectionId && c.sectionId.length === 36 ? c.sectionId : null,
+          course_id: c.courseId && c.courseId.length === 36 ? c.courseId : null,
+          course_code_snapshot: c.courseCode,
+          course_title_snapshot: c.courseTitle,
+          credits_snapshot: c.credits,
+          category_snapshot: c.category,
+          classification: c.courseType,
+          course_type: c.courseType,
+          status: "enrolled",
+        }));
+
+      await supabase.from("registration_items").delete().eq("registration_id", savedReg.id);
+      const { error: itemsErr } = await (
+        supabase.from("registration_items") as unknown as {
+          insert: (rows: typeof itemSnapshots) => Promise<{ error: { message: string } | null }>;
+        }
+      ).insert(itemSnapshots);
+
+      if (itemsErr && process.env.NODE_ENV === "production") {
+        return {
+          success: false,
+          error: `Database error: Failed to persist registration items (${itemsErr.message}).`,
+        };
+      }
     }
   } catch (err: unknown) {
     if (process.env.NODE_ENV === "production") {

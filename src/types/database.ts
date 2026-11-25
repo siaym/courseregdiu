@@ -153,7 +153,17 @@ export interface Database {
           department_code: string;
           prerequisite_codes: string[];
           syllabus_url: string | null;
+          category?: string;
+          theory_credits?: number | null;
+          lab_credits?: number | null;
+          specialization_group?: string | null;
+          variant?: string | null;
+          description?: string | null;
+          is_active?: boolean;
+          created_by?: string | null;
+          updated_by?: string | null;
           created_at: string;
+          updated_at?: string;
         };
         Insert: {
           id?: string;
@@ -163,7 +173,17 @@ export interface Database {
           department_code: string;
           prerequisite_codes?: string[];
           syllabus_url?: string | null;
+          category?: string;
+          theory_credits?: number | null;
+          lab_credits?: number | null;
+          specialization_group?: string | null;
+          variant?: string | null;
+          description?: string | null;
+          is_active?: boolean;
+          created_by?: string | null;
+          updated_by?: string | null;
           created_at?: string;
+          updated_at?: string;
         };
         Update: {
           id?: string;
@@ -173,7 +193,17 @@ export interface Database {
           department_code?: string;
           prerequisite_codes?: string[];
           syllabus_url?: string | null;
+          category?: string;
+          theory_credits?: number | null;
+          lab_credits?: number | null;
+          specialization_group?: string | null;
+          variant?: string | null;
+          description?: string | null;
+          is_active?: boolean;
+          created_by?: string | null;
+          updated_by?: string | null;
           created_at?: string;
+          updated_at?: string;
         };
         Relationships: [];
       };
@@ -271,7 +301,13 @@ export interface Database {
         Row: {
           id: string;
           registration_id: string;
-          section_id: string;
+          section_id: string | null;
+          course_id?: string | null;
+          course_code_snapshot?: string | null;
+          course_title_snapshot?: string | null;
+          credits_snapshot?: number | null;
+          category_snapshot?: string | null;
+          classification?: "general" | "retake" | null;
           course_type: "general" | "retake";
           status: "enrolled" | "waitlisted" | "dropped";
           created_at: string;
@@ -279,7 +315,13 @@ export interface Database {
         Insert: {
           id?: string;
           registration_id: string;
-          section_id: string;
+          section_id?: string | null;
+          course_id?: string | null;
+          course_code_snapshot?: string | null;
+          course_title_snapshot?: string | null;
+          credits_snapshot?: number | null;
+          category_snapshot?: string | null;
+          classification?: "general" | "retake" | null;
           course_type?: "general" | "retake";
           status?: "enrolled" | "waitlisted" | "dropped";
           created_at?: string;
@@ -287,7 +329,13 @@ export interface Database {
         Update: {
           id?: string;
           registration_id?: string;
-          section_id?: string;
+          section_id?: string | null;
+          course_id?: string | null;
+          course_code_snapshot?: string | null;
+          course_title_snapshot?: string | null;
+          credits_snapshot?: number | null;
+          category_snapshot?: string | null;
+          classification?: "general" | "retake" | null;
           course_type?: "general" | "retake";
           status?: "enrolled" | "waitlisted" | "dropped";
           created_at?: string;
@@ -842,6 +890,108 @@ export interface Database {
           created_at?: string;
         };
         Update: Record<string, never>;
+        Relationships: [];
+      };
+      semester_courses: {
+        Row: {
+          id: string;
+          semester_id: string;
+          course_id: string;
+          is_active: boolean;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          semester_id: string;
+          course_id: string;
+          is_active?: boolean;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          semester_id?: string;
+          course_id?: string;
+          is_active?: boolean;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      specialization_offerings: {
+        Row: {
+          id: string;
+          semester_id: string;
+          batch: string;
+          specialization_group: string;
+          required_courses: number | null;
+          required_credits: number | null;
+          is_active: boolean;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          semester_id: string;
+          batch: string;
+          specialization_group: string;
+          required_courses?: number | null;
+          required_credits?: number | null;
+          is_active?: boolean;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          semester_id?: string;
+          batch?: string;
+          specialization_group?: string;
+          required_courses?: number | null;
+          required_credits?: number | null;
+          is_active?: boolean;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      course_import_history: {
+        Row: {
+          id: string;
+          file_name: string;
+          source_worksheet: string | null;
+          imported_by: string | null;
+          imported_count: number;
+          failed_count: number;
+          status: "completed" | "failed" | "partial";
+          summary: Json;
+          error_summary: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          file_name: string;
+          source_worksheet?: string | null;
+          imported_by?: string | null;
+          imported_count?: number;
+          failed_count?: number;
+          status?: "completed" | "failed" | "partial";
+          summary?: Json;
+          error_summary?: Json;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          file_name?: string;
+          source_worksheet?: string | null;
+          imported_by?: string | null;
+          imported_count?: number;
+          failed_count?: number;
+          status?: "completed" | "failed" | "partial";
+          summary?: Json;
+          error_summary?: Json;
+          created_at?: string;
+        };
         Relationships: [];
       };
     };

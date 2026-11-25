@@ -94,16 +94,18 @@ export async function getBatchSemesterCourses(
           course_id: string;
           created_at: string;
           created_by: string | null;
-          courses: ExtendedCourse | null;
-        }>).map((row) => ({
-          id: row.id,
-          semesterId: row.semester_id,
-          batch: row.batch,
-          courseId: row.course_id,
-          course: row.courses || MOCK_COURSES.find((c) => c.id === row.course_id) || MOCK_COURSES[0],
-          createdAt: row.created_at,
-          createdBy: row.created_by,
-        }));
+          courses: (ExtendedCourse & { is_active?: boolean }) | null;
+        }>)
+          .filter((row) => row.courses && row.courses.is_active !== false)
+          .map((row) => ({
+            id: row.id,
+            semesterId: row.semester_id,
+            batch: row.batch,
+            courseId: row.course_id,
+            course: row.courses || MOCK_COURSES.find((c) => c.id === row.course_id) || MOCK_COURSES[0],
+            createdAt: row.created_at,
+            createdBy: row.created_by,
+          }));
       }
     } catch {
       // Fallback to in-memory store

@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "npx tsx --test tests/email-auth-and-admin-toggle.test.mjs tests/production-security-audit.test.mjs tests/security-verification.test.mjs tests/auth-policy-verification.test.mjs tests/concurrency-and-privacy.test.mjs tests/advisor-queue-verification.test.mjs tests/batch-course-and-payment.test.mjs tests/admin-panel-and-importer.test.mjs"
+    "test": "npx tsx --test tests/email-auth-and-admin-toggle.test.mjs tests/production-security-audit.test.mjs tests/security-verification.test.mjs tests/auth-policy-verification.test.mjs tests/concurrency-and-privacy.test.mjs tests/advisor-queue-verification.test.mjs tests/batch-course-and-payment.test.mjs tests/admin-panel-and-importer.test.mjs tests/cse-curriculum-catalog.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^7.0.7",
