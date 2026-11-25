@@ -69,7 +69,24 @@ export default async function DashboardPage() {
         registrationStatus = (regRes.data as { status: RegistrationStatus }).status;
       }
 
-      const asg = asgRes.data as { advisor_id: string | null; advisor_profile_id: string | null } | null;
+      let asg = asgRes.data as { advisor_id: string | null; advisor_profile_id: string | null } | null;
+      if (!asg && profile.diu_id) {
+        try {
+          const { data: matchedAdvProfileId } = await (
+            supabase.rpc as unknown as (
+              fn: string,
+              args: Record<string, unknown>
+            ) => Promise<{ data: string | null }>
+          )("resolve_student_advisor_from_rules", { p_semester_id: sem.id });
+
+          if (matchedAdvProfileId) {
+            asg = { advisor_id: null, advisor_profile_id: matchedAdvProfileId };
+          }
+        } catch {
+          // Ignore if RPC is not yet deployed
+        }
+      }
+
       if (asg?.advisor_profile_id) {
         const { data: advProf } = await supabase
           .from("advisor_profiles")

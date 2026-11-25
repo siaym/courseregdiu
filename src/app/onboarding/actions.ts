@@ -176,6 +176,18 @@ export async function submitStudentOnboarding(
         }
         throw new Error(writeError.message);
       }
+
+      // Automatically match student's DIU ID / batch against active advisor assignment rules
+      try {
+        await (
+          supabase.rpc as unknown as (
+            fn: string,
+            args: Record<string, unknown>
+          ) => Promise<unknown>
+        )("resolve_student_advisor_from_rules", { p_semester_id: null });
+      } catch {
+        // Non-blocking: advisor can also be resolved on dashboard load or assigned by admin
+      }
     }
   } catch (err: unknown) {
     if (process.env.NODE_ENV === "production" || isSupabaseConfigured()) {
